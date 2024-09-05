@@ -1,111 +1,106 @@
-# Example Convex Component: Rate Limiter
+# Convex Component: Aggregate
 
-This is a Convex component, ready to be published on npm.
+This component annotates a Convex table with counts and sums.
 
-To create your own component:
+Imagine you have a "grades" table with documents containing fields
+`{student: string; class: string; score: number}`.
+You can apply the `aggregate` component to the table with key `[class, score]`
+and summand `score`. Think of it as sorting the table by `[class, score]` and
+giving counts and sums of scores on contiguous ranges.
 
-- change the "name" field in package.json
-- modify src/component/convex.config.ts to use your component name
+That gives you an aggregation interface, with most operations taking
+`O(log(n))` time. All of the following operations become easy and efficient:
 
-To develop your component run a dev process in the example project.
+1. Count the total number of grades in the table.
+2. Count the total number of grades in each class.
+3. Count the number of grades in each class with `95 < score < 100`.
+4. Find the grade with the p95 score in each class.
+5. Calculate the mean score in each class.
+6. For each student, find their class ranking.
 
-```
-cd example
-npm i
-npx convex dev
-```
+Other use-cases:
 
-Modify the schema and index files in src/component/ to define your component.
+- Keep a leaderboard of high scores and show an individual user their rank.
+- For pagination with fixed-size pages, display the number of pages, and jump
+  to any page.
 
-Optionally write a client forusing this component in src/client/index.ts.
+# How to use
 
-If you won't be adding frontend code (e.g. React components) to this
-component you can delete the following:
+See `example/` for a working demo.
 
-- "prepack" and "postpack" scripts of package.json
-- "./frontend" exports in package.json
-- the "src/frontend/" directory
-- the "node10stubs.mjs" file
+First set up the Triggers component, because the Aggregate component will use
+triggers to detect changes to the table.
 
-### Component Directory structure
+TODO: link to triggers component setup.
 
-```
-.
-├── README.md           documentation of your component
-├── package.json        component name, version number, other metadata
-├── package-lock.json   Components are like libraries, package-lock.json
-│                       is .gitignored and ignored by consumers.
-├── src
-│   ├── component/
-│   │   ├── _generated/ Files here are generated.
-│   │   ├── convex.config.ts  Name your component here and use other components
-│   │   ├── index.ts    Define functions here and in new files in this directory
-│   │   └── schema.ts   schema specific to this component
-│   ├── client.ts       "Fat" client code goes here.
-│   └── frontend/       Code intended to be used on the frontend goes here.
-│       │               Your are free to delete this if this component
-│       │               does not provide code.
-│       └── index.ts
-├── example/            example Convex app that uses this component
-│   │                   Run 'npx convex dev' from here during development.
-│   ├── package.json.ts Thick client code goes here.
-│   └── convex/
-│       ├── _generated/
-│       ├── convex.config.ts  Imports and uses this component
-│       ├── myFunctions.ts    Functions that use the component
-│       ├── schema.ts         Example app schema
-│       └── tsconfig.json
-│  
-├── dist/               Publishing artifacts will be created here.
-├── commonjs.json       Used during build by TypeScript.
-├── esm.json            Used during build by TypeScript.
-├── node10stubs.mjs     Script used during build for compatibility
-│                       with the Metro bundler used with React Native.
-├── eslint.config.mjs   Recommended lints for writing a component.
-│                       Feel free to customize it.
-└── tsconfig.json       Recommended tsconfig.json for writing a component.
-                        Some settings can be customized, some are required.
-```
-
-### Structure of a Convex Component
-
-A Convex components exposes the entry point convex.config.js. The on-disk
-location of this file must be a directory containing implementation files. These
-files should be compiled to ESM.
-The package.json should contain `"type": "module"` and the tsconfig.json should
-contain `"moduleResolution": "Bundler"` or `"Node16"` in order to import other
-component definitions.
-
-In addition to convex.config.js, a component typically exposes a client that
-wraps communication with the component for use in the Convex
-environment is typically exposed as a named export `MyComponentClient` or
-`MyComponent` imported from the root package.
+1. Install the Aggregate component:
 
 ```
-import { MyComponentClient } from "my-convex-component";
+npm install @convex-dev/aggregate
 ```
 
-When frontend code is included it is typically published at a subpath:
+2. Use it in your app:
 
+```ts
+// convex/convex.config.ts
+import { defineApp } from "convex/server";
+import aggregate from "../../src/component/convex.config";
+import triggers from "convex-dev-triggers/convex.config.js";
+
+const app = defineApp();
+app.use(aggregate);
+app.use(triggers);
+export default app;
 ```
-import { helper } from "my-convex-component/frontend";
-import { FrontendReactComponent } from "my-convex-component/react";
+
+3. Register the trigger to update aggregates when the table is updated.
+
+```ts
+const withAllTriggers: WithTriggers<DataModel> = withTriggers<DataModel>(components.triggers, {
+  leaderboard: {
+    atomicMutators: internal.leaderboard,
+    triggers: [
+      components.aggregate.btree.trigger as FunctionReference<"mutation", FunctionVisibility, TriggerArgs<DataModel, "leaderboard">, null>,
+    ],
+  },
+});
 ```
 
-Frontend code should be compiled as CommonJS code as well as ESM and make use of
-subpackage stubs (see next section).
+4. Define the key and initialize the aggregates. This is where you define the
+   sort order and values to be summed.
 
-If you do include frontend components, prefer peer dependencies to avoid using
-more than one version of e.g. React.
+```ts
+import { initBTree } from "@convex-dev/aggregate";
+export const getKey = internalQuery({
+  args: { doc: v.any() as Validator<Doc<"leaderboard">> },
+  returns: v.object({ key: v.number(), summand: v.optional(v.number()) }),
+  handler: async (_ctx, { doc }) => {
+    return { key: doc.score };
+  }
+});
+export const initAggregates = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await initBTree(ctx, components.aggregateByScore, internal.leaderboard.getByScore);
+  },
+});
+```
 
-### Support for Node10 module resolution
+5. Start using the interface.
 
-The [Metro](https://reactnative.dev/docs/metro) bundler for React Native
-requires setting
-[`resolver.unstable_enablePackageExports`](https://metrobundler.dev/docs/package-exports/)
-in order to import code that lives in `dist/esm/frontend.js` from a path like
-`my-convex-component/frontend`.
+```ts
+import { BTree } from "@convex-dev/aggregate";
+function aggregate(ctx: QueryCtx) {
+  return new BTree<DataModel, "leaderboard", number>(
+    ctx,
+    components.aggregate
+  );
+}
+```
 
-Authors of Convex component that provide frontend components are encouraged to
-support these legacy "Node10-style" module resolution algorithms by generating
-stub directories with special pre- and post-pack scripts.
+Then in your queries and mutations you can do
+
+```ts
+const tableCount = await aggregate(ctx).count();
+const p95Document = await aggregate(ctx).at(Math.floor(tableCount * 0.95));
+```
