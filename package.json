@@ -26,29 +26,27 @@
   },
   "files": [
     "dist",
-    "src",
-    "frontend"
+    "src"
   ],
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "import": {
+        "@convex-dev/component-source": "./src/client/index.ts",
         "types": "./dist/esm/client/index.d.ts",
         "default": "./dist/esm/client/index.js"
       },
       "require": {
+        "@convex-dev/component-source": "./src/client/index.ts",
         "types": "./dist/commonjs/client/index.d.ts",
         "default": "./dist/commonjs/client/index.js"
       }
     },
     "./convex.config.js": {
       "import": {
+        "@convex-dev/component-source": "./src/component/convex.config.ts",
         "types": "./dist/esm/component/convex.config.d.ts",
         "default": "./dist/esm/component/convex.config.js"
-      },
-      "require": {
-        "types": "./dist/commonjs/component/convex.config.d.ts",
-        "default": "./dist/commonjs/component/convex.config.js"
       }
     }
   },
