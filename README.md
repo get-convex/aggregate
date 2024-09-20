@@ -1,37 +1,43 @@
 # Convex Component: Aggregate
 
-This component annotates a Convex table with counts and sums.
+[![npm version](https://badge.fury.io/js/@convex-dev%2Faggregate.svg)](https://badge.fury.io/js/@convex-dev%2Faggregate)
 
-Imagine you have a "grades" table with documents containing fields
-`{student: string; class: string; score: number}`.
-You can apply the `aggregate` component to the table with key `[class, score]`
-and summand `score`. Think of it as sorting the table by `[class, score]` and
-giving counts and sums of scores on contiguous ranges.
+This Convex component calculates count and sums of values for efficient
+aggregation.
 
-That gives you an aggregation interface, with most operations taking
-`O(log(n))` time. All of the following operations become easy and efficient:
+Suppose you have a leaderboard of game scores. These are some operations
+that the Aggregate component makes easy and efficient, with `O(log(n))` time
+lookups:
 
-1. Count the total number of grades in the table.
-2. Count the total number of grades in each class.
-3. Count the number of grades in each class with `95 < score < 100`.
-4. Find the grade with the p95 score in each class.
-5. Calculate the mean score in each class.
-6. For each student, find their class ranking.
+1. Count the total number of scores: `aggregate.count(ctx)`
+2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
+3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
+4. Find the average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
+5. Find the ranking for a score of 64 in the leaderboard: `aggregate.rankOf(ctx, 65)`
+6. Find the average score for a user:
 
-Other use-cases:
+```ts
+const bounds = { lower: { key: username, inclusive: true }, upper: { key: username, inclusive: true } };
+const avgScoreForUser = aggregateByUser.sum(ctx, bounds) / aggregateByUser.count(ctx, bounds);
+```
 
-- Keep a leaderboard of high scores and show an individual user their rank.
-- For pagination with fixed-size pages, display the number of pages, and jump
-  to any page.
+# What are Aggregates for?
 
-# How to use
+With plain Convex indexes, you can insert new documents and you can paginate
+through all documents. But you don't want to lose sight of the forest for the
+trees. Sometimes you want big-picture data that encompases many of your
+individual data points, and that's where aggregates come in.
+
+In addition to the leaderboard example above, here are more examples:
+
+- In a messaging app, how many messages have been sent within the past month?
+- Offset-based pagination: view the 100th page of photos, where each page has
+  50 photos.
+- Look up a random song in a table, as the next song to play.
+
+# How to install
 
 See `example/` for a working demo.
-
-First set up the Triggers component, because the Aggregate component will use
-triggers to detect changes to the table.
-
-TODO: link to triggers component setup.
 
 1. Install the Aggregate component:
 
@@ -39,68 +45,130 @@ TODO: link to triggers component setup.
 npm install @convex-dev/aggregate
 ```
 
-2. Use it in your app:
+2. Create a `convex.config.ts` file in your app's `convex/` folder and install the component by calling `use`:
 
 ```ts
 // convex/convex.config.ts
 import { defineApp } from "convex/server";
-import aggregate from "../../src/component/convex.config";
-import triggers from "convex-dev-triggers/convex.config.js";
+import aggregate from "@convex-dev/aggregate/convex.config.js";
 
 const app = defineApp();
 app.use(aggregate);
-app.use(triggers);
 export default app;
 ```
 
-3. Register the trigger to update aggregates when the table is updated.
+3. Initialize the data structure so you can start writing to it.
 
-```ts
-const withAllTriggers: WithTriggers<DataModel> = withTriggers<DataModel>(components.triggers, {
-  leaderboard: {
-    atomicMutators: internal.leaderboard,
-    triggers: [
-      components.aggregate.btree.trigger as FunctionReference<"mutation", FunctionVisibility, TriggerArgs<DataModel, "leaderboard">, null>,
-    ],
-  },
-});
+```bash
+npx convex run --component aggregate btree:init
+# If there will be frequent writes, reduce contention by calculating top-level
+# aggregates lazily.
+npx convex run --component aggregate btree:makeRootLazy
 ```
 
-4. Define the key and initialize the aggregates. This is where you define the
-   sort order and values to be summed.
+4. Write to the aggregate data structure.
 
 ```ts
-import { initBTree } from "@convex-dev/aggregate";
-export const getKey = internalQuery({
-  args: { doc: v.any() as Validator<Doc<"leaderboard">> },
-  returns: v.object({ key: v.number(), summand: v.optional(v.number()) }),
-  handler: async (_ctx, { doc }) => {
-    return { key: doc.score };
-  }
-});
-export const initAggregates = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    await initBTree(ctx, components.aggregateByScore, internal.leaderboard.getByScore);
-  },
-});
+import { components } from "./_generated/api";
+import { AggregateWriter } from "@convex-dev/aggregate";
+const aggregateWriter = new AggregateWriter<number, Id<"mytable">>(components.aggregate);
+
+// within a mutation, add values to be aggregated
+await aggregateWriter.insert(ctx, key, id);
+// or delete values that were previously added
+await aggregateWriter.delete(ctx, key, id);
+// or update values
+await aggregateWriter.replace(ctx, oldKey, newKey, id);
 ```
 
-5. Start using the interface.
+> If you want to automatically update the aggregates based on changes to a table,
+> [you can use](https://stack.convex.dev/custom-functions)
+> `customFunction`s to wrap `ctx.db` in mutations. We intend to make this flow
+> simpler; reach out in [Discord](https://convex.dev/community) to let us know if
+> you're interested.
+
+5. Start calculating aggregates.
 
 ```ts
-import { BTree } from "@convex-dev/aggregate";
-function aggregate(ctx: QueryCtx) {
-  return new BTree<DataModel, "leaderboard", number>(
-    ctx,
-    components.aggregate
-  );
-}
+// convex/myfunctions.ts
+import { components } from "./_generated/api";
+import { Aggregate } from "@convex-dev/aggregate";
+const aggregate = new Aggregate<number, Id<"mytable">>(components.aggregate);
+
+// then in your queries and mutations you can do
+const tableCount = await aggregate.count(ctx);
+// or any of the other examples listed above.
 ```
 
-Then in your queries and mutations you can do
+# 🧑‍🏫 What is Convex?
 
-```ts
-const tableCount = await aggregate(ctx).count();
-const p95Document = await aggregate(ctx).at(Math.floor(tableCount * 0.95));
-```
+[Convex](https://convex.dev) is a hosted backend platform with a
+built-in database that lets you write your
+[database schema](https://docs.convex.dev/database/schemas) and
+[server functions](https://docs.convex.dev/functions) in
+[TypeScript](https://docs.convex.dev/typescript). Server-side database
+[queries](https://docs.convex.dev/functions/query-functions) automatically
+[cache](https://docs.convex.dev/functions/query-functions#caching--reactivity) and
+[subscribe](https://docs.convex.dev/client/react#reactivity) to data, powering a
+[realtime `useQuery` hook](https://docs.convex.dev/client/react#fetching-data) in our
+[React client](https://docs.convex.dev/client/react). There are also clients for
+[Python](https://docs.convex.dev/client/python),
+[Rust](https://docs.convex.dev/client/rust),
+[ReactNative](https://docs.convex.dev/client/react-native), and
+[Node](https://docs.convex.dev/client/javascript), as well as a straightforward
+[HTTP API](https://docs.convex.dev/http-api/).
+
+The database supports
+[NoSQL-style documents](https://docs.convex.dev/database/document-storage) with
+[opt-in schema validation](https://docs.convex.dev/database/schemas),
+[relationships](https://docs.convex.dev/database/document-ids) and
+[custom indexes](https://docs.convex.dev/database/indexes/)
+(including on fields in nested objects).
+
+The
+[`query`](https://docs.convex.dev/functions/query-functions) and
+[`mutation`](https://docs.convex.dev/functions/mutation-functions) server functions have transactional,
+low latency access to the database and leverage our
+[`v8` runtime](https://docs.convex.dev/functions/runtimes) with
+[determinism guardrails](https://docs.convex.dev/functions/runtimes#using-randomness-and-time-in-queries-and-mutations)
+to provide the strongest ACID guarantees on the market:
+immediate consistency,
+serializable isolation, and
+automatic conflict resolution via
+[optimistic multi-version concurrency control](https://docs.convex.dev/database/advanced/occ) (OCC / MVCC).
+
+The [`action` server functions](https://docs.convex.dev/functions/actions) have
+access to external APIs and enable other side-effects and non-determinism in
+either our
+[optimized `v8` runtime](https://docs.convex.dev/functions/runtimes) or a more
+[flexible `node` runtime](https://docs.convex.dev/functions/runtimes#nodejs-runtime).
+
+Functions can run in the background via
+[scheduling](https://docs.convex.dev/scheduling/scheduled-functions) and
+[cron jobs](https://docs.convex.dev/scheduling/cron-jobs).
+
+Development is cloud-first, with
+[hot reloads for server function](https://docs.convex.dev/cli#run-the-convex-dev-server) editing via the
+[CLI](https://docs.convex.dev/cli),
+[preview deployments](https://docs.convex.dev/production/hosting/preview-deployments),
+[logging and exception reporting integrations](https://docs.convex.dev/production/integrations/),
+There is a
+[dashboard UI](https://docs.convex.dev/dashboard) to
+[browse and edit data](https://docs.convex.dev/dashboard/deployments/data),
+[edit environment variables](https://docs.convex.dev/production/environment-variables),
+[view logs](https://docs.convex.dev/dashboard/deployments/logs),
+[run server functions](https://docs.convex.dev/dashboard/deployments/functions), and more.
+
+There are built-in features for
+[reactive pagination](https://docs.convex.dev/database/pagination),
+[file storage](https://docs.convex.dev/file-storage),
+[reactive text search](https://docs.convex.dev/text-search),
+[vector search](https://docs.convex.dev/vector-search),
+[https endpoints](https://docs.convex.dev/functions/http-actions) (for webhooks),
+[snapshot import/export](https://docs.convex.dev/database/import-export/),
+[streaming import/export](https://docs.convex.dev/production/integrations/streaming-import-export), and
+[runtime validation](https://docs.convex.dev/database/schemas#validators) for
+[function arguments](https://docs.convex.dev/functions/args-validation) and
+[database data](https://docs.convex.dev/database/schemas#schema-validation).
+
+Everything scales automatically, and it’s [free to start](https://www.convex.dev/plans).

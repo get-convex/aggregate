@@ -811,14 +811,14 @@ export async function getOrCreateTree(
 }
 
 export const init = mutation({
-  args: { maxNodeSize: v.number() },
+  args: { maxNodeSize: v.optional(v.number()) },
   returns: v.null(),
   handler: async (ctx, { maxNodeSize }) => {
     const existing = await getTree(ctx.db);
     if (existing) {
       throw new Error("tree already initialized");
     }
-    await getOrCreateTree(ctx.db, maxNodeSize);
+    await getOrCreateTree(ctx.db, maxNodeSize ?? 16);
   },
 });
 

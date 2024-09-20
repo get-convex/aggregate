@@ -47,7 +47,7 @@ export class AggregateWriter<
   /**
    * Initialize a new Aggregates data structure. This should be called once.
    */
-  async init(ctx: RunMutationCtx, maxNodeSize: number = 4): Promise<void> {
+  async init(ctx: RunMutationCtx, maxNodeSize: number = 16): Promise<void> {
     await ctx.runMutation(this.component.btree.init, {
       maxNodeSize,
     });

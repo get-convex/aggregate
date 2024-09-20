@@ -96,7 +96,7 @@ export declare const components: {
       init: FunctionReference<
         "mutation",
         "internal",
-        { maxNodeSize: number },
+        { maxNodeSize?: number },
         null
       >;
       insert: FunctionReference<
@@ -124,40 +124,6 @@ export declare const components: {
       sumHandler: FunctionReference<"query", "internal", {}, number>;
       validate: FunctionReference<"query", "internal", {}, any>;
       validateTree: FunctionReference<"query", "internal", {}, any>;
-    };
-    index: {
-      checkRateLimit: FunctionReference<
-        "query",
-        "internal",
-        {
-          count?: number;
-          key?: string;
-          name: string;
-          name2: string;
-          reserve?: boolean;
-          throws?: boolean;
-        },
-        { ok: boolean; retryAt?: number; ts?: number; value?: number }
-      >;
-      rateLimit: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          count?: number;
-          key?: string;
-          name: string;
-          name2: string;
-          reserve?: boolean;
-          throws?: boolean;
-        },
-        { ok: boolean; retryAt?: number }
-      >;
-      resetRateLimit: FunctionReference<
-        "mutation",
-        "internal",
-        { key?: string; name: string },
-        any
-      >;
     };
     inspect: {
       display: FunctionReference<"query", "internal", {}, any>;
@@ -226,7 +192,7 @@ export declare const components: {
       init: FunctionReference<
         "mutation",
         "internal",
-        { maxNodeSize: number },
+        { maxNodeSize?: number },
         null
       >;
       insert: FunctionReference<
@@ -254,40 +220,6 @@ export declare const components: {
       sumHandler: FunctionReference<"query", "internal", {}, number>;
       validate: FunctionReference<"query", "internal", {}, any>;
       validateTree: FunctionReference<"query", "internal", {}, any>;
-    };
-    index: {
-      checkRateLimit: FunctionReference<
-        "query",
-        "internal",
-        {
-          count?: number;
-          key?: string;
-          name: string;
-          name2: string;
-          reserve?: boolean;
-          throws?: boolean;
-        },
-        { ok: boolean; retryAt?: number; ts?: number; value?: number }
-      >;
-      rateLimit: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          count?: number;
-          key?: string;
-          name: string;
-          name2: string;
-          reserve?: boolean;
-          throws?: boolean;
-        },
-        { ok: boolean; retryAt?: number }
-      >;
-      resetRateLimit: FunctionReference<
-        "mutation",
-        "internal",
-        { key?: string; name: string },
-        any
-      >;
     };
     inspect: {
       display: FunctionReference<"query", "internal", {}, any>;
