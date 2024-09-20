@@ -16,6 +16,12 @@ export type Item = {
   s: number;
 };
 
+export const itemValidator = v.object({
+  k: v.any(),
+  v: v.any(),
+  s: v.number(),
+});
+
 export const aggregate = v.object({
   count: v.number(),
   sum: v.number(),
@@ -27,8 +33,6 @@ export default defineSchema({
   // Singleton.
   btree: defineTable({
     root: v.id("btreeNode"),
-    // function getKey({doc: DocumentByName<DataModel, T>}): { key: K; summand: number }
-    getKey: v.string(),
     maxNodeSize: v.number(),
   }),
   btreeNode: defineTable({

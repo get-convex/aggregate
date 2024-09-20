@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import schema from "./schema";
-import { modules } from "./setup.test";
+import schema from "./schema.js";
+import { modules } from "./setup.test.js";
 import {
   atIndexHandler,
   aggregateBetweenHandler,
@@ -11,12 +11,14 @@ import {
   rankHandler,
   sumHandler,
   validateTree,
+  getOrCreateTree,
 } from "./btree.js";
 
 describe("btree", () => {
   test("insert", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, 4);
       // Insert lots of keys. At each stage, the tree is valid.
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
@@ -46,6 +48,7 @@ describe("btree", () => {
   test("delete", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, 4);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -90,6 +93,7 @@ describe("btree", () => {
   test("atIndex and rank", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, 4);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -131,6 +135,7 @@ describe("btree", () => {
   test("countBetween", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, 4);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -164,33 +169,10 @@ describe("btree", () => {
     });
   });
 
-  test("delete nonexistent key no-ops", async () => {
-    const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      async function insert(key: number, value: string) {
-        await deleteHandler(ctx, { key });
-        await validateTree(ctx);
-        await insertHandler(ctx, { key, value });
-        await validateTree(ctx);
-        const get = await getHandler(ctx, { key });
-        expect(get).toEqual({
-          k: key,
-          v: value,
-          s: 0,
-        });
-      }
-      await insert(62, "a");
-      await insert(45, "b");
-      await insert(61, "c");
-      await insert(46, "d");
-      await insert(5, "e");
-      await insert(67, "e");
-    });
-  });
-
   test("sums", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, 4);
       async function insert(key: number, value: string, summand: number) {
         const sumBefore = await sumHandler(ctx);
         await insertHandler(ctx, { key, value, summand });

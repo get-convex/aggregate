@@ -32,7 +32,7 @@ declare const fullApi: ApiFromModules<{
   compare: typeof compare;
   inspect: typeof inspect;
 }>;
-declare const fullApiWithMounts: typeof fullApi & {
+export type Mounts = {
   btree: {
     aggregateBetween: FunctionReference<
       "query",
@@ -46,42 +46,64 @@ declare const fullApiWithMounts: typeof fullApi & {
       { k1?: any; k2?: any },
       { count: number; sum: number }
     >;
-    atIndex: FunctionReference<"query", "public", { index: number }, any>;
+    atIndex: FunctionReference<
+      "query",
+      "public",
+      { index: number },
+      { k: any; s: number; v: any }
+    >;
     atIndexHandler: FunctionReference<
       "query",
       "public",
       { index: number },
-      any
+      { k: any; s: number; v: any }
     >;
-    clearTree: FunctionReference<"mutation", "public", {}, any>;
+    clearTree: FunctionReference<"mutation", "public", {}, null>;
     count: FunctionReference<"query", "public", {}, any>;
     countHandler: FunctionReference<"query", "public", {}, any>;
-    get: FunctionReference<"query", "public", { key: any }, any>;
-    getHandler: FunctionReference<"query", "public", { key: any }, any>;
+    deleteHandler: FunctionReference<"mutation", "public", { key: any }, null>;
+    delete_: FunctionReference<"mutation", "public", { key: any }, null>;
+    get: FunctionReference<
+      "query",
+      "public",
+      { key: any },
+      null | { k: any; s: number; v: any }
+    >;
+    getHandler: FunctionReference<
+      "query",
+      "public",
+      { key: any },
+      null | { k: any; s: number; v: any }
+    >;
     init: FunctionReference<
       "mutation",
       "public",
-      { getKey: string; maxNodeSize: number },
-      any
-    >;
-    makeRootLazy: FunctionReference<"mutation", "public", {}, any>;
-    rank: FunctionReference<"query", "public", { key: any }, any>;
-    rankHandler: FunctionReference<"query", "public", { key: any }, any>;
-    sum: FunctionReference<"query", "public", {}, any>;
-    sumHandler: FunctionReference<"query", "public", {}, any>;
-    trigger: FunctionReference<
-      "mutation",
-      "public",
-      {
-        change: {
-          id: string;
-          newDoc: any;
-          oldDoc: any;
-          type: "insert" | "patch" | "replace" | "delete";
-        };
-      },
+      { maxNodeSize: number },
       null
     >;
+    insert: FunctionReference<
+      "mutation",
+      "public",
+      { key: any; summand?: number; value: any },
+      null
+    >;
+    insertHandler: FunctionReference<
+      "mutation",
+      "public",
+      { key: any; summand?: number; value: any },
+      null
+    >;
+    makeRootLazy: FunctionReference<"mutation", "public", {}, null>;
+    rank: FunctionReference<"query", "public", { key: any }, number>;
+    rankHandler: FunctionReference<"query", "public", { key: any }, number>;
+    replace: FunctionReference<
+      "mutation",
+      "public",
+      { currentKey: any; newKey: any; summand?: number; value: any },
+      null
+    >;
+    sum: FunctionReference<"query", "public", {}, number>;
+    sumHandler: FunctionReference<"query", "public", {}, number>;
     validate: FunctionReference<"query", "public", {}, any>;
     validateTree: FunctionReference<"query", "public", {}, any>;
   };
@@ -91,6 +113,10 @@ declare const fullApiWithMounts: typeof fullApi & {
     inspectNode: FunctionReference<"query", "public", { node?: string }, null>;
   };
 };
+// For now fullApiWithMounts is only fullApi which provides
+// jump-to-definition in component client code.
+// Use Mounts for the same type without the inference.
+declare const fullApiWithMounts: typeof fullApi;
 
 export declare const api: FilterApi<
   typeof fullApiWithMounts,
@@ -100,5 +126,7 @@ export declare const internal: FilterApi<
   typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {};
 
 /* prettier-ignore-end */

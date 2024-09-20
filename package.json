@@ -1,6 +1,6 @@
 {
   "name": "@convex-dev/aggregate",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs",
@@ -10,7 +10,9 @@
     "prepare": "npm run build",
     "prepack": "node node10stubs.mjs",
     "postpack": "node node10stubs.mjs --cleanup",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:debug": "vitest --inspect-brk --no-file-parallelism",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text"
   },
   "files": [
     "dist",
@@ -21,12 +23,12 @@
     "./package.json": "./package.json",
     ".": {
       "import": {
-        "types": "./dist/esm/client.d.ts",
-        "default": "./dist/esm/client.js"
+        "types": "./dist/esm/client/index.d.ts",
+        "default": "./dist/esm/client/index.js"
       },
       "require": {
-        "types": "./dist/commonjs/client.d.ts",
-        "default": "./dist/commonjs/client.js"
+        "types": "./dist/commonjs/client/index.d.ts",
+        "default": "./dist/commonjs/client/index.js"
       }
     },
     "./convex.config.js": {
@@ -41,18 +43,19 @@
     }
   },
   "dependencies": {
-    "@convex-dev/triggers": "file:../triggers/convex-dev-triggers-0.0.0.tgz",
-    "convex": "1.15.1-alpha.2",
-    "convex-dev-triggers": "file:../triggers/convex-dev-triggers-0.0.0.tgz"
+    "convex": "^1.16.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@types/node": "^18.17.0",
+    "@vitest/coverage-v8": "^2.1.1",
+    "convex-test": "^0.0.29",
     "eslint": "^9.9.1",
     "globals": "^15.9.0",
     "prettier": "3.2.5",
     "typescript": "~5.0.3",
-    "typescript-eslint": "^8.4.0"
+    "typescript-eslint": "^8.4.0",
+    "vitest": "^2.1.1"
   },
   "main": "./dist/commonjs/client/index.js",
   "types": "./dist/commonjs/client/index.d.ts",

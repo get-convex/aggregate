@@ -11,7 +11,6 @@
  */
 
 import type * as leaderboard from "../leaderboard.js";
-import type * as scores from "../scores.js";
 
 import type {
   ApiFromModules,
@@ -28,7 +27,6 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
-  scores: typeof scores;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
@@ -40,5 +38,268 @@ export declare const internal: FilterApi<
   typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {
+  aggregateByScore: {
+    btree: {
+      aggregateBetween: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      aggregateBetweenHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      atIndex: FunctionReference<
+        "query",
+        "internal",
+        { index: number },
+        { k: any; s: number; v: any }
+      >;
+      atIndexHandler: FunctionReference<
+        "query",
+        "internal",
+        { index: number },
+        { k: any; s: number; v: any }
+      >;
+      clearTree: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number },
+        null
+      >;
+      count: FunctionReference<"query", "internal", {}, any>;
+      countHandler: FunctionReference<"query", "internal", {}, any>;
+      deleteHandler: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        null
+      >;
+      delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      getHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      init: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize: number },
+        null
+      >;
+      insert: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; summand?: number; value: any },
+        null
+      >;
+      insertHandler: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; summand?: number; value: any },
+        null
+      >;
+      makeRootLazy: FunctionReference<"mutation", "internal", {}, null>;
+      rank: FunctionReference<"query", "internal", { key: any }, number>;
+      rankHandler: FunctionReference<"query", "internal", { key: any }, number>;
+      replace: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        null
+      >;
+      sum: FunctionReference<"query", "internal", {}, number>;
+      sumHandler: FunctionReference<"query", "internal", {}, number>;
+      validate: FunctionReference<"query", "internal", {}, any>;
+      validateTree: FunctionReference<"query", "internal", {}, any>;
+    };
+    index: {
+      checkRateLimit: FunctionReference<
+        "query",
+        "internal",
+        {
+          count?: number;
+          key?: string;
+          name: string;
+          name2: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: boolean; retryAt?: number; ts?: number; value?: number }
+      >;
+      rateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          count?: number;
+          key?: string;
+          name: string;
+          name2: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: boolean; retryAt?: number }
+      >;
+      resetRateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        { key?: string; name: string },
+        any
+      >;
+    };
+    inspect: {
+      display: FunctionReference<"query", "internal", {}, any>;
+      dump: FunctionReference<"query", "internal", {}, string>;
+      inspectNode: FunctionReference<
+        "query",
+        "internal",
+        { node?: string },
+        null
+      >;
+    };
+  };
+  aggregateScoreByUser: {
+    btree: {
+      aggregateBetween: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      aggregateBetweenHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      atIndex: FunctionReference<
+        "query",
+        "internal",
+        { index: number },
+        { k: any; s: number; v: any }
+      >;
+      atIndexHandler: FunctionReference<
+        "query",
+        "internal",
+        { index: number },
+        { k: any; s: number; v: any }
+      >;
+      clearTree: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number },
+        null
+      >;
+      count: FunctionReference<"query", "internal", {}, any>;
+      countHandler: FunctionReference<"query", "internal", {}, any>;
+      deleteHandler: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        null
+      >;
+      delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      getHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      init: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize: number },
+        null
+      >;
+      insert: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; summand?: number; value: any },
+        null
+      >;
+      insertHandler: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; summand?: number; value: any },
+        null
+      >;
+      makeRootLazy: FunctionReference<"mutation", "internal", {}, null>;
+      rank: FunctionReference<"query", "internal", { key: any }, number>;
+      rankHandler: FunctionReference<"query", "internal", { key: any }, number>;
+      replace: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        null
+      >;
+      sum: FunctionReference<"query", "internal", {}, number>;
+      sumHandler: FunctionReference<"query", "internal", {}, number>;
+      validate: FunctionReference<"query", "internal", {}, any>;
+      validateTree: FunctionReference<"query", "internal", {}, any>;
+    };
+    index: {
+      checkRateLimit: FunctionReference<
+        "query",
+        "internal",
+        {
+          count?: number;
+          key?: string;
+          name: string;
+          name2: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: boolean; retryAt?: number; ts?: number; value?: number }
+      >;
+      rateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          count?: number;
+          key?: string;
+          name: string;
+          name2: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: boolean; retryAt?: number }
+      >;
+      resetRateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        { key?: string; name: string },
+        any
+      >;
+    };
+    inspect: {
+      display: FunctionReference<"query", "internal", {}, any>;
+      dump: FunctionReference<"query", "internal", {}, string>;
+      inspectNode: FunctionReference<
+        "query",
+        "internal",
+        { node?: string },
+        null
+      >;
+    };
+  };
+};
 
 /* prettier-ignore-end */

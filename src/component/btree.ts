@@ -1,15 +1,15 @@
-import { Value as ConvexValue, v } from "convex/values";
+import { ConvexError, Value as ConvexValue, v } from "convex/values";
 import {
   DatabaseReader,
   DatabaseWriter,
+  internalMutation,
   mutation,
   query,
 } from "./_generated/server.js";
 import { Doc, Id } from "./_generated/dataModel.js";
 import { compareValues } from "./compare.js";
-import { aggregate, Aggregate, Item } from "./schema.js";
-import { FunctionHandle, GenericDataModel, GenericDocument, RegisteredMutation, TableNamesInDataModel } from "convex/server";
-import { triggerArgsValidator } from "@convex-dev/triggers";
+import { aggregate, Aggregate, Item, itemValidator } from "./schema.js";
+import { internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;
 
@@ -50,6 +50,12 @@ export async function insertHandler(
   }
 }
 
+export const insert = mutation({
+  args: { key: v.any(), value: v.any(), summand: v.optional(v.number()) },
+  returns: v.null(),
+  handler: insertHandler,
+});
+
 export async function deleteHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key }
@@ -64,9 +70,31 @@ export async function deleteHandler(
     await ctx.db.patch(tree._id, {
       root: root.subtrees[0],
     });
+    if (root.aggregate === undefined) {
+      // Maintain lazy root even when the root disappears.
+      await ctx.db.patch(root.subtrees[0], {
+        aggregate: undefined,
+      });
+    }
     await ctx.db.delete(root._id);
   }
 }
+
+// delete is a keyword, hence the underscore.
+export const delete_ = mutation({
+  args: { key: v.any() },
+  returns: v.null(),
+  handler: deleteHandler,
+});
+
+export const replace = mutation({
+  args: { currentKey: v.any(), newKey: v.any(), value: v.any(), summand: v.optional(v.number()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await deleteHandler(ctx, { key: args.currentKey });
+    await insertHandler(ctx, { key: args.newKey, value: args.value, summand: args.summand });
+  },
+});
 
 export const validate = query({
   args: { },
@@ -109,24 +137,24 @@ async function validateNode(
 ): Promise<ValidationResult> {
   const n = await ctx.db.get(node);
   if (!n) {
-    throw new Error(`missing node ${node}`);
+    throw new ConvexError(`missing node ${node}`);
   }
   if (n.items.length > await MAX_NODE_SIZE(ctx)) {
-    throw new Error(`node ${node} exceeds max size`);
+    throw new ConvexError(`node ${node} exceeds max size`);
   }
   if (depth > 0 && n.items.length < await MIN_NODE_SIZE(ctx)) {
-    throw new Error(`non-root node ${node} has less than min-size`);
+    throw new ConvexError(`non-root node ${node} has less than min-size`);
   }
   if (n.subtrees.length > 0 && n.items.length + 1 !== n.subtrees.length) {
-    throw new Error(`node ${node} keys do not match subtrees`);
+    throw new ConvexError(`node ${node} keys do not match subtrees`);
   }
   if (n.subtrees.length > 0 && n.items.length === 0) {
-    throw new Error(`node ${node} one subtree but no keys`);
+    throw new ConvexError(`node ${node} one subtree but no keys`);
   }
   // Keys are in increasing order
   for (let i = 1; i < n.items.length; i++) {
     if (compareKeys(n.items[i - 1].k, n.items[i].k) !== -1) {
-      throw new Error(`node ${node} keys not in order`);
+      throw new ConvexError(`node ${node} keys not in order`);
     }
   }
   const validatedSubtrees = await Promise.all(
@@ -135,21 +163,21 @@ async function validateNode(
   for (let i = 0; i < n.subtrees.length; i++) {
     // Each subtree's min is greater than the key at the prior index
     if (i > 0 && compareKeys(validatedSubtrees[i].min!, n.items[i - 1].k) !== 1) {
-      throw new Error(`subtree ${i} min is too small for node ${node}`);
+      throw new ConvexError(`subtree ${i} min is too small for node ${node}`);
     }
     // Each subtree's max is less than the key at the same index
     if (
       i < n.items.length &&
       compareKeys(validatedSubtrees[i].max!, n.items[i].k) !== -1
     ) {
-      throw new Error(`subtree ${i} max is too large for node ${node}`);
+      throw new ConvexError(`subtree ${i} max is too large for node ${node}`);
     }
   }
   // All subtrees have the same height.
   const heights = validatedSubtrees.map((s) => s.height);
   for (let i = 1; i < heights.length; i++) {
     if (heights[i] !== heights[0]) {
-      throw new Error(`subtree ${i} has different height from others`);
+      throw new ConvexError(`subtree ${i} has different height from others`);
     }
   }
 
@@ -159,12 +187,12 @@ async function validateNode(
   const acc = add(accumulate(counts), accumulate(atNode));
   const nAggregate = await nodeAggregate(ctx.db, n);
   if (acc.count !== nAggregate.count) {
-    throw new Error(`node ${node} count does not match subtrees`);
+    throw new ConvexError(`node ${node} count does not match subtrees`);
   }
 
   // Node sum matches sum of subtree sums plus key sum.
   if (acc.sum !== nAggregate.sum) {
-    throw new Error(`node ${node} sum does not match subtrees`);
+    throw new ConvexError(`node ${node} sum does not match subtrees`);
   }
 
   const max =
@@ -197,6 +225,7 @@ export async function countHandler(
 
 export const sum = query({
   args: { },
+  returns: v.number(),
   handler: sumHandler,
 });
 
@@ -293,6 +322,7 @@ export async function getHandler(
 
 export const get = query({
   args: { key: v.any() },
+  returns: v.union(v.null(), itemValidator),
   handler: getHandler,
 });
 
@@ -321,6 +351,7 @@ async function getInNode(
 
 export const atIndex = query({
   args: { index: v.number() },
+  returns: itemValidator,
   handler: atIndexHandler,
 });
 
@@ -340,12 +371,13 @@ export async function rankHandler(
   return await rankInNode(ctx.db, tree.root, args.key);
 }
 
+// Returns the rank of the smallest key >= the given target key.
 export const rank = query({
   args: { key: v.any() },
+  returns: v.number(),
   handler: rankHandler,
 });
 
-// Returns the rank of the smallest key >= the given target key.
 async function rankInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
@@ -415,10 +447,7 @@ async function deleteFromNode(
   }
   // delete from subtree i
   if (n.subtrees.length === 0) {
-    log(`key ${p(key)} not found in node ${n._id}`);
-    // TODO: consider throwing.
-    // For now we don't throw to support patching to backfill.
-    return null;
+    throw new ConvexError(`key ${p(key)} not found in node ${n._id}`);
   }
   const deleted = await deleteFromNode(ctx, n.subtrees[i], key);
   if (!deleted) {
@@ -427,9 +456,12 @@ async function deleteFromNode(
   if (!foundItem) {
     foundItem = deleted;
   }
-  await ctx.db.patch(node, {
-    aggregate: n.aggregate && sub(n.aggregate, itemAggregate(foundItem)),
-  });
+  const newAggregate = n.aggregate && sub(n.aggregate, itemAggregate(deleted));
+  if (newAggregate) {
+    await ctx.db.patch(node, {
+      aggregate: newAggregate,
+    });
+  }
 
   // Now we need to check if the subtree at index i is too small
   const deficientSubtree = (await ctx.db.get(n.subtrees[i]))!;
@@ -752,9 +784,8 @@ export async function mustGetTree(db: DatabaseReader) {
   return tree;
 }
 
-async function getOrCreateTree(
+export async function getOrCreateTree(
   db: DatabaseWriter,
-  getKey: FunctionHandle<"query", { doc: Doc<"btreeNode"> }, { key: Key; summand?: number }>,
   maxNodeSize: number,
 ): Promise<Doc<"btree">> {
   const originalTree = await getTree(db);
@@ -771,27 +802,30 @@ async function getOrCreateTree(
   });
   const id = await db.insert("btree", {
     root,
-    getKey,
     maxNodeSize,
   });
   const newTree = await db.get(id);
+  // Check the maxNodeSize is valid.
+  await MIN_NODE_SIZE({ db });
   return newTree!;
 }
 
 export const init = mutation({
-  args: { getKey: v.string(), maxNodeSize: v.number() },
-  handler: async (ctx, { getKey, maxNodeSize }) => {
-    const existing = await ctx.db.query("btree").unique();
+  args: { maxNodeSize: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { maxNodeSize }) => {
+    const existing = await getTree(ctx.db);
     if (existing) {
-      await ctx.db.delete(existing._id);
+      throw new Error("tree already initialized");
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await getOrCreateTree(ctx.db, getKey as any, maxNodeSize);
+    await getOrCreateTree(ctx.db, maxNodeSize);
   },
 });
 
+// Call this mutation to reduce contention.
 export const makeRootLazy = mutation({
   args: { },
+  returns: v.null(),
   handler: async (ctx) => {
     const tree = await mustGetTree(ctx.db);
     await ctx.db.patch(tree.root, { aggregate: undefined });
@@ -799,42 +833,29 @@ export const makeRootLazy = mutation({
 });
 
 export const clearTree = mutation({
-  args: { },
-  handler: async (ctx) => {
+  args: {
+    maxNodeSize: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { maxNodeSize }) => {
     const tree = await getTree(ctx.db);
-    if (tree) {
-      await ctx.db.delete(tree._id);
+    if (!tree) {
+      throw new Error("tree not initialized");
     }
+    await ctx.db.delete(tree._id);
+    await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, { node: tree.root });
+    await getOrCreateTree(ctx.db, maxNodeSize ?? tree.maxNodeSize);
   },
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const trigger: RegisteredMutation<"public", any, Promise<void>> = mutation({
-  args: triggerArgsValidator<GenericDataModel, TableNamesInDataModel<GenericDataModel>>(),
+export const deleteTreeNodes = internalMutation({
+  args: { node: v.id("btreeNode") },
   returns: v.null(),
-  handler: async (ctx, { change }) => {
-    const tree = await mustGetTree(ctx.db);
-    const getKey = tree.getKey as FunctionHandle<"query", { doc: GenericDocument }, { key: Key; summand?: number }>;
-    switch (change.type) {
-      case "insert": {
-        const { key, summand } = await ctx.runQuery(getKey, { doc: change.newDoc! });
-        await insertHandler(ctx, { key: [key, change.id], value: change.id, summand });
-        break;
-      }
-      case "patch":
-        // fallthrough
-      case "replace": {
-        const { key: keyBefore } = await ctx.runQuery(getKey, { doc: change.oldDoc! });
-        const { key: keyAfter, summand: summandAfter } = await ctx.runQuery(getKey, { doc: change.newDoc! });
-        await deleteHandler(ctx, { key: [keyBefore, change.id] });
-        await insertHandler(ctx, { key: [keyAfter, change.id], value: change.id, summand: summandAfter });
-        break;
-      }
-      case "delete": {
-        const { key } = await ctx.runQuery(getKey, { doc: change.oldDoc! });
-        await deleteHandler(ctx, { key: [key, change.id] });
-        break;
-      }
+  handler: async (ctx, { node }) => {
+    const n = (await ctx.db.get(node))!;
+    for (const subtree of n.subtrees) {
+      await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, { node: subtree });
     }
+    await ctx.db.delete(node);
   },
 });
