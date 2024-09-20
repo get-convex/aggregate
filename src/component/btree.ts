@@ -192,7 +192,7 @@ async function validateNode(
 
   // Node sum matches sum of subtree sums plus key sum.
   if (acc.sum !== nAggregate.sum) {
-    throw new ConvexError(`node ${node} sum does not match subtrees`);
+    throw new ConvexError(`node ${node} sum does not match subtrees ${acc.sum} !== ${nAggregate.sum}`);
   }
 
   const max =
