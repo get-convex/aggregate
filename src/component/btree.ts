@@ -438,6 +438,8 @@ async function deleteFromNode(
       foundItem = n.items[i];
       await ctx.db.patch(node, {
         items: [...n.items.slice(0, i), predecessor, ...n.items.slice(i + 1)],
+        // In this intermediate state, we have removed the foundItem and effectively duplicated the predecessor.
+        aggregate: n.aggregate && sub(add(n.aggregate, itemAggregate(predecessor)), itemAggregate(n.items[i])),
       });
       n = (await ctx.db.get(node))!;
       // From now on, we're deleting the predecessor from the left subtree
