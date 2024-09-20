@@ -1,6 +1,6 @@
 {
   "name": "@convex-dev/aggregate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs",
