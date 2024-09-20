@@ -12,9 +12,9 @@ lookups:
 1. Count the total number of scores: `aggregate.count(ctx)`
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
-4. Find the average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
+4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
 5. Find the ranking for a score of 65 in the leaderboard: `aggregate.rankOf(ctx, 65)`
-6. Find the average score for a user:
+6. Find the average score for an individual user:
 
 ```ts
 const bounds = { lower: { key: username, inclusive: true }, upper: { key: username, inclusive: true } };
