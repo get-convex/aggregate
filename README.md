@@ -6,14 +6,14 @@ This Convex component calculates count and sums of values for efficient
 aggregation.
 
 Suppose you have a leaderboard of game scores. These are some operations
-that the Aggregate component makes easy and efficient, with `O(log(n))` time
+that the Aggregate component makes easy and efficient, with `O(log(n))`-time
 lookups:
 
 1. Count the total number of scores: `aggregate.count(ctx)`
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
-5. Find the ranking for a score of 64 in the leaderboard: `aggregate.rankOf(ctx, 65)`
+5. Find the ranking for a score of 65 in the leaderboard: `aggregate.rankOf(ctx, 65)`
 6. Find the average score for a user:
 
 ```ts
@@ -28,7 +28,19 @@ through all documents. But you don't want to lose sight of the forest for the
 trees. Sometimes you want big-picture data that encompases many of your
 individual data points, and that's where aggregates come in.
 
-In addition to the leaderboard example above, here are more examples:
+The Aggregates component keeps a data structure with denormalized counts and
+sums. It's effectively a key-value store which is sorted by the key, and where
+you can count values that lie between two keys.
+
+The keys may be arbitrary Convex values, so you can choose to sort your data by:
+
+1. a number, like a leaderboard score
+2. a string, like user ids -- so you can count the data owned by each user
+3. an [index key](https://stack.convex.dev/pagination#whats-an-index-key), for
+   full pagination support
+4. nothing, use `key=null` for everything if you just want a counter
+
+## More examples
 
 - In a messaging app, how many messages have been sent within the past month?
 - Offset-based pagination: view the 100th page of photos, where each page has
@@ -41,7 +53,7 @@ See `example/` for a working demo.
 
 1. Install the Aggregate component:
 
-```
+```bash
 npm install @convex-dev/aggregate
 ```
 
@@ -66,7 +78,9 @@ npx convex run --component aggregate btree:init
 npx convex run --component aggregate btree:makeRootLazy
 ```
 
-4. Write to the aggregate data structure.
+# How to Use
+
+## Write to the aggregate data structure
 
 ```ts
 import { components } from "./_generated/api";
@@ -87,7 +101,7 @@ await aggregateWriter.replace(ctx, oldKey, newKey, id);
 > simpler; reach out in [Discord](https://convex.dev/community) to let us know if
 > you're interested.
 
-5. Start calculating aggregates.
+## Calculate aggregates
 
 ```ts
 // convex/myfunctions.ts

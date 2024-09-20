@@ -736,7 +736,9 @@ async function insertIntoNode(
         `bad count split ${leftCount.count} ${rightCount.count} ${newN.aggregate.count}`
       );
     }
-    if (newN.aggregate && leftCount.sum + rightCount.sum + newN.items[minNodeSize].s !== newN.aggregate.sum) {
+    // Sanity check that we split the sum across our new children correctly.
+    // To avoid floating point imprecision, allow for some slight difference.
+    if (newN.aggregate && Math.abs((leftCount.sum + rightCount.sum + newN.items[minNodeSize].s) - newN.aggregate.sum) > 0.00001) {
       throw new Error(
         `bad sum split ${leftCount.sum} ${rightCount.sum} ${newN.items[minNodeSize].s} ${newN.aggregate.sum}`
       );
