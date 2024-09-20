@@ -11,6 +11,7 @@
  */
 
 import type * as leaderboard from "../leaderboard.js";
+import type * as scores from "../scores.js";
 
 import type {
   ApiFromModules,
@@ -27,6 +28,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
+  scores: typeof scores;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

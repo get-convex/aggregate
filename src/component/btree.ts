@@ -351,7 +351,6 @@ async function rankInNode(
   node: Id<"btreeNode">,
   key: Key
 ): Promise<number> {
-  console.log("getting rank of key", key);
   const n = (await db.get(node))!;
   let i = 0;
   for (; i < n.items.length; i++) {

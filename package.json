@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build",
     "prepack": "node node10stubs.mjs",
-    "postpack": "node node10stubs.mjs --cleanup"
+    "postpack": "node node10stubs.mjs --cleanup",
+    "test": "vitest run"
   },
   "files": [
     "dist",
