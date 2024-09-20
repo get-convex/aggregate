@@ -1,6 +1,16 @@
 {
   "name": "@convex-dev/aggregate",
   "version": "0.1.1",
+  "keywords": [
+    "convex",
+    "aggregate",
+    "count",
+    "sum"
+  ],
+  "homepage": "https://github.com/get-convex/aggregate",
+  "repository": "github:get-convex/aggregate",
+  "bugs": "https://github.com/get-convex/aggregate/issues",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs",
