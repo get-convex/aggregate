@@ -3,7 +3,7 @@
  */
 
 import { Aggregate } from "@convex-dev/aggregate";
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
@@ -22,14 +22,6 @@ export const backfillAggregates = internalMutation({
       await aggregateScoreByUser.insert(ctx, [doc.name, doc.score], doc._id, doc.score);
       console.log("backfilled", doc.name, doc.score);
     }
-  },
-});
-
-export const validateAggregates = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    await aggregateByScore.validate(ctx);
-    await aggregateScoreByUser.validate(ctx);
   },
 });
 

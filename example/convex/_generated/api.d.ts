@@ -56,16 +56,16 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
-      atIndex: FunctionReference<
+      atOffset: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
-      atIndexHandler: FunctionReference<
+      atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -82,8 +82,13 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      rank: FunctionReference<"query", "internal", { key: any }, number>;
-      rankHandler: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        number
+      >;
       sum: FunctionReference<"query", "internal", {}, number>;
       sumHandler: FunctionReference<"query", "internal", {}, number>;
       validate: FunctionReference<"query", "internal", {}, any>;
@@ -106,6 +111,12 @@ export declare const components: {
         { maxNodeSize?: number; rootLazy?: boolean },
         null
       >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        any
+      >;
       delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
       init: FunctionReference<
         "mutation",
@@ -125,6 +136,12 @@ export declare const components: {
         "internal",
         { currentKey: any; newKey: any; summand?: number; value: any },
         null
+      >;
+      replaceIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        any
       >;
     };
   };
@@ -142,16 +159,16 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
-      atIndex: FunctionReference<
+      atOffset: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
-      atIndexHandler: FunctionReference<
+      atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -168,8 +185,13 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      rank: FunctionReference<"query", "internal", { key: any }, number>;
-      rankHandler: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        number
+      >;
       sum: FunctionReference<"query", "internal", {}, number>;
       sumHandler: FunctionReference<"query", "internal", {}, number>;
       validate: FunctionReference<"query", "internal", {}, any>;
@@ -192,6 +214,12 @@ export declare const components: {
         { maxNodeSize?: number; rootLazy?: boolean },
         null
       >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        any
+      >;
       delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
       init: FunctionReference<
         "mutation",
@@ -211,6 +239,12 @@ export declare const components: {
         "internal",
         { currentKey: any; newKey: any; summand?: number; value: any },
         null
+      >;
+      replaceIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        any
       >;
     };
   };
@@ -228,16 +262,16 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
-      atIndex: FunctionReference<
+      atOffset: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
-      atIndexHandler: FunctionReference<
+      atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { index: number },
+        { offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -254,8 +288,13 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      rank: FunctionReference<"query", "internal", { key: any }, number>;
-      rankHandler: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        number
+      >;
       sum: FunctionReference<"query", "internal", {}, number>;
       sumHandler: FunctionReference<"query", "internal", {}, number>;
       validate: FunctionReference<"query", "internal", {}, any>;
@@ -278,6 +317,12 @@ export declare const components: {
         { maxNodeSize?: number; rootLazy?: boolean },
         null
       >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        any
+      >;
       delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
       init: FunctionReference<
         "mutation",
@@ -297,6 +342,12 @@ export declare const components: {
         "internal",
         { currentKey: any; newKey: any; summand?: number; value: any },
         null
+      >;
+      replaceIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        any
       >;
     };
   };

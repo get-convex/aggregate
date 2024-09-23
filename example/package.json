@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@convex-dev/aggregate": "file:..",
-    "convex": "^1.16.1"
+    "convex": "^1.16.1",
+    "isaac": "^0.0.5",
+    "rand-seed": "^2.1.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",

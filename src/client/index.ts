@@ -241,6 +241,10 @@ export class Randomize<
   async count(ctx: RunQueryCtx): Promise<number> {
     return await this.aggregate.count(ctx);
   }
+  async at(ctx: RunQueryCtx, offset: number): Promise<ID> {
+    const item = await this.aggregate.at(ctx, offset);
+    return item.id;
+  }
   async random(ctx: RunQueryCtx): Promise<ID | null> {
     const item = await this.aggregate.random(ctx);
     return item ? item.id : null;
