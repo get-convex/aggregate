@@ -7,7 +7,8 @@ aggregation.
 
 Suppose you have a leaderboard of game scores. These are some operations
 that the Aggregate component makes easy and efficient, with `O(log(n))`-time
-lookups:
+lookups, instead of the `O(n)` that would result from naive usage of
+`.collect()` in Convex or `COUNT(*)` in MySQL or Postgres:
 
 1. Count the total number of scores: `aggregate.count(ctx)`
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
@@ -138,8 +139,9 @@ ways to perform migrations, but here's an overview of one way:
    `replace` respectively, except they don't care whether the document currently
    exists.
 2. Make sure you have covered all places where the data can change, and deploy
-   this code change. If some place was missed, you can call
-   `aggregate.clear(ctx)` to reset the aggregate data structure and start over.
+   this code change. If some place was missed, the aggregates may get out of
+   sync with the source of truth. You can call `aggregate.clear(ctx)` to reset
+   the aggregate data structure and start over.
 3. Use a paginated background migration to walk all existing data and call
    `replaceOrInsert`.
 4. Now all of the data is represented in the `Aggregate`, you can start calling
