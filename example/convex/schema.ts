@@ -6,4 +6,7 @@ export default defineSchema({
     name: v.string(),
     score: v.number(),
   }),
+  music: defineTable({
+    title: v.string(),
+  }),
 });

@@ -69,30 +69,21 @@ app.use(aggregate);
 export default app;
 ```
 
-3. Initialize the data structure so you can start writing to it.
-
-```bash
-npx convex run --component aggregate btree:init
-# If there will be frequent writes, reduce contention by calculating top-level
-# aggregates lazily.
-npx convex run --component aggregate btree:makeRootLazy
-```
-
 # How to Use
 
 ## Write to the aggregate data structure
 
 ```ts
 import { components } from "./_generated/api";
-import { AggregateWriter } from "@convex-dev/aggregate";
-const aggregateWriter = new AggregateWriter<number, Id<"mytable">>(components.aggregate);
+import { Aggregate } from "@convex-dev/aggregate";
+const aggregate = new Aggregate<number, Id<"mytable">>(components.aggregate);
 
 // within a mutation, add values to be aggregated
-await aggregateWriter.insert(ctx, key, id);
+await aggregate.insert(ctx, key, id);
 // or delete values that were previously added
-await aggregateWriter.delete(ctx, key, id);
+await aggregate.delete(ctx, key, id);
 // or update values
-await aggregateWriter.replace(ctx, oldKey, newKey, id);
+await aggregate.replace(ctx, oldKey, newKey, id);
 ```
 
 > If you want to automatically update the aggregates based on changes to a table,
@@ -105,14 +96,12 @@ await aggregateWriter.replace(ctx, oldKey, newKey, id);
 
 ```ts
 // convex/myfunctions.ts
-import { components } from "./_generated/api";
-import { Aggregate } from "@convex-dev/aggregate";
-const aggregate = new Aggregate<number, Id<"mytable">>(components.aggregate);
-
 // then in your queries and mutations you can do
 const tableCount = await aggregate.count(ctx);
 // or any of the other examples listed above.
 ```
+
+See more examples in `example/convex/leaderboard.ts`
 
 # 🧑‍🏫 What is Convex?
 

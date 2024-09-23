@@ -4,21 +4,23 @@ import {
   GenericQueryCtx,
 } from "convex/server";
 import {
+  DEFAULT_MAX_NODE_SIZE,
   Key,
 } from "../component/btree.js";
 import { api } from "../component/_generated/api.js";
 import { UseApi } from "./useApi.js";
+import { Position, positionToKey, boundToPosition, keyToPosition, Bound } from "./positions.js";
 
-type UsedAPI = UseApi<typeof api>;
+export type UsedAPI = UseApi<typeof api>;
 
-// IDs are strings so in the Convex ordering, null < IDs < arrays.
-const BEFORE_ALL_IDS = null;
-const AFTER_ALL_IDS: never[] = [];
+// e.g. `ctx` from a Convex query or mutation or action.
+export type RunQueryCtx = {
+  runQuery: GenericQueryCtx<GenericDataModel>["runQuery"];
+};
 
-export type Bound<K extends Key, ID extends string> = {
-  key: K,
-  id?: ID,
-  inclusive: boolean,
+// e.g. `ctx` from a Convex mutation or action.
+export type RunMutationCtx = {
+  runMutation: GenericMutationCtx<GenericDataModel>["runMutation"];
 };
 
 export type Item<K extends Key, ID extends string> = {
@@ -27,8 +29,16 @@ export type Item<K extends Key, ID extends string> = {
   summand: number;
 };
 
+export type Bounds<K extends Key, ID extends string> = {
+  lower?: Bound<K, ID>;
+  upper?: Bound<K, ID>;
+};
+
+export type { Key, Bound };
+
 /**
- * Write to the data structure which calculates aggregates.
+ * Write data to be aggregated, and read aggregated data.
+ * 
  * The data structure is effectively a key-value store sorted by key, where the
  * value is an ID and an optional summand.
  * 1. The key can be any Convex value (number, string, array, etc.).
@@ -37,79 +47,16 @@ export type Item<K extends Key, ID extends string> = {
  *    it's assumed to be zero.
  * 
  * Once values have been added to the data structure, you can query for the
- * count and sum of items between a range of keys, using the `Aggregate` class.
- */
-export class AggregateWriter<
-  K extends Key,
-  ID extends string,
-> {
-  constructor(private component: UsedAPI) {}
-  /**
-   * Initialize a new Aggregates data structure. This should be called once.
-   */
-  async init(ctx: RunMutationCtx, maxNodeSize: number = 16): Promise<void> {
-    await ctx.runMutation(this.component.btree.init, {
-      maxNodeSize,
-    });
-  }
-  /**
-   * Empty the data structure, removing all items.
-   * Change the maxNodeSize if provided, otherwise keep it the same.
-   */
-  async clear(ctx: RunMutationCtx, maxNodeSize?: number): Promise<void> {
-    await ctx.runMutation(this.component.btree.clearTree, { maxNodeSize });
-  }
-  /**
-   * Insert a new key into the data structure.
-   * The id should be unique.
-   * If not provided, the summand is assumed to be zero.
-   */
-  async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
-    await ctx.runMutation(this.component.btree.insert, { key: keyToPosition(key, id), summand, value: id });
-  }
-  /**
-   * Delete the key with the given ID from the data structure.
-   * Throws if the given key and ID do not exist.
-   */
-  async delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
-    await ctx.runMutation(this.component.btree.delete_, { key: keyToPosition(key, id) });
-  }
-  /**
-   * Update an existing item in the data structure.
-   * This is effectively a delete followed by an insert, but it's performed
-   * atomically so it's impossible to view the data structure with the key missing.
-   */
-  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
-    await ctx.runMutation(this.component.btree.replace, {
-      currentKey: keyToPosition(currentKey, id),
-      newKey: keyToPosition(newKey, id),
-      summand,
-      value: id,
-    });
-  }
-  /**
-   * By default, the aggregates data structure writes to the root node on every
-   * insert/delete/replace, which can cause contention.
-   * 
-   * If your data structure has frequent writes, you can reduce contention by
-   * calling makeRootLazy, which removes the frequent writes to the root node.
-   * With a lazy root node, updates will only contend with other updates to the
-   * same shard of the tree, as determined by maxNodeSize, so larger maxNodeSize
-   * can also help.
-   */
-  async makeRootLazy(ctx: RunMutationCtx): Promise<void> {
-    await ctx.runMutation(this.component.btree.makeRootLazy);
-  }
-}
-
-/**
- * Read aggregates from the data structure.
+ * count and sum of items between a range of keys.
  */
 export class Aggregate<
   K extends Key,
   ID extends string,
 > {
   constructor(private component: UsedAPI) {}
+
+  /// Aggregate queries.
+
   /**
    * Returns the item at the given rank/offset/index in the order of key.
    */
@@ -129,24 +76,10 @@ export class Aggregate<
   async rankOf(ctx: RunQueryCtx, key: K, id?: ID): Promise<number> {
     return await ctx.runQuery(this.component.btree.rank, { key: boundToPosition("lower", { key, id, inclusive: true }) });
   }
-  async min(ctx: RunQueryCtx): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx);
-    if (count === 0) {
-      return null;
-    }
-    return await this.at(ctx, 0);
-  }
-  async max(ctx: RunQueryCtx): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx);
-    if (count === 0) {
-      return null;
-    }
-    return await this.at(ctx, count - 1);
-  }
   /**
    * Counts items between the given lower and upper bounds.
    */
-  async count(ctx: RunQueryCtx, bounds?: { lower?: Bound<K, ID>, upper?: Bound<K, ID> }): Promise<number> {
+  async count(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
     const { count } = await ctx.runQuery(this.component.btree.aggregateBetween,
       { k1: boundToPosition("lower", bounds?.lower), k2: boundToPosition("upper", bounds?.upper) },
     );
@@ -155,22 +88,45 @@ export class Aggregate<
   /**
    * Adds up the summands of items between the given lower and upper bounds.
    */
-  async sum(ctx: RunQueryCtx, bounds?: { lower?: Bound<K, ID>, upper?: Bound<K, ID> }): Promise<number> {
+  async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
     const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween,
       { k1: boundToPosition("lower", bounds?.lower), k2: boundToPosition("upper", bounds?.upper) },
     );
     return sum;
   }
   /**
-   * Gets a uniformly random item.
+   * Gets the minimum item within the given bounds.
    */
-  async random(ctx: RunQueryCtx): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx);
+  async min(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<Item<K, ID> | null> {
+    const count = await this.count(ctx, bounds);
     if (count === 0) {
       return null;
     }
+    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
+    return await this.at(ctx, countUpToBound - count);
+  }
+  /**
+   * Gets the maximum item within the given bounds.
+   */
+  async max(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<Item<K, ID> | null> {
+    const count = await this.count(ctx, bounds);
+    if (count === 0) {
+      return null;
+    }
+    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
+    return await this.at(ctx, countUpToBound - 1);
+  }
+  /**
+   * Gets a uniformly random item within the given bounds.
+   */
+  async random(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<Item<K, ID> | null> {
+    const count = await this.count(ctx, bounds);
+    if (count === 0) {
+      return null;
+    }
+    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
     const index = Math.floor(Math.random() * count);
-    return await this.at(ctx, index);
+    return await this.at(ctx, countUpToBound - count + index);
   }
   /**
    * Validates the internal data structure is consistent.
@@ -181,47 +137,100 @@ export class Aggregate<
   }
   // TODO: iter items between keys
   // For now you can use `rankOf` and `at` to iterate.
+
+
+  /// Write operations.
+
+  /**
+   * Insert a new key into the data structure.
+   * The id should be unique.
+   * If not provided, the summand is assumed to be zero.
+   * If the tree does not exist yet, it will be initialized with the default
+   * maxNodeSize and lazyRoot=true.
+   */
+  async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+    await ctx.runMutation(this.component.public.insert, { key: keyToPosition(key, id), summand, value: id });
+  }
+  /**
+   * Delete the key with the given ID from the data structure.
+   * Throws if the given key and ID do not exist.
+   */
+  async delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+    await ctx.runMutation(this.component.public.delete_, { key: keyToPosition(key, id) });
+  }
+  /**
+   * Update an existing item in the data structure.
+   * This is effectively a delete followed by an insert, but it's performed
+   * atomically so it's impossible to view the data structure with the key missing.
+   */
+  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+    await ctx.runMutation(this.component.public.replace, {
+      currentKey: keyToPosition(currentKey, id),
+      newKey: keyToPosition(newKey, id),
+      summand,
+      value: id,
+    });
+  }
+  /**
+   * Initialize a new Aggregates data structure. This may be called once to
+   * customize maxNodeSize and rootLazy. If the data structure is already
+   * initialized, use `clear` or `makeRootLazy` instead.
+   */
+  async init(
+    ctx: RunMutationCtx,
+    maxNodeSize: number = DEFAULT_MAX_NODE_SIZE,
+    rootLazy: boolean = true
+  ): Promise<void> {
+    await ctx.runMutation(this.component.public.init, {
+      maxNodeSize,
+      rootLazy,
+    });
+  }
+  /**
+   * Empty the data structure, removing all items, if it exists.
+   * Change the maxNodeSize if provided, otherwise keep it the same.
+   * Set rootLazy = false to eagerly compute aggregates on the root node.
+   */
+  async clear(ctx: RunMutationCtx, maxNodeSize?: number, rootLazy?: boolean): Promise<void> {
+    await ctx.runMutation(this.component.public.clear, { maxNodeSize, rootLazy });
+  }
+  /**
+   * By default, the aggregates data structure writes to a single root node on
+   * every insert/delete/replace, which can cause contention.
+   * 
+   * If your data structure has frequent writes, you can reduce contention by
+   * calling makeRootLazy, which removes the frequent writes to the root node.
+   * With a lazy root node, updates will only contend with other updates to the
+   * same shard of the tree. The number of shards is determined by maxNodeSize,
+   * so larger maxNodeSize can also help.
+   */
+  async makeRootLazy(ctx: RunMutationCtx): Promise<void> {
+    await ctx.runMutation(this.component.public.makeRootLazy);
+  }
 }
 
-type RunQueryCtx = {
-  runQuery: GenericQueryCtx<GenericDataModel>["runQuery"];
-};
-
-type RunMutationCtx = {
-  runMutation: GenericMutationCtx<GenericDataModel>["runMutation"];
-};
-
-type Position = ["" | null | never[], Key, string | null | never[], "" | null | never[]];
-
-function keyToPosition<K extends Key, ID extends string>(
-  key: K,
-  id: ID,
-): Position {
-  return ["", key, id, ""];
-}
-
-function positionToKey<K extends Key, ID extends string>(
-  position: Position,
-): { key: K; id: ID } {
-  return { key: position[1] as K, id: position[2] as ID };
-}
-
-function boundToPosition<
-  K extends Key,
+/**
+ * Simplified Aggregate API that doesn't have keys or summands, so it's
+ * simpler to use for counting all items or getting a random item.
+ */
+export class Randomize<
   ID extends string,
->(
-  direction: 'lower' | 'upper',
-  bound?: Bound<K, ID>,
-): Position {
-  if (direction === 'lower') {
-    if (bound === undefined) {
-      return [BEFORE_ALL_IDS, BEFORE_ALL_IDS as K, BEFORE_ALL_IDS, BEFORE_ALL_IDS];
-    }
-    return ["", bound.key, bound.id ?? BEFORE_ALL_IDS, bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS];
-  } else {
-    if (bound === undefined) {
-      return [AFTER_ALL_IDS, AFTER_ALL_IDS as unknown as K, AFTER_ALL_IDS, AFTER_ALL_IDS];
-    }
-    return ["", bound.key, bound.id ?? AFTER_ALL_IDS, bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS];
+> {
+  private aggregate: Aggregate<null, ID>;
+  constructor(private component: UsedAPI) {
+    this.aggregate = new Aggregate(component);
+  }
+  async count(ctx: RunQueryCtx): Promise<number> {
+    return await this.aggregate.count(ctx);
+  }
+  async random(ctx: RunQueryCtx): Promise<ID | null> {
+    const item = await this.aggregate.random(ctx);
+    return item ? item.id : null;
+  }
+  async insert(ctx: RunMutationCtx, id: ID): Promise<void> {
+    await this.aggregate.insert(ctx, null, id);
+  }
+  async delete(ctx: RunMutationCtx, id: ID): Promise<void> {
+    await this.aggregate.delete(ctx, null, id);
   }
 }

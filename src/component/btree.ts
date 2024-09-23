@@ -3,7 +3,6 @@ import {
   DatabaseReader,
   DatabaseWriter,
   internalMutation,
-  mutation,
   query,
 } from "./_generated/server.js";
 import { Doc, Id } from "./_generated/dataModel.js";
@@ -12,6 +11,8 @@ import { aggregate, Aggregate, Item, itemValidator } from "./schema.js";
 import { internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;
+export const DEFAULT_MAX_NODE_SIZE = 16;
+
 
 export type Key = ConvexValue;
 export type Value = ConvexValue;
@@ -30,7 +31,7 @@ export async function insertHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key; value: Value, summand?: number }
 ) {
-  const tree = await mustGetTree(ctx.db);
+  const tree = await getOrCreateTree(ctx.db, DEFAULT_MAX_NODE_SIZE, true);
   const summand = args.summand ?? 0;
   const pushUp = await insertIntoNode(
     ctx,
@@ -49,12 +50,6 @@ export async function insertHandler(
     });
   }
 }
-
-export const insert = mutation({
-  args: { key: v.any(), value: v.any(), summand: v.optional(v.number()) },
-  returns: v.null(),
-  handler: insertHandler,
-});
 
 export async function deleteHandler(
   ctx: { db: DatabaseWriter },
@@ -79,22 +74,6 @@ export async function deleteHandler(
     await ctx.db.delete(root._id);
   }
 }
-
-// delete is a keyword, hence the underscore.
-export const delete_ = mutation({
-  args: { key: v.any() },
-  returns: v.null(),
-  handler: deleteHandler,
-});
-
-export const replace = mutation({
-  args: { currentKey: v.any(), newKey: v.any(), value: v.any(), summand: v.optional(v.number()) },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await deleteHandler(ctx, { key: args.currentKey });
-    await insertHandler(ctx, { key: args.newKey, value: args.value, summand: args.summand });
-  },
-});
 
 export const validate = query({
   args: { },
@@ -191,7 +170,7 @@ async function validateNode(
   }
 
   // Node sum matches sum of subtree sums plus key sum.
-  if (acc.sum !== nAggregate.sum) {
+  if (Math.abs(acc.sum - nAggregate.sum) > 0.0001) {
     throw new ConvexError(`node ${node} sum does not match subtrees ${acc.sum} !== ${nAggregate.sum}`);
   }
 
@@ -791,6 +770,7 @@ export async function mustGetTree(db: DatabaseReader) {
 export async function getOrCreateTree(
   db: DatabaseWriter,
   maxNodeSize: number,
+  rootLazy: boolean,
 ): Promise<Doc<"btree">> {
   const originalTree = await getTree(db);
   if (originalTree) {
@@ -811,46 +791,11 @@ export async function getOrCreateTree(
   const newTree = await db.get(id);
   // Check the maxNodeSize is valid.
   await MIN_NODE_SIZE({ db });
+  if (rootLazy) {
+    await db.patch(root, { aggregate: undefined });
+  }
   return newTree!;
 }
-
-export const init = mutation({
-  args: { maxNodeSize: v.optional(v.number()) },
-  returns: v.null(),
-  handler: async (ctx, { maxNodeSize }) => {
-    const existing = await getTree(ctx.db);
-    if (existing) {
-      throw new Error("tree already initialized");
-    }
-    await getOrCreateTree(ctx.db, maxNodeSize ?? 16);
-  },
-});
-
-// Call this mutation to reduce contention.
-export const makeRootLazy = mutation({
-  args: { },
-  returns: v.null(),
-  handler: async (ctx) => {
-    const tree = await mustGetTree(ctx.db);
-    await ctx.db.patch(tree.root, { aggregate: undefined });
-  },
-});
-
-export const clearTree = mutation({
-  args: {
-    maxNodeSize: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, { maxNodeSize }) => {
-    const tree = await getTree(ctx.db);
-    if (!tree) {
-      throw new Error("tree not initialized");
-    }
-    await ctx.db.delete(tree._id);
-    await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, { node: tree.root });
-    await getOrCreateTree(ctx.db, maxNodeSize ?? tree.maxNodeSize);
-  },
-});
 
 export const deleteTreeNodes = internalMutation({
   args: { node: v.id("btreeNode") },

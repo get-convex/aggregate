@@ -18,7 +18,7 @@ describe("btree", () => {
   test("insert", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, 4);
+      await getOrCreateTree(ctx.db, 4, false);
       // Insert lots of keys. At each stage, the tree is valid.
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
@@ -48,7 +48,7 @@ describe("btree", () => {
   test("delete", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, 4);
+      await getOrCreateTree(ctx.db, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -93,7 +93,7 @@ describe("btree", () => {
   test("atIndex and rank", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, 4);
+      await getOrCreateTree(ctx.db, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -135,7 +135,7 @@ describe("btree", () => {
   test("countBetween", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, 4);
+      await getOrCreateTree(ctx.db, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
@@ -172,7 +172,7 @@ describe("btree", () => {
   test("sums", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, 4);
+      await getOrCreateTree(ctx.db, 4, false);
       async function insert(key: number, value: string, summand: number) {
         const sumBefore = await sumHandler(ctx);
         await insertHandler(ctx, { key, value, summand });
