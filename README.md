@@ -1,6 +1,6 @@
 # Convex Component: Aggregate
 
-[![npm version](https://badge.fury.io/js/@convex-dev%2Faggregate.svg)](https://badge.fury.io/js/@convex-dev%2Faggregate)
+[![npm version](https://badge.fury.io/js/@convex-dev%2Faggregate.svg?)](https://badge.fury.io/js/@convex-dev%2Faggregate)
 
 This Convex component calculates count and sums of values for efficient
 aggregation.
