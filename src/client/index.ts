@@ -187,15 +187,23 @@ export class Aggregate<
   /// Initialization and maintenance.
 
   /**
-   * Empty the data structure, removing all items, if it exists.
+   * (re-)initialize the data structure, removing all items if it exists.
+   * 
    * Change the maxNodeSize if provided, otherwise keep it the same.
-   * Set rootLazy = false to eagerly compute aggregates on the root node.
+   *   maxNodeSize is how you tune the data structure's width and depth.
+   *   Larger values can reduce write contention but increase read latency.
+   *   Default is 16.
+   * Set rootLazy = false to eagerly compute aggregates on the root node, which
+   *   improves aggregation latency at the expense of making all writes contend
+   *   with each other, so it's only recommended for read-heavy workloads.
+   *   Default is true.
    */
   async clear(ctx: RunMutationCtx, maxNodeSize?: number, rootLazy?: boolean): Promise<void> {
     await ctx.runMutation(this.component.public.clear, { maxNodeSize, rootLazy });
   }
   /**
-   * By default, the aggregates data structure writes to a single root node on
+   * If rootLazy is false (the default is true but it can be set to false by
+   * `clear`), the aggregates data structure writes to a single root node on
    * every insert/delete/replace, which can cause contention.
    * 
    * If your data structure has frequent writes, you can reduce contention by
@@ -212,6 +220,8 @@ export class Aggregate<
 /**
  * Simplified Aggregate API that doesn't have keys or summands, so it's
  * simpler to use for counting all items or getting a random item.
+ * 
+ * See docstrings on Aggregate for more details.
  */
 export class Randomize<
   ID extends string,
@@ -242,5 +252,8 @@ export class Randomize<
   }
   async deleteIfExists(ctx: RunMutationCtx, id: ID): Promise<void> {
     await this.aggregate.deleteIfExists(ctx, null, id);
+  }
+  async clear(ctx: RunMutationCtx, maxNodeSize?: number, rootLazy?: boolean): Promise<void> {
+    await this.aggregate.clear(ctx, maxNodeSize, rootLazy);
   }
 }
