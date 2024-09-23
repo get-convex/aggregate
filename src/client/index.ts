@@ -3,10 +3,7 @@ import {
   GenericMutationCtx,
   GenericQueryCtx,
 } from "convex/server";
-import {
-  DEFAULT_MAX_NODE_SIZE,
-  Key,
-} from "../component/btree.js";
+import { Key } from "../component/btree.js";
 import { api } from "../component/_generated/api.js";
 import { UseApi } from "./useApi.js";
 import { Position, positionToKey, boundToPosition, keyToPosition, Bound } from "./positions.js";
@@ -190,21 +187,6 @@ export class Aggregate<
   /// Initialization and maintenance.
 
   /**
-   * Initialize a new Aggregates data structure. This may be called once to
-   * customize maxNodeSize and rootLazy. If the data structure is already
-   * initialized, use `clear` or `makeRootLazy` instead.
-   */
-  async init(
-    ctx: RunMutationCtx,
-    maxNodeSize: number = DEFAULT_MAX_NODE_SIZE,
-    rootLazy: boolean = true
-  ): Promise<void> {
-    await ctx.runMutation(this.component.public.init, {
-      maxNodeSize,
-      rootLazy,
-    });
-  }
-  /**
    * Empty the data structure, removing all items, if it exists.
    * Change the maxNodeSize if provided, otherwise keep it the same.
    * Set rootLazy = false to eagerly compute aggregates on the root node.
@@ -254,5 +236,11 @@ export class Randomize<
   }
   async delete(ctx: RunMutationCtx, id: ID): Promise<void> {
     await this.aggregate.delete(ctx, null, id);
+  }
+  async insertIfDoesNotExist(ctx: RunMutationCtx, id: ID): Promise<void> {
+    await this.aggregate.insertIfDoesNotExist(ctx, null, id);
+  }
+  async deleteIfExists(ctx: RunMutationCtx, id: ID): Promise<void> {
+    await this.aggregate.deleteIfExists(ctx, null, id);
   }
 }

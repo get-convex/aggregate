@@ -13,7 +13,7 @@ lookups:
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
-5. Find the ranking for a score of 65 in the leaderboard: `aggregate.rankOf(ctx, 65)`
+5. Find the ranking for a score of 65 in the leaderboard: `aggregate.offsetOf(ctx, 65)`
 6. Find the average score for an individual user:
 
 ```ts
@@ -38,7 +38,7 @@ The keys may be arbitrary Convex values, so you can choose to sort your data by:
 2. a string, like user ids -- so you can count the data owned by each user
 3. an [index key](https://stack.convex.dev/pagination#whats-an-index-key), for
    full pagination support
-4. nothing, use `key=null` for everything if you just want a counter
+4. nothing, use `key=null` for everything if you just want a counter (see Randomize below)
 
 ## More examples
 
@@ -102,6 +102,50 @@ const tableCount = await aggregate.count(ctx);
 ```
 
 See more examples in `example/convex/leaderboard.ts`
+
+## Total Count and Randomization
+
+If you don't need the ordering or summing behavior of `Aggregate`, there's a
+simpler interface you can use: `Randomize`. 
+
+```ts
+import { components } from "./_generated/api";
+import { Randomize } from "@convex-dev/aggregate";
+const randomize = new Randomize<Id<"mytable">>(components.aggregate);
+
+// in a mutation, insert a document to be aggregated.
+await randomize.insert(ctx, id);
+// in a mutation, delete a document to be aggregated.
+await randomize.delete(ctx, id);
+
+// in a query, get the total document count.
+const totalCount = await randomize.count(ctx);
+// get a random document's id.
+const randomId = await randomize.random(ctx);
+```
+
+See more examples in `examples/convex/shuffle.ts`, including a paginated shuffle.
+
+## Attach Aggregate to an existing table
+
+Adding aggregation to an existing table requires a
+[migration](https://stack.convex.dev/intro-to-migrations). There are several
+ways to perform migrations, but here's an overview of one way:
+
+1. When the data changes on the live path, use the `Aggregate` methods
+   `insertIfDoesNotExist`, `deleteIfExists`, and `replaceOrInsert` to update the
+   aggregation data structure. These methods act like `insert`, `delete`, and
+   `replace` respectively, except they don't care whether the document currently
+   exists.
+2. Make sure you have covered all places where the data can change, and deploy
+   this code change. If some place was missed, you can call
+   `aggregate.clear(ctx)` to reset the aggregate data structure and start over.
+3. Use a paginated background migration to walk all existing data and call
+   `replaceOrInsert`.
+4. Now all of the data is represented in the `Aggregate`, you can start calling
+   read methods like `aggregate.count(ctx)` and you can replace
+   `insertIfDoesNotExist` -> `insert`, `deleteIfExists` -> `delete` and
+   `replaceOrInsert` -> `replace`.
 
 # 🧑‍🏫 What is Convex?
 
