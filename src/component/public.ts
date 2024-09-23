@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server.js";
 import { DEFAULT_MAX_NODE_SIZE, deleteHandler, getOrCreateTree, getTree, insertHandler } from "./btree.js";
 import { internal } from "./_generated/api.js";
@@ -48,6 +48,35 @@ export const replace = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     await deleteHandler(ctx, { key: args.currentKey });
+    await insertHandler(ctx, { key: args.newKey, value: args.value, summand: args.summand });
+  },
+});
+
+export const deleteIfExists = mutation({
+  args: { key: v.any() },
+  handler: async (ctx, { key }) => {
+    try {
+      await deleteHandler(ctx, { key });
+    } catch (e) {
+      if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
+        return;
+      }
+      throw e;
+    }
+  },
+});
+
+export const replaceIfExists = mutation({
+  args: { currentKey: v.any(), newKey: v.any(), value: v.any(), summand: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    try {
+      await deleteHandler(ctx, { key: args.currentKey });
+    } catch (e) {
+      if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
+        return;
+      }
+      throw e;
+    }
     await insertHandler(ctx, { key: args.newKey, value: args.value, summand: args.summand });
   },
 });

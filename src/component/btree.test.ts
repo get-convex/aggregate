@@ -3,12 +3,12 @@ import { convexTest } from "convex-test";
 import schema from "./schema.js";
 import { modules } from "./setup.test.js";
 import {
-  atIndexHandler,
+  atOffsetHandler,
   aggregateBetweenHandler,
   deleteHandler,
   getHandler,
   insertHandler,
-  rankHandler,
+  offsetHandler,
   sumHandler,
   validateTree,
   getOrCreateTree,
@@ -90,17 +90,17 @@ describe("btree", () => {
     });
   });
 
-  test("atIndex and rank", async () => {
+  test("atOffset and offsetOf", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       await getOrCreateTree(ctx.db, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx);
-        const rank = await rankHandler(ctx, { key });
+        const rank = await offsetHandler(ctx, { key });
         expect(rank).not.toBeNull();
-        const atIndex = await atIndexHandler(ctx, {
-          index: rank!,
+        const atIndex = await atOffsetHandler(ctx, {
+          offset: rank!,
         });
         expect(atIndex).toEqual({
           k: key,
@@ -109,10 +109,10 @@ describe("btree", () => {
         });
       }
       async function checkRank(key: number, rank: number) {
-        const r = await rankHandler(ctx, { key });
+        const r = await offsetHandler(ctx, { key });
         expect(r).toEqual(rank);
-        const atIndex = await atIndexHandler(ctx, { index: rank });
-        expect(atIndex.k).toEqual(key);
+        const atOffset = await atOffsetHandler(ctx, { offset: rank });
+        expect(atOffset.k).toEqual(key);
       }
       await insert(1, "a");
       await insert(4, "b");

@@ -328,36 +328,36 @@ async function getInNode(
   return await getInNode(db, n.subtrees[i], key);
 }
 
-export const atIndex = query({
-  args: { index: v.number() },
+export const atOffset = query({
+  args: { offset: v.number() },
   returns: itemValidator,
-  handler: atIndexHandler,
+  handler: atOffsetHandler,
 });
 
-export async function atIndexHandler(
+export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { index: number }
+  args: { offset: number }
 ) {
   const tree = (await getTree(ctx.db))!;
-  return await atIndexInNode(ctx.db, tree.root, args.index);
+  return await atOffsetInNode(ctx.db, tree.root, args.offset);
 }
 
-export async function rankHandler(
+export async function offsetHandler(
   ctx: { db: DatabaseReader },
   args: { key: Key }
 ) {
   const tree = (await getTree(ctx.db))!;
-  return await rankInNode(ctx.db, tree.root, args.key);
+  return await offsetInNode(ctx.db, tree.root, args.key);
 }
 
-// Returns the rank of the smallest key >= the given target key.
-export const rank = query({
+// Returns the offset of the smallest key >= the given target key.
+export const offset = query({
   args: { key: v.any() },
   returns: v.number(),
-  handler: rankHandler,
+  handler: offsetHandler,
 });
 
-async function rankInNode(
+async function offsetInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
   key: Key
@@ -382,7 +382,7 @@ async function rankInNode(
     return i;
   }
   const subCounts = await subtreeCounts(db, n);
-  const rankInSubtree = await rankInNode(db, n.subtrees[i], key);
+  const rankInSubtree = await offsetInNode(db, n.subtrees[i], key);
   return accumulate(subCounts.slice(0, i)).count + i + rankInSubtree;
 }
 
@@ -412,7 +412,7 @@ async function deleteFromNode(
         return n.items[i];
       }
       // if this is an internal node, replace the key with the predecessor
-      const predecessor = await negativeIndexInNode(ctx.db, n.subtrees[i], 0);
+      const predecessor = await negativeOffsetInNode(ctx.db, n.subtrees[i], 0);
       log(`replacing ${p(key)} with predecessor ${p(predecessor.k)}`);
       foundItem = n.items[i];
       await ctx.db.patch(node, {
@@ -428,7 +428,10 @@ async function deleteFromNode(
   }
   // delete from subtree i
   if (n.subtrees.length === 0) {
-    throw new ConvexError(`key ${p(key)} not found in node ${n._id}`);
+    throw new ConvexError({
+      code: "DELETE_MISSING_KEY",
+      message: `key ${p(key)} not found in node ${n._id}`,
+    });
   }
   const deleted = await deleteFromNode(ctx, n.subtrees[i], key);
   if (!deleted) {
@@ -559,17 +562,17 @@ async function mergeNodes(
 }
 
 // index 0 starts at the right
-async function negativeIndexInNode(
+async function negativeOffsetInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
   index: number
 ): Promise<Item> {
   const n = (await db.get(node))!;
   const nAggregate = await nodeAggregate(db, n);
-  return await atIndexInNode(db, node, nAggregate.count - index - 1);
+  return await atOffsetInNode(db, node, nAggregate.count - index - 1);
 }
 
-async function atIndexInNode(
+async function atOffsetInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
   index: number
@@ -585,7 +588,7 @@ async function atIndexInNode(
   const subCounts = await subtreeCounts(db, n);
   for (let i = 0; i < subCounts.length; i++) {
     if (index < subCounts[i].count) {
-      return await atIndexInNode(db, n.subtrees[i], index);
+      return await atOffsetInNode(db, n.subtrees[i], index);
     }
     index -= subCounts[i].count;
     if (index === 0) {

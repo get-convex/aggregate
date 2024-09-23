@@ -58,10 +58,10 @@ export class Aggregate<
   /// Aggregate queries.
 
   /**
-   * Returns the item at the given rank/offset/index in the order of key.
+   * Returns the item at the given offset/index/rank in the order of key.
    */
-  async at(ctx: RunQueryCtx, index: number): Promise<Item<K, ID>> {
-    const { k, s } = await ctx.runQuery(this.component.btree.atIndex, { index });
+  async at(ctx: RunQueryCtx, offset: number): Promise<Item<K, ID>> {
+    const { k, s } = await ctx.runQuery(this.component.btree.atOffset, { offset });
     const { key, id } = positionToKey(k as Position);
     return {
       key: key as K,
@@ -73,8 +73,8 @@ export class Aggregate<
    * Returns the rank/offset/index of the given key.
    * Specifically, it returns the index of the first item with a key >= the given key.
    */
-  async rankOf(ctx: RunQueryCtx, key: K, id?: ID): Promise<number> {
-    return await ctx.runQuery(this.component.btree.rank, { key: boundToPosition("lower", { key, id, inclusive: true }) });
+  async offsetOf(ctx: RunQueryCtx, key: K, id?: ID): Promise<number> {
+    return await ctx.runQuery(this.component.btree.offset, { key: boundToPosition("lower", { key, id, inclusive: true }) });
   }
   /**
    * Counts items between the given lower and upper bounds.
@@ -128,13 +128,6 @@ export class Aggregate<
     const index = Math.floor(Math.random() * count);
     return await this.at(ctx, countUpToBound - count + index);
   }
-  /**
-   * Validates the internal data structure is consistent.
-   * You shouldn't need to call this; it's just for sanity checking and tests.
-   */
-  async validate(ctx: RunQueryCtx): Promise<void> {
-    await ctx.runQuery(this.component.btree.validate);
-  }
   // TODO: iter items between keys
   // For now you can use `rankOf` and `at` to iterate.
 
@@ -171,6 +164,31 @@ export class Aggregate<
       value: id,
     });
   }
+  /**
+   * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
+   * This can be useful for live backfills:
+   * 1. Update live writes to use these methods to write into the new Aggregate.
+   * 2. Run a background backfill, paginating over existing data, calling `insertIfDoesNotExist` on each item.
+   * 3. Once the backfill is complete, use `insert`, `delete`, and `replace` for live writes.
+   * 4. Begin using the Aggregate read methods.
+   */
+  async insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+    await this.replaceOrInsert(ctx, key, key, id, summand);
+  }
+  async deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+    await ctx.runMutation(this.component.public.deleteIfExists, { key: keyToPosition(key, id) });
+  }
+  async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+    await ctx.runMutation(this.component.public.replaceIfExists, {
+      currentKey: keyToPosition(currentKey, id),
+      newKey: keyToPosition(newKey, id),
+      summand,
+      value: id,
+    });
+  }
+
+  /// Initialization and maintenance.
+
   /**
    * Initialize a new Aggregates data structure. This may be called once to
    * customize maxNodeSize and rootLazy. If the data structure is already
