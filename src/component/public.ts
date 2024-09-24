@@ -66,7 +66,7 @@ export const deleteIfExists = mutation({
   },
 });
 
-export const replaceIfExists = mutation({
+export const replaceOrInsert = mutation({
   args: { currentKey: v.any(), newKey: v.any(), value: v.any(), summand: v.optional(v.number()) },
   handler: async (ctx, args) => {
     try {

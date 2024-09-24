@@ -176,7 +176,7 @@ export class Aggregate<
     await ctx.runMutation(this.component.public.deleteIfExists, { key: keyToPosition(key, id) });
   }
   async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
-    await ctx.runMutation(this.component.public.replaceIfExists, {
+    await ctx.runMutation(this.component.public.replaceOrInsert, {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
       summand,

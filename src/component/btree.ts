@@ -55,7 +55,7 @@ export async function deleteHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key }
 ) {
-  const tree = await mustGetTree(ctx.db);
+  const tree = await getOrCreateTree(ctx.db, DEFAULT_MAX_NODE_SIZE, true);
   await deleteFromNode(ctx, tree.root, args.key);
   const root = (await ctx.db.get(tree.root))!;
   if (root.items.length === 0 && root.subtrees.length === 1) {
