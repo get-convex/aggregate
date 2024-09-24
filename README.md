@@ -133,7 +133,7 @@ const totalCount = await randomize.count(ctx);
 const randomId = await randomize.random(ctx);
 ```
 
-See more examples in `examples/convex/shuffle.ts`, including a paginated shuffle.
+See more examples in `example/convex/shuffle.ts`, including a paginated shuffle.
 
 ## Offset-based pagination
 
@@ -143,9 +143,25 @@ to worry about items going missing from your list. But sometimes you want to
 display separate pages of results on separate pages of your app.
 
 You can pick a page size and jump to any page once you have `Aggregate` to map
-from offset to document.
+from offset to an index key.
 
-See the example in `examples/convex/photos.ts`.
+In this example, if `offset` is 100 and `numItems` is 10, we get the hundredth
+`_creationTime` (in ascending order) and starting there we get the next ten
+documents.
+
+```ts
+export const pageOfPhotos({
+  args: { offset: v.number(), numItems: v.number() },
+  handler: async (ctx, { offset, numItems }) => {
+    const { key } = await photos.at(ctx, offset);
+    return await ctx.db.query("photos")
+      .withIndex("by_creation_time", q=>q.gte("_creationTime", key))
+      .take(numItems);
+  },
+});
+```
+
+See the full example in `example/convex/photos.ts`.
 
 ## Attach Aggregate to an existing table
 
