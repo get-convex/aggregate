@@ -9,4 +9,7 @@ export default defineSchema({
   music: defineTable({
     title: v.string(),
   }),
+  photos: defineTable({
+    url: v.string(),
+  }),
 });

@@ -102,7 +102,15 @@ const tableCount = await aggregate.count(ctx);
 // or any of the other examples listed above.
 ```
 
-See more examples in `example/convex/leaderboard.ts`
+See more examples in `example/convex/leaderboard.ts`.
+
+### Running examples
+
+1. Clone this repo.
+2. `cd aggregate/example`
+3. `npm run dev` and create a new project
+4. The dashboard should open and you can run functions like
+   `leaderboard:addScore` and `leaderboard:userAverageScore`.
 
 ## Total Count and Randomization
 
@@ -126,6 +134,18 @@ const randomId = await randomize.random(ctx);
 ```
 
 See more examples in `examples/convex/shuffle.ts`, including a paginated shuffle.
+
+## Offset-based pagination
+
+Convex supports infinite-scroll pagination which is
+[reactive](https://stack.convex.dev/fully-reactive-pagination) so you never have
+to worry about items going missing from your list. But sometimes you want to
+display separate pages of results on separate pages of your app.
+
+You can pick a page size and jump to any page once you have `Aggregate` to map
+from offset to document.
+
+See the example in `examples/convex/photos.ts`.
 
 ## Attach Aggregate to an existing table
 

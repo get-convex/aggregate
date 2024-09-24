@@ -11,6 +11,7 @@
  */
 
 import type * as leaderboard from "../leaderboard.js";
+import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
 
 import type {
@@ -28,6 +29,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
+  photos: typeof photos;
   shuffle: typeof shuffle;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
@@ -249,6 +251,109 @@ export declare const components: {
     };
   };
   music: {
+    btree: {
+      aggregateBetween: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      aggregateBetweenHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any },
+        { count: number; sum: number }
+      >;
+      atOffset: FunctionReference<
+        "query",
+        "internal",
+        { offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atOffsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { offset: number },
+        { k: any; s: number; v: any }
+      >;
+      count: FunctionReference<"query", "internal", {}, any>;
+      countHandler: FunctionReference<"query", "internal", {}, any>;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      getHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        null | { k: any; s: number; v: any }
+      >;
+      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { key: any },
+        number
+      >;
+      sum: FunctionReference<"query", "internal", {}, number>;
+      sumHandler: FunctionReference<"query", "internal", {}, number>;
+      validate: FunctionReference<"query", "internal", {}, any>;
+      validateTree: FunctionReference<"query", "internal", {}, any>;
+    };
+    inspect: {
+      display: FunctionReference<"query", "internal", {}, any>;
+      dump: FunctionReference<"query", "internal", {}, string>;
+      inspectNode: FunctionReference<
+        "query",
+        "internal",
+        { node?: string },
+        null
+      >;
+    };
+    public: {
+      clear: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number; rootLazy?: boolean },
+        null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any },
+        any
+      >;
+      delete_: FunctionReference<"mutation", "internal", { key: any }, null>;
+      init: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number; rootLazy?: boolean },
+        null
+      >;
+      insert: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; summand?: number; value: any },
+        null
+      >;
+      makeRootLazy: FunctionReference<"mutation", "internal", {}, null>;
+      replace: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        null
+      >;
+      replaceIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { currentKey: any; newKey: any; summand?: number; value: any },
+        any
+      >;
+    };
+  };
+  photos: {
     btree: {
       aggregateBetween: FunctionReference<
         "query",
