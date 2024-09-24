@@ -32,7 +32,7 @@ function compareSameTypeValues<T>(v1: T, v2: T): number {
   if (!Array.isArray(v1) || !Array.isArray(v2)) {
     throw new Error(`Unexpected type ${v1}`);
   }
-  for (let i = 0; i < v1.length; i++) {
+  for (let i = 0; i < v1.length && i < v2.length; i++) {
     const cmp = compareAsTuples(v1[i], v2[i]);
     if (cmp !== 0) {
       return cmp;

@@ -664,7 +664,7 @@ async function insertIntoNode(
       break;
     }
     if (compare === 0) {
-      throw new Error(`key ${p(item.k)} already exists in node ${n._id}`);
+      throw new ConvexError(`key ${p(item.k)} already exists in node ${n._id}`);
     }
   }
   // insert key before index i
