@@ -72,10 +72,9 @@ export const replaceOrInsert = mutation({
     try {
       await deleteHandler(ctx, { key: args.currentKey });
     } catch (e) {
-      if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
-        return;
+      if (!(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")) {
+        throw e;
       }
-      throw e;
     }
     await insertHandler(ctx, { key: args.newKey, value: args.value, summand: args.summand });
   },
