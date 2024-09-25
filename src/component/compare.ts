@@ -62,6 +62,9 @@ function makeComparable(v: Value | undefined): [number, any] {
     return [2, v];
   }
   if (typeof v === "number") {
+    if (isNaN(v)) { // Consider all NaNs to be equal.
+      return [3.5, 0];
+    }
     // TODO: NaNs and infs
     return [3, v];
   }
