@@ -67,6 +67,20 @@ export const scoreAtRank = query({
   },
 });
 
+export const scoresInOrder = query({
+  handler: async (ctx) => {
+    let count = 0;
+    for await (const { id, key } of aggregateByScore.iter(ctx, undefined, "desc")) {
+      if (count >= 200) {
+        console.log("...");
+        break;
+      }
+      console.log("score", key, id);
+      count += 1;
+    }
+  },
+});
+
 /**
  * Where does a score rank in the overall leaderboard?
  */

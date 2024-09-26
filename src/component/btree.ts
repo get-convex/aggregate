@@ -1,4 +1,4 @@
-import { ConvexError, Value as ConvexValue, v } from "convex/values";
+import { ConvexError, convexToJson, Value as ConvexValue, jsonToConvex, v } from "convex/values";
 import {
   DatabaseReader,
   DatabaseWriter,
@@ -841,3 +841,102 @@ export const deleteTreeNodes = internalMutation({
     await ctx.db.delete(node);
   },
 });
+
+export const paginate = query({
+  args: {
+    limit: v.number(),
+    order: v.union(v.literal("asc"), v.literal("desc")),
+    cursor: v.optional(v.string()),
+    k1: v.optional(v.any()),
+    k2: v.optional(v.any()),
+  },
+  returns: v.object({
+    page: v.array(itemValidator),
+    cursor: v.string(),
+    isDone: v.boolean(),
+  }),
+  handler: paginateHandler,
+});
+
+export async function paginateHandler(
+  ctx: { db: DatabaseReader },
+  args: {
+    limit: number,
+    order: "asc" | "desc",
+    cursor?: string,
+    k1?: Key,
+    k2?: Key,
+  },
+) {
+  const tree = await mustGetTree(ctx.db);
+  return await paginateInNode(
+    ctx.db,
+    tree.root,
+    args.limit,
+    args.order,
+    args.cursor,
+    args.k1,
+    args.k2,
+  );
+}
+
+export async function paginateInNode(
+  db: DatabaseReader,
+  node: Id<"btreeNode">,
+  limit: number,
+  order: "asc" | "desc",
+  cursor?: string,
+  k1?: Key,
+  k2?: Key,
+): Promise<{
+  page: Item[],
+  cursor: string,
+  isDone: boolean,
+}> {
+  if (limit <= 0) {
+    throw new ConvexError("limit must be positive");
+  }
+  if (cursor !== undefined && cursor.length === 0) {
+    // Empty string is end cursor.
+    return {
+      page: [],
+      cursor: "",
+      isDone: true,
+    };
+  }
+  const items: Item[] = [];
+  const startKey = (cursor === undefined || order === "desc") ? k1 : jsonToConvex(JSON.parse(cursor));
+  const endKey = (cursor === undefined || order === "asc") ? k2 : jsonToConvex(JSON.parse(cursor));
+  const filtered = await filterBetween(db, node, startKey, endKey);
+  if (order === "desc") {
+    filtered.reverse();
+  }
+  for (const included of filtered) {
+    if (items.length >= limit) {
+      // There's still more but the page is full.
+      return {
+        page: items,
+        cursor: JSON.stringify(convexToJson(items[items.length - 1].k)),
+        isDone: false,
+      };
+    }
+    if (included.type === "item") {
+      items.push(included.item);
+    } else {
+      const { page, cursor: newCursor, isDone } = await paginateInNode(db, included.subtree, limit - items.length, order);
+      items.push(...page);
+      if (!isDone) {
+        return {
+          page: items,
+          cursor: newCursor,
+          isDone: false,
+        };
+      }
+    }
+  }
+  return {
+    page: items,
+    cursor: "",
+    isDone: true,
+  };
+}

@@ -70,6 +70,15 @@ app.use(aggregate);
 export default app;
 ```
 
+Note you can aggregate multiple tables, multiple sort keys, or multiple values.
+You would do this by using multiple aggregate components, which each have
+their own name.
+
+```ts
+app.use(aggregate, { name: "aggregateUsers" });
+app.use(aggregate, { name: "aggregateTeams" });
+```
+
 # How to Use
 
 ## Write to the aggregate data structure
@@ -77,6 +86,9 @@ export default app;
 ```ts
 import { components } from "./_generated/api";
 import { Aggregate } from "@convex-dev/aggregate";
+// The first generic parameter (number in this case) is for the sort key.
+// The second generic parameter (Id<"mytable"> in this case) is a unique
+// identifier for each aggregated item.
 const aggregate = new Aggregate<number, Id<"mytable">>(components.aggregate);
 
 // within a mutation, add values to be aggregated
@@ -86,6 +98,22 @@ await aggregate.delete(ctx, key, id);
 // or update values
 await aggregate.replace(ctx, oldKey, newKey, id);
 ```
+
+If you are aggregating data from a table, e.g. you are counting documents in
+the "mytable" table you will want to modify the aggregate alongside the table
+
+```ts
+const id = await ctx.db.insert("mytable", { name });
+await aggregate.insert(ctx, name, id);
+```
+
+Since these are happening in a
+[mutation](https://docs.convex.dev/functions/mutation-functions#transactions),
+you can rest assured that the table and its aggregate will update atomically.
+
+However, it's important that *every* mutation modifying the table also updates
+the associated aggregate. If they get out of sync then computed aggregates might
+be incorrect.
 
 > If you want to automatically update the aggregates based on changes to a table,
 > [you can use](https://stack.convex.dev/custom-functions)

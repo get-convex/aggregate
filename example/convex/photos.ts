@@ -18,7 +18,8 @@ export const init = internalMutation({
   handler: async (ctx) => {
     // rootLazy can be false because the table doesn't change much, and this
     // makes aggregates faster (this is entirely optional).
-    await photos.clear(ctx, 16, false);
+    // Also reducing node size uses less bandwidth, since nodes are smaller.
+    await photos.clear(ctx, 4, false);
   },
 });
 
@@ -46,9 +47,6 @@ export const pageOfPhotos = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems }) => {
-    if (offset >= await photos.count(ctx)) {
-      return [];
-    }
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset);
     const photoDocs = await ctx.db.query("photos")
       .withIndex("by_creation_time", q=>q.gte("_creationTime", firstPhotoCreationTime))

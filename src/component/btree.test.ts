@@ -16,10 +16,11 @@ import {
   Value,
   offsetUntilHandler,
   atNegativeOffsetHandler,
+  paginateHandler,
 } from "./btree.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
-import { ConvexError } from "convex/values";
+import { ConvexError, convexToJson, jsonToConvex } from "convex/values";
 
 describe("btree", () => {
   test("insert", async () => {
@@ -286,6 +287,24 @@ class SimpleBTree {
       return sum + item.s;
     }, 0);
   }
+  paginate(limit: number, order: "asc" | "desc", cursor?: string, k1?: Value, k2?: Value) {
+    if (cursor !== undefined && cursor.length === 0) {
+      throw new ConvexError("end cursor");
+    }
+    const startKey = (cursor === undefined || order === "desc") ? k1 : jsonToConvex(JSON.parse(cursor));
+    const endKey = (cursor === undefined || order === "asc") ? k2 : jsonToConvex(JSON.parse(cursor));
+    const items = this.itemsBetween(startKey, endKey);
+    if (order === "desc") {
+      items.reverse();
+    }
+    const isDone = items.length <= limit;
+    const page = items.slice(0, limit);
+    return {
+      page,
+      cursor: isDone ? "" : JSON.stringify(convexToJson(page[page.length - 1].k)),
+      isDone,
+    };
+  }
 }
 
 function arbitraryUniformFloat(min: number, max: number) {
@@ -310,6 +329,7 @@ const arbitraryRead = fc.oneof(
   fc.record({ type: l("offsetUntil"), key: arbitrary01, k2: fc.option(arbitrary01) }),
   fc.record({ type: l("countBetween"), k1: fc.option(arbitrary01), k2: fc.option(arbitrary01) }),
   fc.record({ type: l("sumBetween"), k1: fc.option(arbitrary01), k2: fc.option(arbitrary01) }),
+  fc.record({ type: l("paginate"), limit: fc.integer({ min: 1, max: 10 }), order: fc.oneof(l("asc"), l("desc")), k1: fc.option(arbitrary01), k2: fc.option(arbitrary01) }),
 );
 type InferArbitrary<T> = T extends fc.Arbitrary<infer U> ? U : never;
 
@@ -398,6 +418,24 @@ describe("btree matches simpler impl", () => {
         } else if (read.type === "sumBetween") {
           const sum = await aggregateBetweenHandler(ctx, { k1: maybeVal(read.k1), k2: maybeVal(read.k2) });
           expect(sum.sum).toBeCloseTo(simple.sumBetween(maybeVal(read.k1), maybeVal(read.k2)));
+        } else if (read.type === "paginate") {
+          let isDone = false;
+          let cursor: string | undefined = undefined;
+          while (!isDone) {
+            const realPaginate = await paginateHandler(ctx, {
+              limit: read.limit,
+              cursor,
+              order: read.order,
+              k1: maybeVal(read.k1),
+              k2: maybeVal(read.k2),
+            });
+            const simplePaginate = simple.paginate(read.limit, read.order, cursor, maybeVal(read.k1), maybeVal(read.k2));
+            expect(realPaginate.page).toEqual(simplePaginate.page);
+            expect(realPaginate.isDone).toStrictEqual(simplePaginate.isDone);
+            expect(realPaginate.cursor).toStrictEqual(simplePaginate.cursor);
+            isDone = simplePaginate.isDone;
+            cursor = simplePaginate.cursor;
+          }
         }
       }
     });

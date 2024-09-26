@@ -48,16 +48,28 @@ export type Mounts = {
       { k1?: any; k2?: any },
       { count: number; sum: number }
     >;
-    atIndex: FunctionReference<
+    atNegativeOffset: FunctionReference<
       "query",
       "public",
-      { index: number },
+      { k1?: any; k2?: any; offset: number },
       { k: any; s: number; v: any }
     >;
-    atIndexHandler: FunctionReference<
+    atNegativeOffsetHandler: FunctionReference<
       "query",
       "public",
-      { index: number },
+      { k1?: any; k2?: any; offset: number },
+      { k: any; s: number; v: any }
+    >;
+    atOffset: FunctionReference<
+      "query",
+      "public",
+      { k1?: any; k2?: any; offset: number },
+      { k: any; s: number; v: any }
+    >;
+    atOffsetHandler: FunctionReference<
+      "query",
+      "public",
+      { k1?: any; k2?: any; offset: number },
       { k: any; s: number; v: any }
     >;
     count: FunctionReference<"query", "public", {}, any>;
@@ -74,8 +86,62 @@ export type Mounts = {
       { key: any },
       null | { k: any; s: number; v: any }
     >;
-    rank: FunctionReference<"query", "public", { key: any }, number>;
-    rankHandler: FunctionReference<"query", "public", { key: any }, number>;
+    offset: FunctionReference<
+      "query",
+      "public",
+      { k1?: any; key: any },
+      number
+    >;
+    offsetHandler: FunctionReference<
+      "query",
+      "public",
+      { k1?: any; key: any },
+      number
+    >;
+    offsetUntil: FunctionReference<
+      "query",
+      "public",
+      { k2?: any; key: any },
+      number
+    >;
+    offsetUntilHandler: FunctionReference<
+      "query",
+      "public",
+      { k2?: any; key: any },
+      number
+    >;
+    paginate: FunctionReference<
+      "query",
+      "public",
+      {
+        cursor?: string;
+        k1?: any;
+        k2?: any;
+        limit: number;
+        order: "asc" | "desc";
+      },
+      {
+        cursor: string;
+        isDone: boolean;
+        page: Array<{ k: any; s: number; v: any }>;
+      }
+    >;
+    paginateHandler: FunctionReference<
+      "query",
+      "public",
+      {
+        cursor?: string;
+        k1?: any;
+        k2?: any;
+        limit: number;
+        order: "asc" | "desc";
+      },
+      {
+        cursor: string;
+        isDone: boolean;
+        page: Array<{ k: any; s: number; v: any }>;
+      }
+    >;
     sum: FunctionReference<"query", "public", {}, number>;
     sumHandler: FunctionReference<"query", "public", {}, number>;
     validate: FunctionReference<"query", "public", {}, any>;
@@ -93,11 +159,12 @@ export type Mounts = {
       { maxNodeSize?: number; rootLazy?: boolean },
       null
     >;
+    deleteIfExists: FunctionReference<"mutation", "public", { key: any }, any>;
     delete_: FunctionReference<"mutation", "public", { key: any }, null>;
     init: FunctionReference<
       "mutation",
       "public",
-      { maxNodeSize?: number },
+      { maxNodeSize?: number; rootLazy?: boolean },
       null
     >;
     insert: FunctionReference<
@@ -112,6 +179,12 @@ export type Mounts = {
       "public",
       { currentKey: any; newKey: any; summand?: number; value: any },
       null
+    >;
+    replaceOrInsert: FunctionReference<
+      "mutation",
+      "public",
+      { currentKey: any; newKey: any; summand?: number; value: any },
+      any
     >;
   };
 };

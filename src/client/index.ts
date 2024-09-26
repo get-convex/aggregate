@@ -150,7 +150,6 @@ export class Aggregate<
     try {
       return await this.at(ctx, -1, bounds);
     } catch (e) {
-      // TODO: figure out why the `instanceof` check isn't working.
       if (e instanceof ConvexError && (await this.count(ctx, bounds)) === 0) {
         return null;
       }
@@ -168,9 +167,37 @@ export class Aggregate<
     const index = Math.floor(Math.random() * count);
     return await this.at(ctx, index, bounds);
   }
-  // TODO: iter items between keys
-  // For now you can use `offsetOf` and `at` to iterate.
-
+  async *iter(
+    ctx: RunQueryCtx,
+    bounds?: Bounds<K, ID>,
+    order: 'asc' | 'desc' = 'asc',
+    pageSize: number = 100,
+  ): AsyncGenerator<Item<K, ID>, void, undefined> {
+    let isDone = false;
+    let cursor: string | undefined = undefined;
+    while (!isDone) {
+      const { page, cursor: newCursor, isDone: newIsDone }
+          = await ctx.runQuery(this.component.btree.paginate, {
+        k1: boundToPosition("lower", bounds?.lower),
+        k2: boundToPosition("upper", bounds?.upper),
+        cursor,
+        order,
+        limit: pageSize,
+      });
+      for (const { k, s } of page) {
+        const { key, id } = positionToKey(k as Position);
+        yield {
+          key: key as K,
+          id: id as ID,
+          summand: s,
+        };
+      }
+      isDone = newIsDone;
+      // TypeScript gets unhappy without this.
+      const newCursor2: string = newCursor;
+      cursor = newCursor2;
+    }
+  }
 
   /// Write operations.
 
