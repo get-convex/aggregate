@@ -246,18 +246,27 @@ async function filterBetween(
 ): Promise<WithinBounds[]> {
   const n = (await db.get(node))!;
   const included: WithinBounds[] = [];
+  async function includeSubtree(i: number, unboundedRight: boolean) {
+    const unboundedLeft = k1 === undefined || included.length > 0;
+    if (unboundedLeft && unboundedRight) {
+      // Include the whole subtree
+      included.push({ type: "subtree", subtree: n.subtrees[i] });
+    } else {
+      // Recurse into the first or last subtree
+      included.push(...await filterBetween(
+        db,
+        n.subtrees[i],
+        unboundedLeft ? undefined : k1,
+        unboundedRight ? undefined : k2,
+      ));
+    }
+  }
   for (let i = 0; i < n.items.length; i++) {
     const k1IsLeft = k1 === undefined || compareKeys(k1, n.items[i].k) === -1;
     const k2IsRight = k2 === undefined || compareKeys(k2, n.items[i].k) === 1;
     if (k1IsLeft && n.subtrees.length > 0) {
-      if ((k1 === undefined || included.length > 0) && k2IsRight) {
-        // Left bound is to the left of n.subtrees[i] and right bound is to the right,
-        // so include the whole subtree.
-        included.push({ type: "subtree", subtree: n.subtrees[i] });
-      } else {
-        // Recurse into first or last subtree
-        included.push(...await filterBetween(db, n.subtrees[i], k1, k2));
-      }
+      // We definitely want to include items from n.subtrees[i],
+      await includeSubtree(i, k2IsRight);
     }
     if (!k2IsRight) {
       // We've reached the right bound, so we're done.
@@ -269,16 +278,7 @@ async function filterBetween(
   }
   if (n.subtrees.length > 0) {
     // Check the rightmost subtree
-    const i = n.items.length;
-    const k2IsRight = k2 === undefined;
-    if ((k1 === undefined || included.length > 0) && k2IsRight) {
-      // Left bound is to the left of n.subtrees[i] and right bound is to the right,
-      // so include the whole subtree.
-      included.push({ type: "subtree", subtree: n.subtrees[i] });
-    } else {
-      // Recurse into first or last subtree
-      included.push(...await filterBetween(db, n.subtrees[i], k1, k2));
-    }
+    await includeSubtree(n.subtrees.length - 1, k2 === undefined);
   }
   return included;
 }
