@@ -3,18 +3,14 @@ import { Value } from "./btree.js";
 
 const objectKeys = "abcdefghijklmnopqrstuvwxyz".split("");
 
-// Floats that are nice to work with. No weird encodings, and you can add and
-// subtract them without losing precision.
-export const arbitraryNiceFloat = fc.float({ min: -10, max: 10, noNaN: true })
-  .filter((f) => f !== 0 || 1 / f > 0); // exclude negative zero
-
 export const arbitraryValue = fc.letrec((tie) => ({
   tree: fc.oneof({ depthSize: "small" }, tie("leaf"), tie("obj")),
   leaf: fc.oneof(
     fc.constant(null),
     fc.boolean(),
     fc.string(),
-    arbitraryNiceFloat,
+    fc.float({ noDefaultInfinity: true, noNaN: true })
+      .filter((f) => f !== 0 || 1 / f > 0),  // exclude negative zero
     // fc.bigInt(),
     // fc.uint8Array().map((a) => a.buffer),
   ),

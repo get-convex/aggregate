@@ -230,6 +230,59 @@ export async function aggregateBetweenHandler(
   return await aggregateBetweenInNode(ctx.db, tree.root, args.k1, args.k2);
 }
 
+type WithinBounds = {
+  type: "item";
+  item: Item;
+} | {
+  type: "subtree";
+  subtree: Id<"btreeNode">;
+};
+
+async function filterBetween(
+  db: DatabaseReader,
+  node: Id<"btreeNode">,
+  k1?: Key,
+  k2?: Key
+): Promise<WithinBounds[]> {
+  const n = (await db.get(node))!;
+  const included: WithinBounds[] = [];
+  for (let i = 0; i < n.items.length; i++) {
+    const k1IsLeft = k1 === undefined || compareKeys(k1, n.items[i].k) === -1;
+    const k2IsRight = k2 === undefined || compareKeys(k2, n.items[i].k) === 1;
+    if (k1IsLeft && n.subtrees.length > 0) {
+      if ((k1 === undefined || included.length > 0) && k2IsRight) {
+        // Left bound is to the left of n.subtrees[i] and right bound is to the right,
+        // so include the whole subtree.
+        included.push({ type: "subtree", subtree: n.subtrees[i] });
+      } else {
+        // Recurse into first or last subtree
+        included.push(...await filterBetween(db, n.subtrees[i], k1, k2));
+      }
+    }
+    if (!k2IsRight) {
+      // We've reached the right bound, so we're done.
+      return included;
+    }
+    if (k1IsLeft) {
+      included.push({ type: "item", item: n.items[i] });
+    }
+  }
+  if (n.subtrees.length > 0) {
+    // Check the rightmost subtree
+    const i = n.items.length;
+    const k2IsRight = k2 === undefined;
+    if ((k1 === undefined || included.length > 0) && k2IsRight) {
+      // Left bound is to the left of n.subtrees[i] and right bound is to the right,
+      // so include the whole subtree.
+      included.push({ type: "subtree", subtree: n.subtrees[i] });
+    } else {
+      // Recurse into first or last subtree
+      included.push(...await filterBetween(db, n.subtrees[i], k1, k2));
+    }
+  }
+  return included;
+}
+
 export const aggregateBetween = query({
   args: { k1: v.optional(v.any()), k2: v.optional(v.any()) },
   returns: aggregate,
@@ -242,51 +295,15 @@ async function aggregateBetweenInNode(
   k1?: Key,
   k2?: Key
 ): Promise<Aggregate> {
-  const n = (await db.get(node))!;
-  const subCounts = await subtreeCounts(db, n);
   let count = { count: 0, sum: 0 };
-  let i = 0;
-  let foundLeftSide = false;
-  let foundLeftSidePreviously = false;
-  for (; i < n.items.length; i++) {
-    foundLeftSidePreviously = foundLeftSide;
-    const containsK1 = k1 === undefined || compareKeys(k1, n.items[i].k) === -1;
-    const containsK2 = k2 !== undefined && compareKeys(k2, n.items[i].k) !== 1;
-    if (!foundLeftSide) {
-      if (containsK1) {
-        // k1 is within n.subtree[i].
-        foundLeftSide = true;
-        if (n.subtrees.length > 0) {
-          count = add(count, await aggregateBetweenInNode(
-            db,
-            n.subtrees[i],
-            k1,
-            containsK2 ? k2 : undefined
-          ));
-        }
-      }
+  const filtered = await filterBetween(db, node, k1, k2);
+  for (const included of filtered) {
+    if (included.type === "item") {
+      count = add(count, itemAggregate(included.item));
+    } else {
+      const subtree = (await db.get(included.subtree))!;
+      count = add(count, await nodeAggregate(db, subtree));
     }
-    if (foundLeftSide) {
-      if (containsK2) {
-        // k2 is within n.subtree[i].
-        // So i is the final index to look at.
-        break;
-      }
-      // count n.keys[i]
-      count = add(count, itemAggregate(n.items[i]));
-      // count n.subtrees[i] if we didn't already
-      if (n.subtrees.length > 0 && foundLeftSidePreviously) {
-        count = add(count, subCounts[i]);
-      }
-    }
-  }
-  if (n.subtrees.length > 0) {
-    count = add(count, await aggregateBetweenInNode(
-      db,
-      n.subtrees[i],
-      foundLeftSide ? undefined : k1,
-      k2
-    ));
   }
   return count;
 }
@@ -329,62 +346,60 @@ async function getInNode(
 }
 
 export const atOffset = query({
-  args: { offset: v.number() },
+  args: { offset: v.number(), k1: v.optional(v.any()), k2: v.optional(v.any()) },
   returns: itemValidator,
   handler: atOffsetHandler,
 });
 
 export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { offset: number }
+  args: { offset: number, k1?: Key, k2?: Key }
 ) {
   const tree = (await getTree(ctx.db))!;
-  return await atOffsetInNode(ctx.db, tree.root, args.offset);
+  return await atOffsetInNode(ctx.db, tree.root, args.offset, args.k1, args.k2);
+}
+
+export const atNegativeOffset = query({
+  args: { offset: v.number(), k1: v.optional(v.any()), k2: v.optional(v.any()) },
+  returns: itemValidator,
+  handler: atNegativeOffsetHandler,
+});
+
+export async function atNegativeOffsetHandler(
+  ctx: { db: DatabaseReader },
+  args: { offset: number, k1?: Key, k2?: Key }
+) {
+  const tree = (await getTree(ctx.db))!;
+  return await negativeOffsetInNode(ctx.db, tree.root, args.offset, args.k1, args.k2);
 }
 
 export async function offsetHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key }
+  args: { key: Key, k1?: Key }
 ) {
-  const tree = (await getTree(ctx.db))!;
-  return await offsetInNode(ctx.db, tree.root, args.key);
+  return (await aggregateBetweenHandler(ctx, { k1: args.k1, k2: args.key })).count;
 }
 
 // Returns the offset of the smallest key >= the given target key.
 export const offset = query({
-  args: { key: v.any() },
+  args: { key: v.any(), k1: v.optional(v.any()) },
   returns: v.number(),
   handler: offsetHandler,
 });
 
-async function offsetInNode(
-  db: DatabaseReader,
-  node: Id<"btreeNode">,
-  key: Key
-): Promise<number> {
-  const n = (await db.get(node))!;
-  let i = 0;
-  for (; i < n.items.length; i++) {
-    const compare = compareKeys(key, n.items[i].k);
-    if (compare === -1) {
-      // if key < n.keys[i], recurse to the left of index i
-      break;
-    }
-    if (compare === 0) {
-      if (n.subtrees.length === 0) {
-        return i;
-      }
-      const subCounts = await subtreeCounts(db, n);
-      return accumulate(subCounts.slice(0, i)).count + i;
-    }
-  }
-  if (n.subtrees.length === 0) {
-    return i;
-  }
-  const subCounts = await subtreeCounts(db, n);
-  const rankInSubtree = await offsetInNode(db, n.subtrees[i], key);
-  return accumulate(subCounts.slice(0, i)).count + i + rankInSubtree;
+export async function offsetUntilHandler(
+  ctx: { db: DatabaseReader },
+  args: { key: Key, k2?: Key }
+) {
+  return (await aggregateBetweenHandler(ctx, { k1: args.key, k2: args.k2 })).count;
 }
+
+// Returns the offset of the smallest key >= the given target key.
+export const offsetUntil = query({
+  args: { key: v.any(), k2: v.optional(v.any()) },
+  returns: v.number(),
+  handler: offsetUntilHandler,
+});
 
 async function deleteFromNode(
   ctx: {db: DatabaseWriter},
@@ -565,38 +580,53 @@ async function mergeNodes(
 async function negativeOffsetInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
-  index: number
+  index: number,
+  k1?: Key,
+  k2?: Key,
 ): Promise<Item> {
-  const n = (await db.get(node))!;
-  const nAggregate = await nodeAggregate(db, n);
-  return await atOffsetInNode(db, node, nAggregate.count - index - 1);
+  const filtered = await filterBetween(db, node, k1, k2);
+  for (const included of filtered.reverse()) {
+    if (included.type === "item") {
+      if (index === 0) {
+        return included.item;
+      }
+      index -= 1;
+    } else {
+      const subtree = (await db.get(included.subtree))!;
+      const subtreeCount = (await nodeAggregate(db, subtree)).count;
+      if (index < subtreeCount) {
+        return await negativeOffsetInNode(db, included.subtree, index);
+      }
+      index -= subtreeCount;
+    }
+  }
+  throw new ConvexError(`negative offset exceeded count by ${index} (in node ${node})`);
 }
 
 async function atOffsetInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
-  index: number
+  index: number,
+  k1?: Key,
+  k2?: Key,
 ): Promise<Item> {
-  const n = (await db.get(node))!;
-  const nAggregate = await nodeAggregate(db, n);
-  if (index >= nAggregate.count) {
-    throw new Error(`index ${index} too big for node ${n._id}`);
-  }
-  if (n.subtrees.length === 0) {
-    return n.items[index];
-  }
-  const subCounts = await subtreeCounts(db, n);
-  for (let i = 0; i < subCounts.length; i++) {
-    if (index < subCounts[i].count) {
-      return await atOffsetInNode(db, n.subtrees[i], index);
+  const filtered = await filterBetween(db, node, k1, k2);
+  for (const included of filtered) {
+    if (included.type === "item") {
+      if (index === 0) {
+        return included.item;
+      }
+      index -= 1;
+    } else {
+      const subtree = (await db.get(included.subtree))!;
+      const subtreeCount = (await nodeAggregate(db, subtree)).count;
+      if (index < subtreeCount) {
+        return await atOffsetInNode(db, included.subtree, index);
+      }
+      index -= subtreeCount;
     }
-    index -= subCounts[i].count;
-    if (index === 0) {
-      return n.items[i];
-    }
-    index--;
   }
-  throw new Error(`remaing index ${index} for node ${n._id}`);
+  throw new ConvexError(`offset exceeded count by ${index} (in node ${node})`);
 }
 
 function itemAggregate(item: Item): Aggregate {

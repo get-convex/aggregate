@@ -7,6 +7,7 @@ import { Key } from "../component/btree.js";
 import { api } from "../component/_generated/api.js";
 import { UseApi } from "./useApi.js";
 import { Position, positionToKey, boundToPosition, keyToPosition, Bound } from "./positions.js";
+import { ConvexError } from "convex/values";
 
 export type UsedAPI = UseApi<typeof api>;
 
@@ -55,10 +56,32 @@ export class Aggregate<
   /// Aggregate queries.
 
   /**
-   * Returns the item at the given offset/index/rank in the order of key.
+   * Returns the item at the given offset/index/rank in the order of key,
+   * within the bounds. Zero-indexed, so at(0) is the smallest key within the
+   * bounds.
+   * 
+   * If offset is negative, it counts from the end of the list, so at(-1) is the
+   * item with the largest key within the bounds.
    */
-  async at(ctx: RunQueryCtx, offset: number): Promise<Item<K, ID>> {
-    const { k, s } = await ctx.runQuery(this.component.btree.atOffset, { offset });
+  async at(ctx: RunQueryCtx, offset: number, bounds?: Bounds<K, ID>): Promise<Item<K, ID>> {
+    if (offset < 0) {
+      const { k, s } = await ctx.runQuery(this.component.btree.atNegativeOffset, {
+        offset: -offset - 1,
+        k1: boundToPosition("lower", bounds?.lower),
+        k2: boundToPosition("upper", bounds?.upper),
+      });
+      const { key, id } = positionToKey(k as Position);
+      return {
+        key: key as K,
+        id: id as ID,
+        summand: s,
+      };
+    }
+    const { k, s } = await ctx.runQuery(this.component.btree.atOffset, {
+      offset,
+      k1: boundToPosition("lower", bounds?.lower),
+      k2: boundToPosition("upper", bounds?.upper),
+    });
     const { key, id } = positionToKey(k as Position);
     return {
       key: key as K,
@@ -67,11 +90,24 @@ export class Aggregate<
     };
   }
   /**
-   * Returns the rank/offset/index of the given key.
+   * Returns the rank/offset/index of the given key, within the bounds.
    * Specifically, it returns the index of the first item with a key >= the given key.
    */
-  async offsetOf(ctx: RunQueryCtx, key: K, id?: ID): Promise<number> {
-    return await ctx.runQuery(this.component.btree.offset, { key: boundToPosition("lower", { key, id, inclusive: true }) });
+  async offsetOf(ctx: RunQueryCtx, key: K, id?: ID, lowerBound?: Bound<K, ID>): Promise<number> {
+    return await ctx.runQuery(this.component.btree.offset, {
+      key: boundToPosition("lower", { key, id, inclusive: true }),
+      k1: boundToPosition("lower", lowerBound),
+    });
+  }
+  /**
+   * Returns the rank/offset/index of the given key, counting from the end of
+   * the list (or `upperBound`).
+   */
+  async offsetUntil(ctx: RunQueryCtx, key: K, id?: ID, upperBound?: Bound<K, ID>): Promise<number> {
+    return await ctx.runQuery(this.component.btree.offsetUntil, {
+      key: boundToPosition("upper", { key, id, inclusive: true }),
+      k2: boundToPosition("upper", upperBound),
+    });
   }
   /**
    * Counts items between the given lower and upper bounds.
@@ -95,23 +131,31 @@ export class Aggregate<
    * Gets the minimum item within the given bounds.
    */
   async min(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx, bounds);
-    if (count === 0) {
-      return null;
+    try {
+      return await this.at(ctx, 0, bounds);
+    } catch (e) {
+      // Note we don't proactively check the count, because that takes
+      // a read dependency on the whole bounds, which is usually unnecessary.
+      // But if `.at` throws an error, we check.
+      if (e instanceof ConvexError && (await this.count(ctx, bounds)) === 0) {
+        return null;
+      }
+      throw e;
     }
-    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
-    return await this.at(ctx, countUpToBound - count);
   }
   /**
    * Gets the maximum item within the given bounds.
    */
   async max(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx, bounds);
-    if (count === 0) {
-      return null;
+    try {
+      return await this.at(ctx, -1, bounds);
+    } catch (e) {
+      // TODO: figure out why the `instanceof` check isn't working.
+      if (e instanceof ConvexError && (await this.count(ctx, bounds)) === 0) {
+        return null;
+      }
+      throw e;
     }
-    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
-    return await this.at(ctx, countUpToBound - 1);
   }
   /**
    * Gets a uniformly random item within the given bounds.
@@ -121,12 +165,11 @@ export class Aggregate<
     if (count === 0) {
       return null;
     }
-    const countUpToBound = await this.count(ctx, { ...bounds, lower: undefined });
     const index = Math.floor(Math.random() * count);
-    return await this.at(ctx, countUpToBound - count + index);
+    return await this.at(ctx, index, bounds);
   }
   // TODO: iter items between keys
-  // For now you can use `rankOf` and `at` to iterate.
+  // For now you can use `offsetOf` and `at` to iterate.
 
 
   /// Write operations.

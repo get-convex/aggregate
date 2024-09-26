@@ -58,16 +58,28 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
+      atNegativeOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atNegativeOffsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
       atOffset: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -84,11 +96,28 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; key: any },
+        number
+      >;
       offsetHandler: FunctionReference<
         "query",
         "internal",
-        { key: any },
+        { k1?: any; key: any },
+        number
+      >;
+      offsetUntil: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
+        number
+      >;
+      offsetUntilHandler: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
         number
       >;
       sum: FunctionReference<"query", "internal", {}, number>;
@@ -161,16 +190,28 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
+      atNegativeOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atNegativeOffsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
       atOffset: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -187,11 +228,28 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; key: any },
+        number
+      >;
       offsetHandler: FunctionReference<
         "query",
         "internal",
-        { key: any },
+        { k1?: any; key: any },
+        number
+      >;
+      offsetUntil: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
+        number
+      >;
+      offsetUntilHandler: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
         number
       >;
       sum: FunctionReference<"query", "internal", {}, number>;
@@ -264,16 +322,28 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
+      atNegativeOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atNegativeOffsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
       atOffset: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -290,11 +360,28 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; key: any },
+        number
+      >;
       offsetHandler: FunctionReference<
         "query",
         "internal",
-        { key: any },
+        { k1?: any; key: any },
+        number
+      >;
+      offsetUntil: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
+        number
+      >;
+      offsetUntilHandler: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
         number
       >;
       sum: FunctionReference<"query", "internal", {}, number>;
@@ -367,16 +454,28 @@ export declare const components: {
         { k1?: any; k2?: any },
         { count: number; sum: number }
       >;
+      atNegativeOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atNegativeOffsetHandler: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
       atOffset: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       atOffsetHandler: FunctionReference<
         "query",
         "internal",
-        { offset: number },
+        { k1?: any; k2?: any; offset: number },
         { k: any; s: number; v: any }
       >;
       count: FunctionReference<"query", "internal", {}, any>;
@@ -393,11 +492,28 @@ export declare const components: {
         { key: any },
         null | { k: any; s: number; v: any }
       >;
-      offset: FunctionReference<"query", "internal", { key: any }, number>;
+      offset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; key: any },
+        number
+      >;
       offsetHandler: FunctionReference<
         "query",
         "internal",
-        { key: any },
+        { k1?: any; key: any },
+        number
+      >;
+      offsetUntil: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
+        number
+      >;
+      offsetUntilHandler: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any },
         number
       >;
       sum: FunctionReference<"query", "internal", {}, number>;

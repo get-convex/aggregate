@@ -18,7 +18,7 @@ export const backfillAggregates = internalMutation({
     await aggregateScoreByUser.clear(ctx);
 
     for await (const doc of ctx.db.query("leaderboard")) {
-      await aggregateByScore.insert(ctx, -doc.score, doc._id);
+      await aggregateByScore.insert(ctx, doc.score, doc._id);
       await aggregateScoreByUser.insert(ctx, [doc.name, doc.score], doc._id, doc.score);
       console.log("backfilled", doc.name, doc.score);
     }
@@ -33,7 +33,7 @@ export const addScore = mutation({
   returns: v.id("leaderboard"),
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("leaderboard", { name: args.name, score: args.score });
-    await aggregateByScore.insert(ctx, -args.score, id);
+    await aggregateByScore.insert(ctx, args.score, id);
     await aggregateScoreByUser.insert(ctx, [args.name, args.score], id, args.score);
     return id;
   },
@@ -46,7 +46,7 @@ export const removeScore = mutation({
   handler: async (ctx, { id }) => {
     const doc = (await ctx.db.get(id))!;
     await ctx.db.delete(id);
-    await aggregateByScore.delete(ctx, -doc.score, id);
+    await aggregateByScore.delete(ctx, doc.score, id);
     await aggregateScoreByUser.delete(ctx, [doc.name, doc.score], id);
   },
 });
@@ -62,7 +62,7 @@ export const scoreAtRank = query({
     rank: v.number(),
   },
   handler: async (ctx, { rank }) => {
-    const score = await aggregateByScore.at(ctx, rank);
+    const score = await aggregateByScore.at(ctx, -rank-1);
     return await ctx.db.get(score.id);
   },
 });
@@ -75,7 +75,7 @@ export const rankOfScore = query({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    return await aggregateByScore.offsetOf(ctx, -args.score);
+    return await aggregateByScore.offsetUntil(ctx, args.score);
   },
 });
 
