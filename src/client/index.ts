@@ -6,7 +6,7 @@ import {
 import { Key } from "../component/btree.js";
 import { api } from "../component/_generated/api.js";
 import { UseApi } from "./useApi.js";
-import { Position, positionToKey, boundToPosition, keyToPosition, Bound } from "./positions.js";
+import { Position, positionToKey, boundToPosition, keyToPosition, Bound, Bounds } from "./positions.js";
 import { ConvexError } from "convex/values";
 
 export type UsedAPI = UseApi<typeof api>;
@@ -25,11 +25,6 @@ export type Item<K extends Key, ID extends string> = {
   key: K;
   id: ID;
   summand: number;
-};
-
-export type Bounds<K extends Key, ID extends string> = {
-  lower?: Bound<K, ID>;
-  upper?: Bound<K, ID>;
 };
 
 export type { Key, Bound };
@@ -65,29 +60,19 @@ export class Aggregate<
    */
   async at(ctx: RunQueryCtx, offset: number, bounds?: Bounds<K, ID>): Promise<Item<K, ID>> {
     if (offset < 0) {
-      const { k, s } = await ctx.runQuery(this.component.btree.atNegativeOffset, {
+      const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
         offset: -offset - 1,
         k1: boundToPosition("lower", bounds?.lower),
         k2: boundToPosition("upper", bounds?.upper),
       });
-      const { key, id } = positionToKey(k as Position);
-      return {
-        key: key as K,
-        id: id as ID,
-        summand: s,
-      };
+      return btreeItemToAggregateItem(item);
     }
-    const { k, s } = await ctx.runQuery(this.component.btree.atOffset, {
+    const item = await ctx.runQuery(this.component.btree.atOffset, {
       offset,
       k1: boundToPosition("lower", bounds?.lower),
       k2: boundToPosition("upper", bounds?.upper),
     });
-    const { key, id } = positionToKey(k as Position);
-    return {
-      key: key as K,
-      id: id as ID,
-      summand: s,
-    };
+    return btreeItemToAggregateItem(item);
   }
   /**
    * Returns the rank/offset/index of the given key, within the bounds.
@@ -167,6 +152,38 @@ export class Aggregate<
     const index = Math.floor(Math.random() * count);
     return await this.at(ctx, index, bounds);
   }
+  /**
+   * Get a page of items between the given bounds, with a cursor to paginate.
+   * Use `iter` to iterate over all items within the bounds.
+   */
+  async paginate(
+    ctx: RunQueryCtx,
+    bounds?: Bounds<K, ID>,
+    cursor?: string,
+    order: 'asc' | 'desc' = 'asc',
+    pageSize: number = 100,
+  ): Promise<{ page: Item<K, ID>[], cursor: string, isDone: boolean }> {
+    const { page, cursor: newCursor, isDone } = await ctx.runQuery(this.component.btree.paginate, {
+      k1: boundToPosition("lower", bounds?.lower),
+      k2: boundToPosition("upper", bounds?.upper),
+      cursor,
+      order,
+      limit: pageSize,
+    });
+    return {
+      page: page.map(btreeItemToAggregateItem<K, ID>),
+      cursor: newCursor,
+      isDone,
+    };
+  }
+  /**
+   * Example usage:
+   * ```ts
+   * for await (const item of aggregate.iter(ctx, bounds)) {
+   *   console.log(item);
+   * }
+   * ```
+   */
   async *iter(
     ctx: RunQueryCtx,
     bounds?: Bounds<K, ID>,
@@ -176,26 +193,12 @@ export class Aggregate<
     let isDone = false;
     let cursor: string | undefined = undefined;
     while (!isDone) {
-      const { page, cursor: newCursor, isDone: newIsDone }
-          = await ctx.runQuery(this.component.btree.paginate, {
-        k1: boundToPosition("lower", bounds?.lower),
-        k2: boundToPosition("upper", bounds?.upper),
-        cursor,
-        order,
-        limit: pageSize,
-      });
-      for (const { k, s } of page) {
-        const { key, id } = positionToKey(k as Position);
-        yield {
-          key: key as K,
-          id: id as ID,
-          summand: s,
-        };
+      const { page, cursor: newCursor, isDone: newIsDone } = await this.paginate(ctx, bounds, cursor, order, pageSize);
+      for (const item of page) {
+        yield item;
       }
       isDone = newIsDone;
-      // TypeScript gets unhappy without this.
-      const newCursor2: string = newCursor;
-      cursor = newCursor2;
+      cursor = newCursor;
     }
   }
 
@@ -326,4 +329,19 @@ export class Randomize<
   async clear(ctx: RunMutationCtx, maxNodeSize?: number, rootLazy?: boolean): Promise<void> {
     await this.aggregate.clear(ctx, maxNodeSize, rootLazy);
   }
+}
+
+export function btreeItemToAggregateItem<K extends Key, ID extends string>({
+  k,
+  s
+}: {
+  k: unknown,
+  s: number,
+}): Item<K, ID> {
+  const { key, id } = positionToKey(k as Position);
+  return {
+    key: key as K,
+    id: id as ID,
+    summand: s,
+  };
 }

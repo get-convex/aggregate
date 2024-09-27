@@ -12,6 +12,23 @@ export type Bound<K extends Key, ID extends string> = {
   inclusive: boolean,
 };
 
+export type SideBounds<K extends Key, ID extends string> = {
+  lower?: Bound<K, ID>;
+  upper?: Bound<K, ID>;
+};
+
+// e.g. TuplePrefix<[string, number]> = [] | [string] | [string, number]
+export type TuplePrefix<K extends unknown[], P extends unknown[] = []> = 
+  P['length'] extends K['length'] 
+    ? P
+    : P | TuplePrefix<K, [...P, K[P['length']]]>;
+
+export type Bounds<K extends Key, ID extends string> = K extends unknown[] ? (
+  SideBounds<K, ID> | {
+    prefix: TuplePrefix<K>;
+  }
+) : SideBounds<K, ID>;
+
 // IDs are strings so in the Convex ordering, null < IDs < arrays.
 const BEFORE_ALL_IDS = null;
 const AFTER_ALL_IDS: never[] = [];
@@ -29,6 +46,30 @@ export function positionToKey<K extends Key, ID extends string>(
   position: Position,
 ): { key: K; id: ID } {
   return { key: position[1] as K, id: position[2] as ID };
+}
+
+export function boundsToPositions<K extends Key, ID extends string>(
+  bounds: Bounds<K, ID>,
+): { k1: Position; k2: Position } {
+  if ('prefix' in bounds) {
+    return {
+      lower: {
+        key: ["", ...bounds.prefix, BEFORE_ALL_IDS],
+        id: null,
+        inclusive: true,
+      },
+      upper: {
+        key: ["", ...bounds.prefix, AFTER_ALL_IDS],
+        id: null,
+        inclusive: false,
+      },
+    };
+  }
+  const lower: Bound<K, ID> | undefined = bounds.lower;
+  return {
+    k1: boundToPosition<K, ID>('lower', lower),
+    k2: boundToPosition<K, ID>('upper', bounds.upper),
+  };
 }
 
 export function boundToPosition<
