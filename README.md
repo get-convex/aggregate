@@ -349,8 +349,9 @@ export const addTwo = mutation({
 });
 ```
 
-When you call the `addTwo` mutation, the count will increase by... one. But
-with the Aggregate component, the count goes up by two as intended.
+When you call the `addTwo` mutation, the count will increase by... one.
+That's because TypeScript runs both `db.query`s before running the `db.patch`s.
+But with the Aggregate component, the count goes up by two as intended.
 
 ```ts
 export const addTwo = mutation({
