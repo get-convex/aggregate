@@ -11,7 +11,7 @@ lookups, instead of the `O(n)` that would result from naive usage of
 `.collect()` in Convex or `COUNT(*)` in MySQL or Postgres:
 
 1. Count the total number of scores: `aggregate.count(ctx)`
-2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: true } })`
+2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: false } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
 5. Find the ranking for a score of 65 in the leaderboard: `aggregate.offsetOf(ctx, 65)`
@@ -48,14 +48,26 @@ The keys may be arbitrary Convex values, so you can choose to sort your data by:
     [just want a counter](#total-count-and-randomization).
 
 You can use sorting to partition your data set. If you want to keep track
-of the leaderboard scores for each user, use a tuple of `[username, score]`
+of multiple games with scores for each user, use a tuple of
+`[game, username, score]`
 as the key. Then you can bound your queries with a prefix of the key, like
-`aggregateScoreByUser.count(ctx, { prefix: [username] })` which will count all
-scores for the given user.
+
+1. `aggregateByGame.count(ctx, { prefix: [game] })` counts how many times
+    a given game has been played
+2. `aggregateByGame.count(ctx, { prefix: [game, username] })` counts how many
+    times a given user has played a given game.
+3. `aggregateByGame.max(ctx, { prefix: [game, username] })` returns the high
+    score for a given user in a given game.
+
+Pay attention to the sort order when aggregating. While
+`aggregateByGame.max(ctx, { prefix: [game] })` looks like it might give the
+highest score for a game, it actually gives the user with the highest username
+who has played that game (like "Zach"). To get the highest score for a game, you
+would need to aggregate with key `[game, score]`.
 
 ## More examples
 
-The aggregate component can efficiently calculate all of these:
+The Aggregate component can efficiently calculate all of these:
 
 - In a messaging app, how many messages have been sent within the past month?
 - Offset-based pagination: view the 14th page of photos, where each page has
@@ -90,8 +102,8 @@ You would do this by using the `aggregate` component multiple times, giving each
 usage its own name.
 
 ```ts
-app.use(aggregate, { name: "aggregateUsers" });
-app.use(aggregate, { name: "aggregateTeams" });
+app.use(aggregate, { name: "aggregateScores" });
+app.use(aggregate, { name: "aggregateByGame" });
 ```
 
 # How to Use
@@ -322,7 +334,7 @@ with a normal Convex mutation, you'll notice that the TypeScript can run with
 various orderings, messing up the final result.
 
 ```ts
-// You might try to do this before the Aggregate component.
+// You might try to do this before experiencing the wonders of the Aggregate component.
 async function increment(ctx: MutationCtx) {
   const doc = (await ctx.query("count").unique())!;
   await ctx.db.patch(doc._id, { value: doc.value + 1 });
