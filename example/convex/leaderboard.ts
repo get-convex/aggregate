@@ -93,23 +93,16 @@ export const rankOfScore = query({
   },
 });
 
-const MAX_SCORE = 10000;
-const MIN_SCORE = -10000;
-
 export const userAverageScore = query({
   args: {
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    const bounds = {
-      lower: { key: [args.name, MIN_SCORE] as [string, number], inclusive: true },
-      upper: { key: [args.name, MAX_SCORE] as [string, number], inclusive: true },
-    };
-    const count = await aggregateScoreByUser.count(ctx, bounds);
+    const count = await aggregateScoreByUser.count(ctx, { prefix: [args.name] });
     if (!count) {
       throw new ConvexError("no scores for " + args.name);
     }
-    const sum = await aggregateScoreByUser.sum(ctx, bounds);
+    const sum = await aggregateScoreByUser.sum(ctx, { prefix: [args.name] });
     return sum / count;
   },
 });
@@ -121,8 +114,7 @@ export const userHighScore = query({
   returns: v.number(),
   handler: async (ctx, args) => {
     const item = await aggregateScoreByUser.max(ctx, {
-      lower: { key: [args.name, MIN_SCORE], inclusive: true },
-      upper: { key: [args.name, MAX_SCORE], inclusive: true },
+      prefix: [args.name],
     });
     if (!item) {
       throw new ConvexError("no scores for " + args.name);
