@@ -288,12 +288,22 @@ Like all Convex queries, aggregates are
 [reactive](https://docs.convex.dev/tutorial/reactor#realtime-is-all-the-time),
 and updating them is [transactional](https://www.convex.dev/database).
 
-The reactivity means if you query an aggregate, like a count, sum, rank,
+## Reactivity
+
+Reactivity means if you query an aggregate, like a count, sum, rank,
 offset-based page, etc. your UI will automatically update to reflect updates.
+
 If someone gets a new high score, everyone else's leaderboard will show them
 moving down, and the total count of scores will increase.
 If I add a new song, it will automatically get shuffled into the
 music album.
+
+Don't worry about polling to get new results. Don't worry about data needing a
+few seconds to propagate through the system. And you don't need to refresh
+your browser. As soon as the data is updated, the aggregates are updated
+everywhere, including the user's UI.
+
+## Transactions
 
 Transactionality means if you do multiple writes in the same mutation, like
 adding data to a table and inserting it into an aggregate, those operations
@@ -302,10 +312,52 @@ the data exists in the table but not in the aggregate. And if two mutations
 insert data into an aggregate, the count will go up by two, even if the
 mutations are running in parallel.
 
+There's a special transactional property of components that is even better than
+the Convex guarantees you're used to. If you were to keep a denormalized count
+with a normal Convex mutation, you'll notice that the TypeScript can run with
+various orderings, messing up the final result.
+
+```ts
+// You might try to do this before the Aggregate component.
+async function increment(ctx: MutationCtx) {
+  const doc = (await ctx.query("count").unique())!;
+  await ctx.db.patch(doc._id, { value: doc.value + 1 });
+}
+export const addTwo = mutation({
+  handler: async (ctx) => {
+    await Promise.all([
+      increment(ctx),
+      increment(ctx),
+    ]);
+  },
+});
+```
+
+When you call the `addTwo` mutation, the count will increase by... one. But
+with the Aggregate component, the count goes up by two as intended.
+
+```ts
+export const addTwo = mutation({
+  handler: async (ctx) => {
+    await Promise.all([
+      aggregate.insert(ctx, "some key", "a"),
+      aggregate.insert(ctx, "other key", "b"),
+    ]);
+  },
+});
+```
+
+You may have noticed that `Aggregate` methods can be called from actions, unlike
+`ctx.db`. This was an accident, but it works so let's call it a feature! In
+particular, each `Aggregate` method called from any context, including from an
+action, will be atomic within itself. However, we recommend calling the methods
+from a mutation or query so they can be transactional with other database
+reads and writes.
+
 Reactivity and transactionality can be amazing for user experience, but if you
 observe issues with queries rerunning often or mutations slowing down or
 throwing errors, you may need to learn about the internals of the aggregate
-component. Specifically, how it performs writes and reads.
+component. Specifically, how reads and writes intersect.
 
 ## Read dependencies and writes
 

@@ -50,6 +50,24 @@ export class Aggregate<
   /// Aggregate queries.
 
   /**
+   * Counts items between the given bounds.
+   */
+  async count(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
+    const { count } = await ctx.runQuery(this.component.btree.aggregateBetween,
+      boundsToPositions(bounds),
+    );
+    return count;
+  }
+  /**
+   * Adds up the summands of items between the given bounds.
+   */
+  async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
+    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween,
+      boundsToPositions(bounds),
+    );
+    return sum;
+  }
+  /**
    * Returns the item at the given offset/index/rank in the order of key,
    * within the bounds. Zero-indexed, so at(0) is the smallest key within the
    * bounds.
@@ -92,24 +110,6 @@ export class Aggregate<
       key: boundToPosition("upper", { key, id, inclusive: true }),
       k2,
     });
-  }
-  /**
-   * Counts items between the given lower and upper bounds.
-   */
-  async count(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
-    const { count } = await ctx.runQuery(this.component.btree.aggregateBetween,
-      boundsToPositions(bounds),
-    );
-    return count;
-  }
-  /**
-   * Adds up the summands of items between the given lower and upper bounds.
-   */
-  async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
-    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween,
-      boundsToPositions(bounds),
-    );
-    return sum;
   }
   /**
    * Gets the minimum item within the given bounds.
@@ -193,6 +193,7 @@ export class Aggregate<
    * If not provided, the summand is assumed to be zero.
    * If the tree does not exist yet, it will be initialized with the default
    * maxNodeSize and lazyRoot=true.
+   * If the [key, id] pair already exists, this will throw.
    */
   async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
     await ctx.runMutation(this.component.public.insert, { key: keyToPosition(key, id), summand, value: id });
