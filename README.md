@@ -351,7 +351,8 @@ export const addTwo = mutation({
 
 When you call the `addTwo` mutation, the count will increase by... one.
 That's because TypeScript runs both `db.query`s before running the `db.patch`s.
-But with the Aggregate component, the count goes up by two as intended.
+But with the Aggregate component, the count goes up by two as intended. That's
+because component operations are atomic.
 
 ```ts
 export const addTwo = mutation({
@@ -365,7 +366,7 @@ export const addTwo = mutation({
 ```
 
 You may have noticed that `Aggregate` methods can be called from actions, unlike
-`ctx.db`. This was an accident, but it works so let's call it a feature! In
+`ctx.db`. This was an accident, but it works, so let's call it a feature! In
 particular, each `Aggregate` method called from any context, including from an
 action, will be atomic within itself. However, we recommend calling the methods
 from a mutation or query so they can be transactional with other database
