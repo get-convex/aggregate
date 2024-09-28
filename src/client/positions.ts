@@ -69,7 +69,7 @@ export function keyToPosition<K extends Key, ID extends string>(
 export function positionToKey<K extends Key, ID extends string>(
   position: Position,
 ): { key: K; id: ID } {
-  return { key: implodeKey(position[1]) as K, id: position[2] as ID };
+  return { key: implodeKey(position[0]) as K, id: position[1] as ID };
 }
 
 export function boundsToPositions<K extends Key, ID extends string>(
