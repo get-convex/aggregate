@@ -1,6 +1,6 @@
 # Convex Component: Aggregate
 
-[![npm version](https://badge.fury.io/js/@convex-dev%2Faggregate.svg?)](https://badge.fury.io/js/@convex-dev%2Faggregate)
+[![npm version](https://img.shields.io/npm/v/@convex-dev/aggregate.svg)](https://www.npmjs.com/package/@convex-dev/aggregate)
 
 This Convex component calculates count and sums of values for efficient
 aggregation.
@@ -58,9 +58,9 @@ scores for the given user.
 The aggregate component can efficiently calculate all of these:
 
 - In a messaging app, how many messages have been sent within the past month?
-- Offset-based pagination: view the 100th page of photos, where each page has
+- Offset-based pagination: view the 14th page of photos, where each page has
   50 photos.
-- Look up a random song in a table, as the next song to play.
+- Look up a random song in a playlist, as the next song to play.
 
 # How to install
 
@@ -130,7 +130,7 @@ you can rest assured that the table and its aggregate will update atomically.
 
 However, it's important that *every* mutation modifying the table also updates
 the associated aggregate. If they get out of sync then computed aggregates might
-be incorrect. See [below](#attach-aggregate-to-an-existing-table) and 
+be incorrect. See [below](#attach-aggregate-to-an-existing-table).
 
 > If you want to automatically update the aggregates based on changes to a table,
 > [you can use](https://stack.convex.dev/custom-functions)
@@ -260,7 +260,7 @@ ways to perform migrations, but here's an overview of one way:
    sync with the source of truth. If that happens, see
    [below](#repair-incorrect-aggregates).
 3. Use a paginated background migration to walk all existing data and call
-   `replaceOrInsert`.
+   `insertIfDoesNotExist`.
 4. Now all of the data is represented in the `Aggregate`, you can start calling
    read methods like `aggregate.count(ctx)` and you can replace
    `insertIfDoesNotExist` -> `insert`, `deleteIfExists` -> `delete` and
@@ -287,6 +287,10 @@ aggregates based on the diff of these two paginated data streams.
 Like all Convex queries, aggregates are
 [reactive](https://docs.convex.dev/tutorial/reactor#realtime-is-all-the-time),
 and updating them is [transactional](https://www.convex.dev/database).
+
+If aggregated data updates infrequently, everything runs smoothly.
+However, if aggregated data updates frequently, the reactivity and atomicity can
+cause issues: reactive queries can rerun often, and mutations can slow down.
 
 ## Reactivity
 
@@ -365,33 +369,32 @@ When a query calls `await aggregate.count(ctx)`, this depends on
 the entire aggregate data structure. When any mutation changes the data
 structure, i.e. `insert`, `delete`, or `replace`, the query reruns and sends new
 results to the frontend. This is necessary to keep the frontend looking snappy,
-but it can cause large function call and bandwidth Convex usage.
+but it can cause large function call and bandwidth usage on Convex.
 
 When a *mutation* calls `await aggregate.count(ctx)`, then this mutation needs
 to [run transactionally](https://docs.convex.dev/database/advanced/occ)
-relative to other mutations. Any mutation that does an `insert`, `delete`, or
-`replace` can cause an [OCC conflict](https://docs.convex.dev/error#1).
+relative to other mutations. Another mutation that does an `insert`, `delete`,
+or `replace` can cause an [OCC conflict](https://docs.convex.dev/error#1).
 
-When two mutations call `await aggregate.insert(ctx, key, id)`, they write to
-an internal data structure which includes denormalized data. If the keys are
-similar enough, they might be in the same part of the data structure
-and a denormalized `count` or `sum` value will be updated by both mutations,
-causing a conflict.
+In order to calculate in `O(log(n))` time, the aggregate component stores
+denormalized counts in an internal data structure. Data points with nearby keys
+may have their counts accumulated in one place.
 
-These internal denormalized writes are how the `aggregate` component manages to
-calculate in `O(log(n))` time, but they can get in the way. Suppose user "Laura"
-is looking at her average score, which involves reading the denormalized sum
-and count of some internal data structure. If user "Lauren" gets a new high
-score, this may update the same internal data structure because their usernames
-are similar. Laura's average score will stay the same, but her query will
-rerun.
+Imagine the leaderboard aggregate defined with key=`[username, score]`. Users
+"Laura" and "Lauren" have adjacent keys, so there is a node internal to the
+Aggregate component that includes the counts of Laura and Lauren combined.
+If Laura is looking at her own high score, this involves reading from the
+internal node shared with Lauren. So when Lauren gets a new high score,
+Laura's query reruns (but its result doesn't change). And when Laura and Lauren
+both get new scores at the same time, their mutations will run slower to make
+the change to the internal node transactional.
 
-As a specific example: if a table's aggregate uses a key on `_creationTime`,
+Corollary: if a table's aggregate uses a key on `_creationTime`,
 each new data point will be added to the same part of the data structure (the
 end), because `_creationTime` keeps increasing. Therefore all inserts will
-conflict with each other and effectively no mutations can run in parallel.
+wait for each other and no mutations can run in parallel.
 
-## Bound data to aggregate
+## Put bounds on aggregated data
 
 To reduce the read dependency footprint of your query, you can partition your
 aggregate space and make sure you're using `bounds` whenever possible. Examples:
@@ -419,7 +422,7 @@ can be calculated efficiently by only reading a few documents instead of every
 document in your table.
 
 However, this isn't always required: we can trade off speed and database
-bandwidth for reduced impact on writes.
+bandwidth for reduced impact of writes.
 
 By default, the root aggregation document is lazy; it doesn't store a count.
 This means `aggregate.count(ctx)` has to look at several documents instead of
