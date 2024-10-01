@@ -3,15 +3,27 @@
  * it with offset-based pagination. That is, each page has 10 items, and you can
  * jump to any page in O(log(n)) time.
  * The paginated list is sorted by _creationTime.
+ * 
+ * Also demonstrates aggregates automatically updating when the underlying table changes.
  */
 
 import { Aggregate } from "@convex-dev/aggregate";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation as rawInternalMutation, mutation as rawMutation, query, MutationCtx } from "./_generated/server";
 import { components } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { DataModel, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { customMutation } from "convex-helpers/server/customFunctions";
+import { modTriggers } from "convex-helpers/server/triggers";
 
 const photos = new Aggregate<number, Id<"photos">>(components.photos);
+
+const modTrigger = modTriggers<DataModel, MutationCtx>({
+  photos: [photos.trigger<MutationCtx, DataModel>(
+    (doc) => doc._creationTime,
+  )],
+});
+const mutation = customMutation(rawMutation, modTrigger);
+const internalMutation = customMutation(rawInternalMutation, modTrigger);
 
 export const init = internalMutation({
   args: {},
@@ -30,8 +42,6 @@ export const addPhoto = mutation({
   returns: v.id("photos"),
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("photos", { url: args.url });
-    const photo = (await ctx.db.get(id))!;
-    await photos.insert(ctx, photo._creationTime, id);
     return id;
   },
 });
