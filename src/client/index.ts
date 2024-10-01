@@ -275,49 +275,56 @@ export class Aggregate<
   async makeRootLazy(ctx: RunMutationCtx): Promise<void> {
     await ctx.runMutation(this.component.public.makeRootLazy);
   }
+}
+
+export class TableAggregate<
+  K extends Key,
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+> extends Aggregate<K, GenericId<TableName>> {
   trigger<
     Ctx extends RunMutationCtx,
-    DataModel extends GenericDataModel,
   >(
-    sortKey: (d: DocumentByName<DataModel, TableNameFromID<ID>>) => K,
-    summand?: (d: DocumentByName<DataModel, TableNameFromID<ID>>) => number,
-  ): Trigger<Ctx, DataModel, TableNameFromID<ID>> {
-    return {
-      f: async (ctx, change) => {
-        const id = change.id as unknown as ID;
-        if (change.type === "insert") {
-          await this.insert(ctx, sortKey(change.newDoc!), id, summand?.(change.newDoc!));
-        } else if (change.type === "update") {
-          await this.replace(ctx, sortKey(change.oldDoc!), sortKey(change.newDoc!), id, summand?.(change.newDoc!));
-        } else if (change.type === "delete") {
-          await this.delete(ctx, sortKey(change.oldDoc!), id);
-        }
-      },
-      lock: true,
+    sortKey: (d: DocumentByName<DataModel, TableName>) => K,
+    summand?: (d: DocumentByName<DataModel, TableName>) => number,
+  ): Trigger<Ctx, DataModel, TableName> {
+    return async (ctx, change) => {
+      const id = change.id;
+      if (change.operation === "insert") {
+        await this.insert(ctx, sortKey(change.newDoc!), id, summand?.(change.newDoc));
+      } else if (change.operation === "update") {
+        await this.replace(ctx, sortKey(change.oldDoc!), sortKey(change.newDoc), id, summand?.(change.newDoc));
+      } else if (change.operation === "delete") {
+        await this.delete(ctx, sortKey(change.oldDoc), id);
+      }
     };
   }
 }
-
-type TableNameFromID<ID extends string> = ID extends GenericId<infer TableName> ? TableName : never;
 
 export type Trigger<
   Ctx,
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
-> = {
-  f: (ctx: Ctx, change: Change<DataModel, TableName>) => Promise<void>;
-  lock?: boolean;
-};
+> = (ctx: Ctx, change: Change<DataModel, TableName>) => Promise<void>;
 
 export type Change<
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
 > = {
   id: GenericId<TableName>;
-  type: "insert" | "update" | "delete";
-  oldDoc: DocumentByName<DataModel, TableName> | null;
-  newDoc: DocumentByName<DataModel, TableName> | null;
-};
+} & ({
+  operation: "insert";
+  oldDoc: null
+  newDoc: DocumentByName<DataModel, TableName>;
+} | {
+  operation: "update";
+  oldDoc: DocumentByName<DataModel, TableName>;
+  newDoc: DocumentByName<DataModel, TableName>;
+} | {
+  operation: "delete";
+  oldDoc: DocumentByName<DataModel, TableName>;
+  newDoc: null;
+});
 
 /**
  * Simplified Aggregate API that doesn't have keys or summands, so it's

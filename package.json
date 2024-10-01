@@ -52,7 +52,8 @@
     }
   },
   "dependencies": {
-    "convex": "^1.16.1"
+    "convex": "^1.16.3",
+    "convex-helpers": "file:../convex-helpers/packages/convex-helpers/convex-helpers-0.1.58.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

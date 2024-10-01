@@ -7,23 +7,24 @@
  * Also demonstrates aggregates automatically updating when the underlying table changes.
  */
 
-import { Aggregate } from "@convex-dev/aggregate";
+import { TableAggregate } from "@convex-dev/aggregate";
 import { internalMutation as rawInternalMutation, mutation as rawMutation, query, MutationCtx } from "./_generated/server";
 import { components } from "./_generated/api";
-import { DataModel, Id } from "./_generated/dataModel";
+import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { customMutation } from "convex-helpers/server/customFunctions";
-import { modTriggers } from "convex-helpers/server/triggers";
+import { Triggers } from "convex-helpers/server/triggers";
 
-const photos = new Aggregate<number, Id<"photos">>(components.photos);
+const photos = new TableAggregate<number, DataModel, "photos">(components.photos);
 
-const modTrigger = modTriggers<DataModel, MutationCtx>({
-  photos: [photos.trigger<MutationCtx, DataModel>(
-    (doc) => doc._creationTime,
-  )],
-});
-const mutation = customMutation(rawMutation, modTrigger);
-const internalMutation = customMutation(rawInternalMutation, modTrigger);
+const triggers = new Triggers<DataModel>();
+
+triggers.register("photos", photos.trigger<MutationCtx>(
+  (doc) => doc._creationTime,
+));
+
+const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
+const internalMutation = customMutation(rawInternalMutation, triggers.customFunctionWrapper());
 
 export const init = internalMutation({
   args: {},
