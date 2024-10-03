@@ -82,7 +82,7 @@ export const shufflePaginated = query({
 
     // The time complexity of calculating `indexes` is O(count),
     // and that's on every page so the overall time for all pages (assuming you
-    // call `shufflePaginated` repeatedly until the end of the table) is cubic.
+    // call `shufflePaginated` repeatedly until the end of the table) is quadratic.
     // That sounds terrible but is actually fast enough since this shuffle
     // doesn't fetch any data from the database; it's just in-memory
     // calculations.
