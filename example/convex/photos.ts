@@ -8,20 +8,21 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { internalMutation as rawInternalMutation, mutation as rawMutation, query, MutationCtx } from "./_generated/server";
+import { internalMutation as rawInternalMutation, mutation as rawMutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { customMutation } from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
-const photos = new TableAggregate<number, DataModel, "photos">(components.photos);
+const photos = new TableAggregate<number, DataModel, "photos">(
+  components.photos,
+  (doc) => doc._creationTime,
+);
 
 const triggers = new Triggers<DataModel>();
 
-triggers.register("photos", photos.trigger<MutationCtx>(
-  (doc) => doc._creationTime,
-));
+triggers.register("photos", photos.trigger());
 
 const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
 const internalMutation = customMutation(rawInternalMutation, triggers.customFunctionWrapper());
@@ -42,8 +43,7 @@ export const addPhoto = mutation({
   },
   returns: v.id("photos"),
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("photos", { url: args.url });
-    return id;
+    return await ctx.db.insert("photos", { url: args.url });
   },
 });
 

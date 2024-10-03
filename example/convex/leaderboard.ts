@@ -2,14 +2,30 @@
  * Example of a game leaderboard implemented with Convex.
  */
 
-import { Aggregate } from "@convex-dev/aggregate";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { TableAggregate } from "@convex-dev/aggregate";
+import { mutation as rawMutation, query, internalMutation as rawInternalMutation } from "./_generated/server";
 import { components } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
+import { Triggers } from "convex-helpers/server/triggers";
+import { customMutation } from "convex-helpers/server/customFunctions";
 
-const aggregateByScore = new Aggregate<number, Id<"leaderboard">>(components.aggregateByScore);
-const aggregateScoreByUser = new Aggregate<[string, number], Id<"leaderboard">>(components.aggregateScoreByUser);
+const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
+  components.aggregateByScore,
+  (doc) => doc.score,
+);
+const aggregateScoreByUser = new TableAggregate<[string, number], DataModel, "leaderboard">(
+  components.aggregateScoreByUser,
+  (doc) => [doc.name, doc.score],
+  (doc) => doc.score,
+);
+
+const triggers = new Triggers<DataModel>();
+triggers.register("leaderboard", aggregateByScore.trigger());
+triggers.register("leaderboard", aggregateScoreByUser.trigger());
+
+const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
+const internalMutation = customMutation(rawInternalMutation, triggers.customFunctionWrapper());
 
 export const backfillAggregates = internalMutation({
   args: {},
@@ -18,8 +34,8 @@ export const backfillAggregates = internalMutation({
     await aggregateScoreByUser.clear(ctx);
 
     for await (const doc of ctx.db.query("leaderboard")) {
-      await aggregateByScore.insert(ctx, doc.score, doc._id);
-      await aggregateScoreByUser.insert(ctx, [doc.name, doc.score], doc._id, doc.score);
+      await aggregateByScore.insert(ctx, doc);
+      await aggregateScoreByUser.insert(ctx, doc);
       console.log("backfilled", doc.name, doc.score);
     }
   },
@@ -32,10 +48,7 @@ export const addScore = mutation({
   },
   returns: v.id("leaderboard"),
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("leaderboard", { name: args.name, score: args.score });
-    await aggregateByScore.insert(ctx, args.score, id);
-    await aggregateScoreByUser.insert(ctx, [args.name, args.score], id, args.score);
-    return id;
+    return await ctx.db.insert("leaderboard", { name: args.name, score: args.score });
   },
 });
 
@@ -44,10 +57,7 @@ export const removeScore = mutation({
     id: v.id("leaderboard"),
   },
   handler: async (ctx, { id }) => {
-    const doc = (await ctx.db.get(id))!;
     await ctx.db.delete(id);
-    await aggregateByScore.delete(ctx, doc.score, id);
-    await aggregateScoreByUser.delete(ctx, [doc.name, doc.score], id);
   },
 });
 
