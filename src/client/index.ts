@@ -1,12 +1,15 @@
 import {
+  DocumentByName,
   GenericDataModel,
   GenericMutationCtx,
   GenericQueryCtx,
+  TableNamesInDataModel,
 } from "convex/server";
 import { Key } from "../component/btree.js";
 import { api } from "../component/_generated/api.js";
 import { UseApi } from "./useApi.js";
 import { Position, positionToKey, boundToPosition, keyToPosition, Bound, Bounds, boundsToPositions } from "./positions.js";
+import { GenericId } from "convex/values";
 
 export type UsedAPI = UseApi<typeof api>;
 
@@ -45,7 +48,7 @@ export class Aggregate<
   K extends Key,
   ID extends string,
 > {
-  constructor(private component: UsedAPI) {}
+  constructor(protected component: UsedAPI) {}
 
   /// Aggregate queries.
 
@@ -185,32 +188,14 @@ export class Aggregate<
     }
   }
 
-  /// Write operations.
-
-  /**
-   * Insert a new key into the data structure.
-   * The id should be unique.
-   * If not provided, the summand is assumed to be zero.
-   * If the tree does not exist yet, it will be initialized with the default
-   * maxNodeSize and lazyRoot=true.
-   * If the [key, id] pair already exists, this will throw.
-   */
-  async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+  /// Write operations. See `DirectAggregate` for docstrings.
+  async _insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
     await ctx.runMutation(this.component.public.insert, { key: keyToPosition(key, id), summand, value: id });
   }
-  /**
-   * Delete the key with the given ID from the data structure.
-   * Throws if the given key and ID do not exist.
-   */
-  async delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+  async _delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
     await ctx.runMutation(this.component.public.delete_, { key: keyToPosition(key, id) });
   }
-  /**
-   * Update an existing item in the data structure.
-   * This is effectively a delete followed by an insert, but it's performed
-   * atomically so it's impossible to view the data structure with the key missing.
-   */
-  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+  async _replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
     await ctx.runMutation(this.component.public.replace, {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
@@ -218,21 +203,13 @@ export class Aggregate<
       value: id,
     });
   }
-  /**
-   * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
-   * This can be useful for live backfills:
-   * 1. Update live writes to use these methods to write into the new Aggregate.
-   * 2. Run a background backfill, paginating over existing data, calling `insertIfDoesNotExist` on each item.
-   * 3. Once the backfill is complete, use `insert`, `delete`, and `replace` for live writes.
-   * 4. Begin using the Aggregate read methods.
-   */
-  async insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
-    await this.replaceOrInsert(ctx, key, key, id, summand);
+  async _insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+    await this._replaceOrInsert(ctx, key, key, id, summand);
   }
-  async deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+  async _deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
     await ctx.runMutation(this.component.public.deleteIfExists, { key: keyToPosition(key, id) });
   }
-  async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+  async _replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
     await ctx.runMutation(this.component.public.replaceOrInsert, {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
@@ -275,40 +252,192 @@ export class Aggregate<
 }
 
 /**
- * Simplified Aggregate API that doesn't have keys or summands, so it's
+ * A DirectAggregate is an Aggregate where you can insert, delete, and replace
+ * items directly, and keys and IDs can be customized.
+ * 
+ * Contrast with TableAggregate, which follows a table with Triggers and
+ * computes keys and summands from the table's documents.
+ */
+export class DirectAggregate<
+  K extends Key,
+  ID extends string,
+> extends Aggregate<K, ID> {
+  /**
+   * Insert a new key into the data structure.
+   * The id should be unique.
+   * If not provided, the summand is assumed to be zero.
+   * If the tree does not exist yet, it will be initialized with the default
+   * maxNodeSize and lazyRoot=true.
+   * If the [key, id] pair already exists, this will throw.
+   */
+  async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+    await this._insert(ctx, key, id, summand);
+  }
+  /**
+   * Delete the key with the given ID from the data structure.
+   * Throws if the given key and ID do not exist.
+   */
+  async delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+    await this._delete(ctx, key, id);
+  }
+  /**
+   * Update an existing item in the data structure.
+   * This is effectively a delete followed by an insert, but it's performed
+   * atomically so it's impossible to view the data structure with the key missing.
+   */
+  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+    await this._replace(ctx, currentKey, newKey, id, summand);
+  }
+  /**
+   * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
+   * This can be useful for live backfills:
+   * 1. Update live writes to use these methods to write into the new Aggregate.
+   * 2. Run a background backfill, paginating over existing data, calling `insertIfDoesNotExist` on each item.
+   * 3. Once the backfill is complete, use `insert`, `delete`, and `replace` for live writes.
+   * 4. Begin using the Aggregate read methods.
+   */
+  async insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
+    await this._insertIfDoesNotExist(ctx, key, id, summand);
+  }
+  async deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+    await this._deleteIfExists(ctx, key, id);
+  }
+  async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
+    await this._replaceOrInsert(ctx, currentKey, newKey, id, summand);
+  }
+}
+
+export class TableAggregate<
+  K extends Key,
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+> extends Aggregate<K, GenericId<TableName>> {
+  constructor(
+    component: UsedAPI,
+    private sortKey: (d: DocumentByName<DataModel, TableName>) => K,
+    private summand?: (d: DocumentByName<DataModel, TableName>) => number,
+  ) {
+    super(component);
+  }
+
+  trigger<
+    Ctx extends RunMutationCtx,
+  >(): Trigger<Ctx, DataModel, TableName> {
+    return async (ctx, change) => {
+      if (change.operation === "insert") {
+        await this.insert(ctx, change.newDoc);
+      } else if (change.operation === "update") {
+        await this.replace(ctx, change.oldDoc, change.newDoc);
+      } else if (change.operation === "delete") {
+        await this.delete(ctx, change.oldDoc);
+      }
+    };
+  }
+
+  idempotentTrigger<
+    Ctx extends RunMutationCtx,
+  >(): Trigger<Ctx, DataModel, TableName> {
+    return async (ctx, change) => {
+      if (change.operation === "insert") {
+        await this.insertIfDoesNotExist(ctx, change.newDoc);
+      } else if (change.operation === "update") {
+        await this.replaceOrInsert(ctx, change.oldDoc, change.newDoc);
+      } else if (change.operation === "delete") {
+        await this.deleteIfExists(ctx, change.oldDoc);
+      }
+    };
+  }
+
+  async insert(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._insert(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+  }
+  async delete(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._delete(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+  }
+  async replace(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._replace(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+  }
+  async insertIfDoesNotExist(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._insertIfDoesNotExist(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+  }
+  async deleteIfExists(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._deleteIfExists(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+  }
+  async replaceOrInsert(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._replaceOrInsert(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+  }
+}
+
+export type Trigger<
+  Ctx,
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+> = (ctx: Ctx, change: Change<DataModel, TableName>) => Promise<void>;
+
+export type Change<
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+> = {
+  id: GenericId<TableName>;
+} & ({
+  operation: "insert";
+  oldDoc: null
+  newDoc: DocumentByName<DataModel, TableName>;
+} | {
+  operation: "update";
+  oldDoc: DocumentByName<DataModel, TableName>;
+  newDoc: DocumentByName<DataModel, TableName>;
+} | {
+  operation: "delete";
+  oldDoc: DocumentByName<DataModel, TableName>;
+  newDoc: null;
+});
+
+/**
+ * Simplified TableAggregate API that doesn't have keys or summands, so it's
  * simpler to use for counting all items or getting a random item.
  * 
  * See docstrings on Aggregate for more details.
  */
 export class Randomize<
-  ID extends string,
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
 > {
-  private aggregate: Aggregate<null, ID>;
-  constructor(private component: UsedAPI) {
-    this.aggregate = new Aggregate(component);
+  private aggregate: TableAggregate<null, DataModel, TableName>;
+  constructor(component: UsedAPI) {
+    this.aggregate = new TableAggregate(
+      component,
+      (_doc) => null,
+    );
   }
   async count(ctx: RunQueryCtx): Promise<number> {
     return await this.aggregate.count(ctx);
   }
-  async at(ctx: RunQueryCtx, offset: number): Promise<ID> {
+  async at(ctx: RunQueryCtx, offset: number): Promise<GenericId<TableName>> {
     const item = await this.aggregate.at(ctx, offset);
     return item.id;
   }
-  async random(ctx: RunQueryCtx): Promise<ID | null> {
+  async random(ctx: RunQueryCtx): Promise<GenericId<TableName> | null> {
     const item = await this.aggregate.random(ctx);
     return item ? item.id : null;
   }
-  async insert(ctx: RunMutationCtx, id: ID): Promise<void> {
-    await this.aggregate.insert(ctx, null, id);
+  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+    return this.aggregate.trigger();
   }
-  async delete(ctx: RunMutationCtx, id: ID): Promise<void> {
-    await this.aggregate.delete(ctx, null, id);
+  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+    return this.aggregate.idempotentTrigger();
   }
-  async insertIfDoesNotExist(ctx: RunMutationCtx, id: ID): Promise<void> {
-    await this.aggregate.insertIfDoesNotExist(ctx, null, id);
+  async insert(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
+    await this.aggregate.insert(ctx, { _id: id });
   }
-  async deleteIfExists(ctx: RunMutationCtx, id: ID): Promise<void> {
-    await this.aggregate.deleteIfExists(ctx, null, id);
+  async delete(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
+    await this.aggregate.delete(ctx, { _id: id });
+  }
+  async insertIfDoesNotExist(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
+    await this.aggregate.insertIfDoesNotExist(ctx, { _id: id });
+  }
+  async deleteIfExists(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
+    await this.aggregate.deleteIfExists(ctx, { _id: id });
   }
   async clear(ctx: RunMutationCtx, maxNodeSize?: number, rootLazy?: boolean): Promise<void> {
     await this.aggregate.clear(ctx, maxNodeSize, rootLazy);
