@@ -144,12 +144,13 @@ Since these are happening in a
 you can rest assured that the table and its aggregate will update atomically.
 
 Pick your key as described [above](#what-are-aggregates-for). For example,
-here's how you might define `aggregateByGame`:
+here's how you might define `aggregateByGame`, as an aggregate on the "scores"
+table:
 
 ```ts
 const aggregateByGame = new TableAggregate<[Id<"games">, string, number]>(
   components.aggregateByGame,
-  (doc) => [doc.gameId, game.user, game.score],
+  (doc) => [doc.gameId, doc.username, doc.score],
 );
 ```
 
