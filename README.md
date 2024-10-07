@@ -376,7 +376,7 @@ triggers.register("mytable", aggregate.trigger());
 export const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
 ```
 
-The [`examples/convex/photos.ts`](examples/convex/photos.ts) example uses
+The [`example/convex/photos.ts`](example/convex/photos.ts) example uses
 a trigger.
 
 ## Repair incorrect aggregates
