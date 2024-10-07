@@ -4,19 +4,13 @@
  */
 
 import { Randomize } from "@convex-dev/aggregate";
-import { mutation as rawMutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import Rand from 'rand-seed';
-import { Triggers } from "convex-helpers/server/triggers";
-import { customMutation } from "convex-helpers/server/customFunctions";
 
 const randomize = new Randomize<DataModel, "music">(components.music);
-
-const triggers = new Triggers<DataModel>();
-triggers.register("music", randomize.trigger());
-const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
 
 export const addMusic = mutation({
   args: {
@@ -24,7 +18,9 @@ export const addMusic = mutation({
   },
   returns: v.id("music"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("music", { title: args.title });
+    const id = await ctx.db.insert("music", { title: args.title });
+    await randomize.insert(ctx, id);
+    return id;
   },
 });
 
@@ -34,6 +30,7 @@ export const removeMusic = mutation({
   },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id);
+    await randomize.delete(ctx, id);
   },
 });
 

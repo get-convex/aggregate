@@ -119,8 +119,6 @@ import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { mutation as rawMutation } from "./_generated/server";
 import { TableAggregate } from "@convex-dev/aggregate";
-import { triggers } from "convex-helpers/server/triggers";
-import { customMutation } from "convex-helpers/server/customFunctions";
 // TableAggregate defines how the table will be sorted and summed in the
 // aggregate component.
 // The first argument is the component where data will be stored; defined as
@@ -133,10 +131,6 @@ const aggregate = new TableAggregate<number, DataModel, "mytable">(
   (doc) => key,
   (doc) => summand,
 );
-// Triggers hook up writes to the table to the TableAggregate.
-const triggers = new Triggers<DataModel>();
-triggers.register("mytable", aggregate.trigger());
-export const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
 ```
 
 Since these are happening in a
@@ -154,14 +148,34 @@ const aggregateByGame = new TableAggregate<[Id<"games">, string, number]>(
 );
 ```
 
+When the table changes, you should update the aggregate as well, in the same
+mutation.
+
+```ts
+// When you insert into the table, call `aggregate.insert`
+const id = await ctx.db.insert("mytable", { foo, bar });
+const doc = await ctx.db.get(id);
+await aggregate.insert(ctx, doc!);
+
+// If you update a document, use `aggregate.replace`
+const oldDoc = await ctx.db.get(id);
+await ctx.db.patch(id, { foo });
+const newDoc = await ctx.db.get(id);
+await aggregate.replace(ctx, oldDoc!, newDoc!);
+
+// And if you delete a document, use `aggregate.delete`
+const oldDoc = await ctx.db.get(id);
+await ctx.db.delete(id);
+await aggregate.delete(ctx, oldDoc!);
+```
+
 It's important that *every* modification to the table also updates
-the associated aggregate. If they get out of sync then computed aggregates might
-be incorrect. That's why we recommend using 
-[`Triggers`](https://github.com/get-convex/convex-helpers/blob/main/packages/convex-helpers/README.md#triggers),
-which automatically run code when a mutation changes the data.
-However, if you forget to use the `mutation` wrapper, or if you modify the
-data in the Convex dashboard, your aggregate will fall out of sync and you might
-have to [fix it](#repair-incorrect-aggregates).
+the associated aggregate. See
+[tips](#automatically-update-aggregate-when-table-changes) below.
+
+Note that Convex mutations are atomic, so you don't need to worry about race
+conditions where the document is written but the aggregate isn't, and you don't
+need to worry about a query reading a document that isn't in the aggregate yet.
 
 If the table already has data before attaching the aggregate,
 [run a migration to backfill](#attach-aggregate-to-an-existing-table).
@@ -182,7 +196,7 @@ See more examples in
 [`example/convex/leaderboard.ts`](example/convex/leaderboard.ts), and see the
 docstrings on [the Aggregate class](src/client/index.ts).
 
-### Running examples
+# Example use-cases
 
 1. Clone this repo.
 2. `cd aggregate/example`
@@ -200,13 +214,12 @@ import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { mutation as rawMutation } from "./_generated/server";
 import { Randomize } from "@convex-dev/aggregate";
-import { triggers } from "convex-helpers/server/triggers";
 import { customMutation } from "convex-helpers/server/customFunctions";
 // This is like TableAggregate but there's no key or summand.
 const randomize = new Randomize<DataModel, "mytable">(components.aggregate);
-const triggers = new Triggers<DataModel>();
-triggers.register("mytable", randomize.trigger());
-export const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
+
+// In a mutation, insert into the component.
+await randomize.insert(ctx, id);
 
 // in a query, get the total document count.
 const totalCount = await randomize.count(ctx);
@@ -268,40 +281,6 @@ export const pageOfPhotos({
 
 See the full example in [`example/convex/photos.ts`](example/convex/photos.ts).
 
-## Attach Aggregate to an existing table
-
-Adding aggregation to an existing table requires a
-[migration](https://stack.convex.dev/intro-to-migrations). There are several
-ways to perform migrations, but here's an overview of one way:
-
-1. Register `aggregate.idempotentTrigger()` instead of `aggregate.trigger()`
-   in the `Triggers`. This trigger acts the same, except it works even if the
-   aggregate component isn't in sync with the table.
-2. Deploy this code change, so the live path writing documents also write to the
-   aggregate component.
-3. Use a paginated background
-   [migration](https://www.npmjs.com/package/@convex-dev/migrations)
-   to walk all existing data and call `insertIfDoesNotExist`.
-4. Now all of the data is represented in the `Aggregate`, you can start calling
-   read methods like `aggregate.count(ctx)` and you can replace
-   `idempotentTrigger()` with `trigger()`.
-
-## Repair incorrect aggregates
-
-If some mutation or direct write in the Dashboard updated the source of truth
-data without writing to the aggregate, they can get out of sync and the
-returned aggregates may be incorrect.
-
-The simplest way to fix is to start over. Either call
-`await aggregate.clear(ctx)` or rename the component like
-`app.use(aggregate, { name: "newName" })` which will reset it to be empty. Then
-follow the instructions from [above](#attach-aggregate-to-an-existing-table).
-
-There is an alternative which doesn't clear the aggregates: compare the source
-of truth to the aggregate table. You can use `db.query("mytable").paginate()`
-on your Convex table and `aggregate.paginate()` on the aggregate. Update the
-aggregates based on the diff of these two paginated data streams.
-
 ## Aggregate without a table
 
 Often you're aggregating over a table of data, but sometimes you want to
@@ -329,6 +308,92 @@ await aggregate.replace(ctx, oldKey, newKey, id);
 ```
 
 See [`example/convex/stats.ts`](example/convex/stats.ts) for an example.
+
+# Operations
+
+You've set up your aggregate. Now let's see how to backfill it to account for
+existing data, keep the data in sync with mutations, or repair it when the
+data gets out of sync.
+
+## Attach Aggregate to an existing table
+
+Adding aggregation to an existing table requires a
+[migration](https://stack.convex.dev/intro-to-migrations). There are several
+ways to perform migrations, but here's an overview of one way:
+
+1. Use `insertIfDoesNotExist`/`replaceOrInsert`/`deleteIfExists` in place of
+   `insert`/`replace`/`delete` (or `idempotentTrigger` in place of `trigger`)
+   to update items in the aggregate. These methods act the same, except they
+   work even if the aggregate component isn't in sync with the table.
+2. Deploy this code change, so the live path writing documents also write to the
+   aggregate component.
+3. Use a paginated background
+   [migration](https://www.npmjs.com/package/@convex-dev/migrations)
+   to walk all existing data and call `insertIfDoesNotExist`.
+4. Now all of the data is represented in the `Aggregate`, you can start calling
+   read methods like `aggregate.count(ctx)` and you can change the write methods
+   back (`insertIfDoesNotExist` -> `insert` etc.).
+
+## Automatically update aggregate when table changes
+
+It's important that *every* modification to the table also updates
+the associated aggregate. If they get out of sync then computed aggregates might
+be incorrect. Then you might have to [fix them](#repair-incorrect-aggregates).
+
+There are three ways to go about keeping data in sync:
+
+1. Be careful to always update the `aggregate` in any mutation that updates the
+   source-of-truth table.
+2. \[Recommended\] Place all writes to a table in separate TypeScript functions,
+   and always call these functions from mutations instead of writing to the db
+   directly. This method is recommended, because it encapsulates the logic for
+   updating a table, while still keeping all operations explicit. For example,
+
+```ts
+// Example of a mutation that calls `insertScore`.
+export const playAGame = mutation(async (ctx) => {
+  ...
+  await insertScore(ctx, gameId, user1, user1Score);
+  await insertScore(ctx, gameId, user2, user2Score);
+});
+
+// All inserts to the "scores" table go through this function.
+async function insertScore(ctx, gameId, username, score) {
+  const id = await ctx.db.insert("scores", { gameId, username, score });
+  await doc = await ctx.db.get(id);
+  await aggregateByGame.insert(ctx, doc!);
+}
+```
+
+3. Register a
+   [`Trigger`](https://github.com/get-convex/convex-helpers/blob/main/packages/convex-helpers/README.md#triggers),
+   which automatically runs code when a mutation changes the data in a table.
+
+```ts
+// Triggers hook up writes to the table to the TableAggregate.
+const triggers = new Triggers<DataModel>();
+triggers.register("mytable", aggregate.trigger());
+export const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
+```
+
+The [`examples/convex/photos.ts`](examples/convex/photos.ts) example uses
+a trigger.
+
+## Repair incorrect aggregates
+
+If some mutation or direct write in the Dashboard updated the source of truth
+data without writing to the aggregate, they can get out of sync and the
+returned aggregates may be incorrect.
+
+The simplest way to fix is to start over. Either call
+`await aggregate.clear(ctx)` or rename the component like
+`app.use(aggregate, { name: "newName" })` which will reset it to be empty. Then
+follow the instructions from [above](#attach-aggregate-to-an-existing-table).
+
+There is an alternative which doesn't clear the aggregates: compare the source
+of truth to the aggregate table. You can use `db.query("mytable").paginate()`
+on your Convex table and `aggregate.paginate()` on the aggregate. Update the
+aggregates based on the diff of these two paginated data streams.
 
 # Reactivity and Atomicity
 

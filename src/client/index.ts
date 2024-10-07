@@ -320,6 +320,25 @@ export class TableAggregate<
     super(component);
   }
 
+  async insert(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._insert(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+  }
+  async delete(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._delete(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+  }
+  async replace(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._replace(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+  }
+  async insertIfDoesNotExist(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._insertIfDoesNotExist(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+  }
+  async deleteIfExists(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._deleteIfExists(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+  }
+  async replaceOrInsert(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
+    await this._replaceOrInsert(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+  }
+
   trigger<
     Ctx extends RunMutationCtx,
   >(): Trigger<Ctx, DataModel, TableName> {
@@ -346,25 +365,6 @@ export class TableAggregate<
         await this.deleteIfExists(ctx, change.oldDoc);
       }
     };
-  }
-
-  async insert(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insert(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
-  }
-  async delete(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._delete(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
-  }
-  async replace(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replace(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
-  }
-  async insertIfDoesNotExist(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insertIfDoesNotExist(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
-  }
-  async deleteIfExists(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._deleteIfExists(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
-  }
-  async replaceOrInsert(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replaceOrInsert(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
   }
 }
 

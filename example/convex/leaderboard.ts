@@ -3,12 +3,10 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { mutation as rawMutation, query, internalMutation as rawInternalMutation } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
-import { Triggers } from "convex-helpers/server/triggers";
-import { customMutation } from "convex-helpers/server/customFunctions";
 
 const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
   components.aggregateByScore,
@@ -19,13 +17,6 @@ const aggregateScoreByUser = new TableAggregate<[string, number], DataModel, "le
   (doc) => [doc.name, doc.score],
   (doc) => doc.score,
 );
-
-const triggers = new Triggers<DataModel>();
-triggers.register("leaderboard", aggregateByScore.trigger());
-triggers.register("leaderboard", aggregateScoreByUser.trigger());
-
-const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
-const internalMutation = customMutation(rawInternalMutation, triggers.customFunctionWrapper());
 
 export const backfillAggregates = internalMutation({
   args: {},
@@ -48,7 +39,11 @@ export const addScore = mutation({
   },
   returns: v.id("leaderboard"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("leaderboard", { name: args.name, score: args.score });
+    const id = await ctx.db.insert("leaderboard", { name: args.name, score: args.score });
+    const doc = await ctx.db.get(id);
+    await aggregateByScore.insert(ctx, doc!);
+    await aggregateScoreByUser.insert(ctx, doc!);
+    return id;
   },
 });
 
@@ -57,7 +52,10 @@ export const removeScore = mutation({
     id: v.id("leaderboard"),
   },
   handler: async (ctx, { id }) => {
+    const doc = await ctx.db.get(id);
     await ctx.db.delete(id);
+    await aggregateByScore.delete(ctx, doc!);
+    await aggregateScoreByUser.delete(ctx, doc!);
   },
 });
 
