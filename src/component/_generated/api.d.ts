@@ -42,19 +42,7 @@ export type Mounts = {
       { k1?: any; k2?: any },
       { count: number; sum: number }
     >;
-    aggregateBetweenHandler: FunctionReference<
-      "query",
-      "public",
-      { k1?: any; k2?: any },
-      { count: number; sum: number }
-    >;
     atNegativeOffset: FunctionReference<
-      "query",
-      "public",
-      { k1?: any; k2?: any; offset: number },
-      { k: any; s: number; v: any }
-    >;
-    atNegativeOffsetHandler: FunctionReference<
       "query",
       "public",
       { k1?: any; k2?: any; offset: number },
@@ -66,21 +54,8 @@ export type Mounts = {
       { k1?: any; k2?: any; offset: number },
       { k: any; s: number; v: any }
     >;
-    atOffsetHandler: FunctionReference<
-      "query",
-      "public",
-      { k1?: any; k2?: any; offset: number },
-      { k: any; s: number; v: any }
-    >;
     count: FunctionReference<"query", "public", {}, any>;
-    countHandler: FunctionReference<"query", "public", {}, any>;
     get: FunctionReference<
-      "query",
-      "public",
-      { key: any },
-      null | { k: any; s: number; v: any }
-    >;
-    getHandler: FunctionReference<
       "query",
       "public",
       { key: any },
@@ -92,19 +67,7 @@ export type Mounts = {
       { k1?: any; key: any },
       number
     >;
-    offsetHandler: FunctionReference<
-      "query",
-      "public",
-      { k1?: any; key: any },
-      number
-    >;
     offsetUntil: FunctionReference<
-      "query",
-      "public",
-      { k2?: any; key: any },
-      number
-    >;
-    offsetUntilHandler: FunctionReference<
       "query",
       "public",
       { k2?: any; key: any },
@@ -126,26 +89,8 @@ export type Mounts = {
         page: Array<{ k: any; s: number; v: any }>;
       }
     >;
-    paginateHandler: FunctionReference<
-      "query",
-      "public",
-      {
-        cursor?: string;
-        k1?: any;
-        k2?: any;
-        limit: number;
-        order: "asc" | "desc";
-      },
-      {
-        cursor: string;
-        isDone: boolean;
-        page: Array<{ k: any; s: number; v: any }>;
-      }
-    >;
     sum: FunctionReference<"query", "public", {}, number>;
-    sumHandler: FunctionReference<"query", "public", {}, number>;
     validate: FunctionReference<"query", "public", {}, any>;
-    validateTree: FunctionReference<"query", "public", {}, any>;
   };
   inspect: {
     display: FunctionReference<"query", "public", {}, any>;
