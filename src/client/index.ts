@@ -188,7 +188,7 @@ export class Aggregate<
     }
   }
 
-  /// Write operations. See `DirectAggregate` for docstrings.
+  /** Write operations. See {@link DirectAggregate} for docstrings. */
   async _insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
     await ctx.runMutation(this.component.public.insert, { key: keyToPosition(key, id), summand, value: id });
   }
