@@ -26,7 +26,7 @@ export type RunMutationCtx = {
 export type Item<K extends Key, ID extends string> = {
   key: K;
   id: ID;
-  summand: number;
+  sumValue: number;
 };
 
 export type { Key, Bound };
@@ -35,10 +35,10 @@ export type { Key, Bound };
  * Write data to be aggregated, and read aggregated data.
  * 
  * The data structure is effectively a key-value store sorted by key, where the
- * value is an ID and an optional summand.
+ * value is an ID and an optional sumValue.
  * 1. The key can be any Convex value (number, string, array, etc.).
  * 2. The ID is a string which should be unique.
- * 3. The summand is a number which is aggregated by summing. If not provided,
+ * 3. The sumValue is a number which is aggregated by summing. If not provided,
  *    it's assumed to be zero.
  * 
  * Once values have been added to the data structure, you can query for the
@@ -62,7 +62,7 @@ export class Aggregate<
     return count;
   }
   /**
-   * Adds up the summands of items between the given bounds.
+   * Adds up the sumValue of items between the given bounds.
    */
   async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
     const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween,
@@ -256,7 +256,7 @@ export class Aggregate<
  * items directly, and keys and IDs can be customized.
  * 
  * Contrast with TableAggregate, which follows a table with Triggers and
- * computes keys and summands from the table's documents.
+ * computes keys and sumValues from the table's documents.
  */
 export class DirectAggregate<
   K extends Key,
@@ -265,13 +265,13 @@ export class DirectAggregate<
   /**
    * Insert a new key into the data structure.
    * The id should be unique.
-   * If not provided, the summand is assumed to be zero.
+   * If not provided, the sumValue is assumed to be zero.
    * If the tree does not exist yet, it will be initialized with the default
    * maxNodeSize and lazyRoot=true.
    * If the [key, id] pair already exists, this will throw.
    */
-  async insert(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
-    await this._insert(ctx, key, id, summand);
+  async insert(ctx: RunMutationCtx, key: K, id: ID, sumValue?: number): Promise<void> {
+    await this._insert(ctx, key, id, sumValue);
   }
   /**
    * Delete the key with the given ID from the data structure.
@@ -285,8 +285,8 @@ export class DirectAggregate<
    * This is effectively a delete followed by an insert, but it's performed
    * atomically so it's impossible to view the data structure with the key missing.
    */
-  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
-    await this._replace(ctx, currentKey, newKey, id, summand);
+  async replace(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, sumValue?: number): Promise<void> {
+    await this._replace(ctx, currentKey, newKey, id, sumValue);
   }
   /**
    * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
@@ -296,14 +296,14 @@ export class DirectAggregate<
    * 3. Once the backfill is complete, use `insert`, `delete`, and `replace` for live writes.
    * 4. Begin using the Aggregate read methods.
    */
-  async insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, summand?: number): Promise<void> {
-    await this._insertIfDoesNotExist(ctx, key, id, summand);
+  async insertIfDoesNotExist(ctx: RunMutationCtx, key: K, id: ID, sumValue?: number): Promise<void> {
+    await this._insertIfDoesNotExist(ctx, key, id, sumValue);
   }
   async deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
     await this._deleteIfExists(ctx, key, id);
   }
-  async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, summand?: number): Promise<void> {
-    await this._replaceOrInsert(ctx, currentKey, newKey, id, summand);
+  async replaceOrInsert(ctx: RunMutationCtx, currentKey: K, newKey: K, id: ID, sumValue?: number): Promise<void> {
+    await this._replaceOrInsert(ctx, currentKey, newKey, id, sumValue);
   }
 }
 
@@ -316,29 +316,29 @@ export class TableAggregate<
     component: UsedAPI,
     private options: {
       sortKey: (d: DocumentByName<DataModel, TableName>) => K,
-      summand?: (d: DocumentByName<DataModel, TableName>) => number,
+      sumValue?: (d: DocumentByName<DataModel, TableName>) => number,
     },
   ) {
     super(component);
   }
 
   async insert(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insert(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.summand?.(doc));
+    await this._insert(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.sumValue?.(doc));
   }
   async delete(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
     await this._delete(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>);
   }
   async replace(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replace(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.summand?.(newDoc));
+    await this._replace(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.sumValue?.(newDoc));
   }
   async insertIfDoesNotExist(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insertIfDoesNotExist(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.summand?.(doc));
+    await this._insertIfDoesNotExist(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.sumValue?.(doc));
   }
   async deleteIfExists(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
     await this._deleteIfExists(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>);
   }
   async replaceOrInsert(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replaceOrInsert(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.summand?.(newDoc));
+    await this._replaceOrInsert(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.sumValue?.(newDoc));
   }
 
   trigger<
@@ -396,7 +396,7 @@ export type Change<
 });
 
 /**
- * Simplified TableAggregate API that doesn't have keys or summands, so it's
+ * Simplified TableAggregate API that doesn't have keys or sumValue, so it's
  * simpler to use for counting all items or getting a random item.
  * 
  * See docstrings on Aggregate for more details.
@@ -457,6 +457,6 @@ export function btreeItemToAggregateItem<K extends Key, ID extends string>({
   return {
     key: key as K,
     id: id as ID,
-    summand: s,
+    sumValue: s,
   };
 }

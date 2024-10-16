@@ -153,7 +153,7 @@ const aggregate = new TableAggregate<number, DataModel, "mytable">(
   components.aggregate,
   {
     sortKey: (doc) => doc._creationTime, // Allows querying across time ranges.
-    summand: (doc) => doc.value, // The value to be used in `.sum` calculations.
+    sumValue: (doc) => doc.value, // The value to be used in `.sum` calculations.
   },
 );
 ```
@@ -245,7 +245,7 @@ import { DataModel } from "./_generated/dataModel";
 import { mutation as rawMutation } from "./_generated/server";
 import { Randomize } from "@convex-dev/aggregate";
 import { customMutation } from "convex-helpers/server/customFunctions";
-// This is like TableAggregate but there's no key or summand.
+// This is like TableAggregate but there's no key or sumValue.
 const randomize = new Randomize<DataModel, "mytable">(components.aggregate);
 
 // In a mutation, insert into the component when you insert into your table.
@@ -335,8 +335,8 @@ const aggregate = new DirectAggregate<number, string>(components.aggregate);
 
 // within a mutation, add values to be aggregated
 await aggregate.insert(ctx, key, id);
-// if you want to use `.sum` to aggregate sums of values, insert with a summand
-await aggregate.insert(ctx, key, id, summand);
+// if you want to use `.sum` to aggregate sums of values, insert with a sumValue
+await aggregate.insert(ctx, key, id, sumValue);
 // or delete values that were previously added
 await aggregate.delete(ctx, key, id);
 // or update values

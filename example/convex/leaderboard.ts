@@ -15,7 +15,7 @@ const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
 const aggregateScoreByUser = new TableAggregate<[string, number], DataModel, "leaderboard">(
   components.aggregateScoreByUser, {
     sortKey: (doc) => [doc.name, doc.score],
-    summand: (doc) => doc.score,
+    sumValue: (doc) => doc.score,
   }
 );
 
@@ -128,7 +128,7 @@ export const userHighScore = query({
     if (!item) {
       throw new ConvexError("no scores for " + args.name);
     }
-    return item.summand;
+    return item.sumValue;
   },
 });
 
