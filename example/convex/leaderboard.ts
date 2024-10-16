@@ -10,12 +10,13 @@ import { ConvexError, v } from "convex/values";
 
 const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
   components.aggregateByScore,
-  (doc) => doc.score,
+  { sortKey:(doc) => doc.score },
 );
 const aggregateScoreByUser = new TableAggregate<[string, number], DataModel, "leaderboard">(
-  components.aggregateScoreByUser,
-  (doc) => [doc.name, doc.score],
-  (doc) => doc.score,
+  components.aggregateScoreByUser, {
+    sortKey: (doc) => [doc.name, doc.score],
+    summand: (doc) => doc.score,
+  }
 );
 
 export const backfillAggregates = internalMutation({

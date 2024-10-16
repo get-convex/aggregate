@@ -314,29 +314,31 @@ export class TableAggregate<
 > extends Aggregate<K, GenericId<TableName>> {
   constructor(
     component: UsedAPI,
-    private sortKey: (d: DocumentByName<DataModel, TableName>) => K,
-    private summand?: (d: DocumentByName<DataModel, TableName>) => number,
+    private options: {
+      sortKey: (d: DocumentByName<DataModel, TableName>) => K,
+      summand?: (d: DocumentByName<DataModel, TableName>) => number,
+    },
   ) {
     super(component);
   }
 
   async insert(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insert(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+    await this._insert(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.summand?.(doc));
   }
   async delete(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._delete(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+    await this._delete(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>);
   }
   async replace(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replace(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+    await this._replace(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.summand?.(newDoc));
   }
   async insertIfDoesNotExist(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._insertIfDoesNotExist(ctx, this.sortKey(doc), doc._id as GenericId<TableName>, this.summand?.(doc));
+    await this._insertIfDoesNotExist(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>, this.options.summand?.(doc));
   }
   async deleteIfExists(ctx: RunMutationCtx, doc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._deleteIfExists(ctx, this.sortKey(doc), doc._id as GenericId<TableName>);
+    await this._deleteIfExists(ctx, this.options.sortKey(doc), doc._id as GenericId<TableName>);
   }
   async replaceOrInsert(ctx: RunMutationCtx, oldDoc: DocumentByName<DataModel, TableName>, newDoc: DocumentByName<DataModel, TableName>): Promise<void> {
-    await this._replaceOrInsert(ctx, this.sortKey(oldDoc), this.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.summand?.(newDoc));
+    await this._replaceOrInsert(ctx, this.options.sortKey(oldDoc), this.options.sortKey(newDoc), newDoc._id as GenericId<TableName>, this.options.summand?.(newDoc));
   }
 
   trigger<
@@ -407,7 +409,7 @@ export class Randomize<
   constructor(component: UsedAPI) {
     this.aggregate = new TableAggregate(
       component,
-      (_doc) => null,
+      {sortKey: (_doc) => null},
     );
   }
   async count(ctx: RunQueryCtx): Promise<number> {
