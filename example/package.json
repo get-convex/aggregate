@@ -3,14 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "convex dev",
-    "predev": "convex dev --until-success && convex dashboard",
+    "dev": "convex dev --live-component-sources --typecheck-components",
     "logs": "convex logs",
     "lint": "tsc -p convex && eslint convex"
   },
   "dependencies": {
     "@convex-dev/aggregate": "file:..",
-    "convex": "^1.16.3",
+    "convex": "^1.16.5",
     "convex-helpers": "^0.1.59",
     "isaac": "^0.0.5",
     "rand-seed": "^2.1.7"
