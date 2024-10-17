@@ -17,7 +17,7 @@ import { Triggers } from "convex-helpers/server/triggers";
 
 const photos = new TableAggregate<number, DataModel, "photos">(
   components.photos,
-  (doc) => doc._creationTime,
+  {sortKey: (doc) => doc._creationTime},
 );
 
 const triggers = new Triggers<DataModel>();

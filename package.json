@@ -1,5 +1,6 @@
 {
   "name": "@convex-dev/aggregate",
+  "description": "Convex component to calculate counts and sums of values for efficient aggregation.",
   "version": "0.1.14",
   "keywords": [
     "convex",
@@ -43,7 +44,7 @@
         "default": "./dist/commonjs/client/index.js"
       }
     },
-    "./convex.config.js": {
+    "./convex.config": {
       "import": {
         "@convex-dev/component-source": "./src/component/convex.config.ts",
         "types": "./dist/esm/component/convex.config.d.ts",
@@ -51,8 +52,8 @@
       }
     }
   },
-  "dependencies": {
-    "convex": "^1.16.3"
+  "peerDependencies": {
+    "convex": "~1.16.5 || ~1.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
