@@ -8,7 +8,7 @@ import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
-import Rand from 'rand-seed';
+import Rand from "rand-seed";
 
 const randomize = new Randomize<DataModel, "music">(components.music);
 

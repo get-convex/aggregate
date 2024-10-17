@@ -154,7 +154,7 @@ const aggregate = new TableAggregate<number, DataModel, "mytable">(
   {
     sortKey: (doc) => doc._creationTime, // Allows querying across time ranges.
     sumValue: (doc) => doc.value, // The value to be used in `.sum` calculations.
-  },
+  }
 );
 ```
 
@@ -292,7 +292,7 @@ app.use(aggregate, { name: "photos" });
 // convex/photos.ts
 const photos = new TableAggregate<number, DataModel, "photos">(
   components.photos,
-  (doc) => doc._creationTime,
+  (doc) => doc._creationTime
 );
 ```
 
