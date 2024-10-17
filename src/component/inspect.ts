@@ -4,7 +4,7 @@ import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, p } from "./btree.js";
 
 export const display = query({
-  args: { },
+  args: {},
   handler: async (ctx) => {
     const tree = await getTree(ctx.db);
     if (!tree) {
@@ -32,7 +32,7 @@ async function displayNode(
 }
 
 export const dump = query({
-  args: { },
+  args: {},
   returns: v.string(),
   handler: async (ctx) => {
     return await dumpTree(ctx.db);
@@ -52,7 +52,10 @@ async function dumpNode(
   const n = (await db.get(node))!;
   let s = "[";
   if (n.subtrees.length === 0) {
-    s += n.items.map((i) => i.k).map(p).join(", ");
+    s += n.items
+      .map((i) => i.k)
+      .map(p)
+      .join(", ");
   } else {
     const subtrees = await Promise.all(
       n.subtrees.map((subtree) => dumpNode(db, subtree))
@@ -83,16 +86,16 @@ export const inspectNode = query({
       console.log("no node");
       return;
     }
-    console.log('btreeNode', n._id);
-    console.log('aggregate', n.aggregate);
+    console.log("btreeNode", n._id);
+    console.log("aggregate", n.aggregate);
     for (let i = 0; i < n.items.length; i++) {
       if (n.subtrees.length > 0) {
-        console.log('subtree', n.subtrees[i]);
+        console.log("subtree", n.subtrees[i]);
       }
-      console.log('item', n.items[i]);
+      console.log("item", n.items[i]);
     }
     if (n.subtrees.length > 0) {
-      console.log('subtree', n.subtrees[n.subtrees.length - 1]);
+      console.log("subtree", n.subtrees[n.subtrees.length - 1]);
     }
   },
 });
