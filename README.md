@@ -292,7 +292,7 @@ app.use(aggregate, { name: "photos" });
 // convex/photos.ts
 const photos = new TableAggregate<number, DataModel, "photos">(
   components.photos,
-  (doc) => doc._creationTime
+  { sortKey: (doc) => doc._creationTime }
 );
 ```
 
