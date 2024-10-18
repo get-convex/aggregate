@@ -105,34 +105,26 @@ export class Aggregate<K extends Key, ID extends string> {
   }
   /**
    * Returns the rank/offset/index of the given key, within the bounds.
-   * Specifically, it returns the index of the first item with a key >= the given key.
+   * Specifically, it returns the index of the first item with
+   *
+   * - key >= the given key if `order` is "asc" (default)
+   * - key <= the given key if `order` is "desc"
    */
-  async offsetOf(
+  async indexOf(
     ctx: RunQueryCtx,
     key: K,
-    id?: ID,
-    bounds?: Bounds<K, ID>
+    opts?: { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" }
   ): Promise<number> {
-    const { k1 } = boundsToPositions(bounds);
+    const { k1, k2 } = boundsToPositions(opts?.bounds);
+    if (opts?.order === "desc") {
+      return await ctx.runQuery(this.component.btree.offsetUntil, {
+        key: boundToPosition("upper", { key, id: opts?.id, inclusive: true }),
+        k2,
+      });
+    }
     return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id, inclusive: true }),
+      key: boundToPosition("lower", { key, id: opts?.id, inclusive: true }),
       k1,
-    });
-  }
-  /**
-   * Returns the rank/offset/index of the given key, counting from the end of
-   * the list (or `upperBound`).
-   */
-  async offsetUntil(
-    ctx: RunQueryCtx,
-    key: K,
-    id?: ID,
-    bounds?: Bounds<K, ID>
-  ): Promise<number> {
-    const { k2 } = boundsToPositions(bounds);
-    return await ctx.runQuery(this.component.btree.offsetUntil, {
-      key: boundToPosition("upper", { key, id, inclusive: true }),
-      k2,
     });
   }
   /**
