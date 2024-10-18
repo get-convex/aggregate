@@ -4,6 +4,7 @@
  * positions, which are unique keys.
  */
 
+import { Value } from "convex/values";
 import { Key } from "../component/btree.js";
 
 export type Bound<K extends Key, ID extends string> = {
@@ -54,7 +55,7 @@ function explodeKey<K extends Key>(key: K): Key {
 
 function implodeKey(k: Key): Key {
   if (Array.isArray(k)) {
-    const imploded = [];
+    const imploded: Value[] = [];
     for (let i = 1; i < k.length; i += 2) {
       imploded.push(k[i]);
     }
