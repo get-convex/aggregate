@@ -587,6 +587,6 @@ default of 16, that means each write updates some document that accumulates
 all other writes, and reads may spuriously rerun 1/16th of the time. To increase
 `maxNodeSize`, run `aggregate.clear(ctx, maxNodeSize)` and start over.
 
-Found a bug? Feature request? [File it here](https://github.com/get-convex/counter/issues).
+Found a bug? Feature request? [File it here](https://github.com/get-convex/aggregate/issues).
 
 <!-- END: Include on https://convex.dev/components -->
