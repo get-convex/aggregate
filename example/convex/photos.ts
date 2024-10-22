@@ -16,7 +16,10 @@ import {
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { customMutation } from "convex-helpers/server/customFunctions";
+import {
+  customCtx,
+  customMutation,
+} from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
 const photos = new TableAggregate<number, DataModel, "photos">(
@@ -28,10 +31,10 @@ const triggers = new Triggers<DataModel>();
 
 triggers.register("photos", photos.trigger());
 
-const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
+const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 const internalMutation = customMutation(
   rawInternalMutation,
-  triggers.customFunctionWrapper()
+  customCtx(triggers.wrapDB)
 );
 
 export const init = internalMutation({

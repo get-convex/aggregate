@@ -10,7 +10,7 @@
   "dependencies": {
     "@convex-dev/aggregate": "file:..",
     "convex": "^1.16.5",
-    "convex-helpers": "^0.1.59",
+    "convex-helpers": "^0.1.61",
     "isaac": "^0.0.5",
     "rand-seed": "^2.1.7"
   },
