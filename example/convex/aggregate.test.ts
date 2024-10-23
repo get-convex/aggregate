@@ -178,3 +178,38 @@ describe("shuffle", () => {
     expect(shufflePage1Seed1).toEqual(["Song3", "Song2"]);
   });
 });
+
+describe("stats", () => {
+  async function setupTest() {
+    const t = convexTest(schema, modules);
+    t.registerComponent("stats", componentSchema, componentModules);
+    await t.mutation(components.stats.public.clear, { maxNodeSize: 4 });
+    return t;
+  }
+  let t: Awaited<ReturnType<typeof setupTest>>;
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    t = await setupTest();
+  });
+  afterEach(async () => {
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+  });
+
+  test("report latency", async () => {
+    await t.mutation(api.stats.reportLatency, { latency: 10 });
+    await t.mutation(api.stats.reportLatency, { latency: 20 });
+    await t.mutation(api.stats.reportLatency, { latency: 15 });
+    await t.mutation(api.stats.reportLatency, { latency: 25 });
+    await t.mutation(api.stats.reportLatency, { latency: 30 });
+    await t.mutation(api.stats.reportLatency, { latency: 35 });
+    
+    const stats = await t.query(api.stats.getStats);
+    expect(stats.max).toEqual(35);
+    expect(stats.min).toEqual(10);
+    expect(stats.mean).toBeCloseTo(22.5);
+    expect(stats.median).toEqual(25);
+    expect(stats.p75).toEqual(30);
+    expect(stats.p95).toEqual(35);
+  });
+});
