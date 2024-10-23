@@ -76,7 +76,18 @@ describe("leaderboard by score", () => {
   });
 });
 
-test("leaderboard by user", () => {
+test("leaderboard by user", async () => {
   const t = await setupTest();
-  
+  await t.mutation(api.leaderboard.addScore, { name: "Sujay", score: 10 });
+  await t.mutation(api.leaderboard.addScore, { name: "Sujay", score: 20 });
+  await t.mutation(api.leaderboard.addScore, { name: "Sujay", score: 15 });
+  await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 15 });
+  await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 25 });
+
+  const highScore1 = await t.query(api.leaderboard.userHighScore, { name: "Sujay" });
+  expect(highScore1).toEqual(20);
+  const highScore2 = await t.query(api.leaderboard.userHighScore, { name: "Lee" });
+  expect(highScore2).toEqual(25);
+  const averageScore = await t.query(api.leaderboard.userAverageScore, { name: "Sujay" });
+  expect(averageScore).toEqual(15);
 });
