@@ -1,15 +1,16 @@
 /**
- * Example of a music shuffle implemented with Convex.
+ * Example of random selection and a paginated shuffle over a music library,
+ * implemented with Convex.
  */
 
 import { Randomize } from "@convex-dev/aggregate";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import Rand from 'rand-seed';
 
-const randomize = new Randomize<Id<"music">>(components.music);
+const randomize = new Randomize<DataModel, "music">(components.music);
 
 export const addMusic = mutation({
   args: {
@@ -74,25 +75,23 @@ export const shufflePaginated = query({
     // including if the seed is an empty string.
     const rand = new Rand(seed);
 
-    // Calculate `indexes` to be the sequence of pseudo-random indexes up until
-    // offset + numItems (or the end of the table if we reach that first),
-    // without duplicates.
-    const indexes: number[] = [];
-    // The time complexity of calculating `indexes` is
-    // O((offset + numItems) * count),
+    const allIndexes = Array.from({ length: count }, (_, i) => i);
+
+    // The time complexity of calculating `indexes` is O(count),
     // and that's on every page so the overall time for all pages (assuming you
-    // call `shufflePaginated` repeatedly until the end of the table) is cubic.
-    // That sounds terrible but is actually fast enough since this loop doesn't
-    // fetch any data from the database; it's just in-memory calculations.
-    const remainingIndexes = Array.from({ length: count }, (_, i) => i);
-    while (indexes.length < offset + numItems && remainingIndexes.length > 0) {
-      const randomRemaining = Math.floor(rand.next() * remainingIndexes.length);
-      indexes.push(remainingIndexes[randomRemaining]);
-      remainingIndexes.splice(randomRemaining, 1);
-    }
+    // call `shufflePaginated` repeatedly until the end of the table) is quadratic.
+    // That sounds terrible but is actually fast enough since this shuffle
+    // doesn't fetch any data from the database; it's just in-memory
+    // calculations.
+
+    // The heavy-weight part is fetching the data from the database, which is
+    // O(numItems) for each page, and O(count) for all pages.
+    shuffle(allIndexes, rand);
+
+    const indexes = allIndexes.slice(offset, offset + numItems);
 
     return await Promise.all(
-      indexes.slice(offset).map(async (i) => {
+      indexes.map(async (i) => {
         const id = await randomize.at(ctx, i);
         const doc = (await ctx.db.get(id))!;
         return doc.title;
@@ -100,3 +99,12 @@ export const shufflePaginated = query({
     );
   },
 });
+
+// Fisher-Yates shuffle
+function shuffle<T>(array: T[], rand: Rand): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(rand.next() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}

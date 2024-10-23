@@ -226,7 +226,10 @@ export async function aggregateBetweenHandler(
   ctx: { db: DatabaseReader },
   args: { k1?: Key; k2?: Key }
 ) {
-  const tree = (await getTree(ctx.db))!;
+  const tree = await getTree(ctx.db);
+  if (tree === null) {
+    return { count: 0, sum: 0 };
+  }
   return await aggregateBetweenInNode(ctx.db, tree.root, args.k1, args.k2);
 }
 
@@ -355,7 +358,10 @@ export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
   args: { offset: number, k1?: Key, k2?: Key }
 ) {
-  const tree = (await getTree(ctx.db))!;
+  const tree = await getTree(ctx.db);
+  if (tree === null) {
+    throw new ConvexError("tree is empty");
+  }
   return await atOffsetInNode(ctx.db, tree.root, args.offset, args.k1, args.k2);
 }
 
@@ -369,7 +375,10 @@ export async function atNegativeOffsetHandler(
   ctx: { db: DatabaseReader },
   args: { offset: number, k1?: Key, k2?: Key }
 ) {
-  const tree = (await getTree(ctx.db))!;
+  const tree = await getTree(ctx.db);
+  if (tree === null) {
+    throw new ConvexError("tree is empty");
+  }
   return await negativeOffsetInNode(ctx.db, tree.root, args.offset, args.k1, args.k2);
 }
 
@@ -868,7 +877,10 @@ export async function paginateHandler(
     k2?: Key,
   },
 ) {
-  const tree = await mustGetTree(ctx.db);
+  const tree = await getTree(ctx.db);
+  if (tree === null) {
+    return { page: [], cursor: "", isDone: true };
+  }
   return await paginateInNode(
     ctx.db,
     tree.root,
