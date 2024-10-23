@@ -26,7 +26,7 @@ export const getStats = query({
     if (count === 0) {
       throw new Error("No data");
     }
-    const mean = await stats.sum(ctx) / count;
+    const mean = (await stats.sum(ctx)) / count;
     const median = (await stats.at(ctx, Math.floor(count / 2))).key;
     const p75 = (await stats.at(ctx, Math.floor(count * 0.75))).key;
     const p95 = (await stats.at(ctx, Math.floor(count * 0.95))).key;

@@ -3,29 +3,39 @@
  * it with offset-based pagination. That is, each page has 10 items, and you can
  * jump to any page in O(log(n)) time.
  * The paginated list is sorted by _creationTime.
- * 
+ *
  * Also demonstrates aggregates automatically updating when the underlying table changes.
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { internalMutation as rawInternalMutation, mutation as rawMutation, query } from "./_generated/server";
+import {
+  internalMutation as rawInternalMutation,
+  mutation as rawMutation,
+  query,
+} from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { customMutation } from "convex-helpers/server/customFunctions";
+import {
+  customCtx,
+  customMutation,
+} from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
 const photos = new TableAggregate<number, DataModel, "photos">(
   components.photos,
-  (doc) => doc._creationTime,
+  { sortKey: (doc) => doc._creationTime }
 );
 
 const triggers = new Triggers<DataModel>();
 
 triggers.register("photos", photos.trigger());
 
-const mutation = customMutation(rawMutation, triggers.customFunctionWrapper());
-const internalMutation = customMutation(rawInternalMutation, triggers.customFunctionWrapper());
+const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
+const internalMutation = customMutation(
+  rawInternalMutation,
+  customCtx(triggers.wrapDB)
+);
 
 export const init = internalMutation({
   args: {},
@@ -59,8 +69,11 @@ export const pageOfPhotos = query({
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems }) => {
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset);
-    const photoDocs = await ctx.db.query("photos")
-      .withIndex("by_creation_time", q=>q.gte("_creationTime", firstPhotoCreationTime))
+    const photoDocs = await ctx.db
+      .query("photos")
+      .withIndex("by_creation_time", (q) =>
+        q.gte("_creationTime", firstPhotoCreationTime)
+      )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);
   },

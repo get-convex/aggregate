@@ -4,12 +4,13 @@
  * positions, which are unique keys.
  */
 
+import { Value } from "convex/values";
 import { Key } from "../component/btree.js";
 
 export type Bound<K extends Key, ID extends string> = {
-  key: K,
-  id?: ID,
-  inclusive: boolean,
+  key: K;
+  id?: ID;
+  inclusive: boolean;
 };
 
 export type SideBounds<K extends Key, ID extends string> = {
@@ -18,14 +19,18 @@ export type SideBounds<K extends Key, ID extends string> = {
 };
 
 // e.g. TuplePrefix<[string, number]> = [] | [string] | [string, number]
-export type TuplePrefix<K extends unknown[], P extends unknown[] = []> = 
-  P['length'] extends K['length'] 
-    ? P
-    : P | TuplePrefix<K, [...P, K[P['length']]]>;
+export type TuplePrefix<
+  K extends unknown[],
+  P extends unknown[] = [],
+> = P["length"] extends K["length"]
+  ? P
+  : P | TuplePrefix<K, [...P, K[P["length"]]]>;
 
-export type Bounds<K extends Key, ID extends string> = SideBounds<K, ID> | {
-  prefix: TuplePrefix<Extract<K, unknown[]>>;
-};
+export type Bounds<K extends Key, ID extends string> =
+  | SideBounds<K, ID>
+  | {
+      prefix: TuplePrefix<Extract<K, unknown[]>>;
+    };
 
 // IDs are strings so in the Convex ordering, null < IDs < arrays.
 const BEFORE_ALL_IDS = null;
@@ -50,7 +55,7 @@ function explodeKey<K extends Key>(key: K): Key {
 
 function implodeKey(k: Key): Key {
   if (Array.isArray(k)) {
-    const imploded = [];
+    const imploded: Value[] = [];
     for (let i = 1; i < k.length; i += 2) {
       imploded.push(k[i]);
     }
@@ -61,24 +66,24 @@ function implodeKey(k: Key): Key {
 
 export function keyToPosition<K extends Key, ID extends string>(
   key: K,
-  id: ID,
+  id: ID
 ): Position {
   return [explodeKey(key), id, ""];
 }
 
 export function positionToKey<K extends Key, ID extends string>(
-  position: Position,
+  position: Position
 ): { key: K; id: ID } {
   return { key: implodeKey(position[0]) as K, id: position[1] as ID };
 }
 
 export function boundsToPositions<K extends Key, ID extends string>(
-  bounds?: Bounds<K, ID>,
+  bounds?: Bounds<K, ID>
 ): { k1?: Position; k2?: Position } {
   if (bounds === undefined) {
     return {};
   }
-  if ('prefix' in bounds) {
+  if ("prefix" in bounds) {
     const prefix: Key[] = bounds.prefix;
     const exploded: Key = [];
     for (const item of prefix) {
@@ -91,41 +96,38 @@ export function boundsToPositions<K extends Key, ID extends string>(
     };
   }
   return {
-    k1: boundToPosition('lower', bounds.lower),
-    k2: boundToPosition('upper', bounds.upper),
+    k1: boundToPosition("lower", bounds.lower),
+    k2: boundToPosition("upper", bounds.upper),
   };
 }
 
-export function boundToPosition<
-  K extends Key,
-  ID extends string,
->(
-  direction: 'lower' | 'upper',
-  bound: Bound<K, ID>,
+export function boundToPosition<K extends Key, ID extends string>(
+  direction: "lower" | "upper",
+  bound: Bound<K, ID>
 ): Position;
-export function boundToPosition(
-  direction: 'lower' | 'upper',
-): undefined;
-export function boundToPosition<
-  K extends Key,
-  ID extends string,
->(
-  direction: 'lower' | 'upper',
-  bound?: Bound<K, ID>,
+export function boundToPosition(direction: "lower" | "upper"): undefined;
+export function boundToPosition<K extends Key, ID extends string>(
+  direction: "lower" | "upper",
+  bound?: Bound<K, ID>
 ): Position | undefined;
-export function boundToPosition<
-  K extends Key,
-  ID extends string,
->(
-  direction: 'lower' | 'upper',
-  bound?: Bound<K, ID>,
+export function boundToPosition<K extends Key, ID extends string>(
+  direction: "lower" | "upper",
+  bound?: Bound<K, ID>
 ): Position | undefined {
   if (bound === undefined) {
     return undefined;
   }
-  if (direction === 'lower') {
-    return [explodeKey(bound.key), bound.id ?? BEFORE_ALL_IDS, bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS];
+  if (direction === "lower") {
+    return [
+      explodeKey(bound.key),
+      bound.id ?? BEFORE_ALL_IDS,
+      bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS,
+    ];
   } else {
-    return [explodeKey(bound.key), bound.id ?? AFTER_ALL_IDS, bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS];
+    return [
+      explodeKey(bound.key),
+      bound.id ?? AFTER_ALL_IDS,
+      bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS,
+    ];
   }
 }

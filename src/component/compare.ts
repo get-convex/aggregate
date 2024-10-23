@@ -22,10 +22,10 @@ function compareSameTypeValues<T>(v1: T, v2: T): number {
     return 0;
   }
   if (
-    typeof v1 === "bigint"
-    || typeof v1 === "number"
-    || typeof v1 === "boolean"
-    || typeof v1 === "string"
+    typeof v1 === "bigint" ||
+    typeof v1 === "number" ||
+    typeof v1 === "boolean" ||
+    typeof v1 === "string"
   ) {
     return v1 < v2 ? -1 : v1 === v2 ? 0 : 1;
   }
@@ -62,7 +62,8 @@ function makeComparable(v: Value | undefined): [number, any] {
     return [2, v];
   }
   if (typeof v === "number") {
-    if (isNaN(v)) { // Consider all NaNs to be equal.
+    if (isNaN(v)) {
+      // Consider all NaNs to be equal.
       return [3.5, 0];
     }
     // TODO: NaNs and infs
