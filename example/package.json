@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@convex-dev/aggregate": "file:..",
-    "convex": "^1.16.5",
+    "convex": "^1.17.0",
     "convex-helpers": "^0.1.61",
     "isaac": "^0.0.5",
     "rand-seed": "^2.1.7"
@@ -19,6 +19,7 @@
     "@eslint/js": "^9.9.1",
     "@typescript-eslint/eslint-plugin": "^8.4.0",
     "@typescript-eslint/parser": "^8.4.0",
+    "convex-test": "^0.0.33",
     "eslint": "^9.9.1",
     "globals": "^15.9.0",
     "typescript": "^5.5.0"
