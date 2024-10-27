@@ -479,6 +479,26 @@ export class TableAggregate<
       this.options.sumValue?.(newDoc)
     );
   }
+  /**
+   * Returns the rank/offset/index of the given document, within the bounds.
+   * This differs from `indexOf` in that it take the document rather than key.
+   * Specifically, it returns the index of the first item with
+   *
+   * - key >= the given doc's key if `order` is "asc" (default)
+   * - key <= the given doc's key if `order` is "desc"
+   */
+  async indexOfDoc(
+    ctx: RunQueryCtx,
+    doc: DocumentByName<DataModel, TableName>,
+    opts?: {
+      id?: GenericId<TableName>;
+      bounds?: Bounds<K, GenericId<TableName>>;
+      order?: "asc" | "desc";
+    }
+  ): Promise<number> {
+    const key = this.options.sortKey(doc);
+    return this.indexOf(ctx, key, opts);
+  }
 
   trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
     return async (ctx, change) => {
