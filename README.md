@@ -254,7 +254,7 @@ await randomize.insert(ctx, id);
 
 // As before, delete from the component when you delete from your table
 await ctx.db.delete(id);
-await randomize.insert(ctx, id);
+await randomize.delete(ctx, id);
 
 // in a query, get the total document count.
 const totalCount = await randomize.count(ctx);
