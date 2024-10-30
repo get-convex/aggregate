@@ -365,7 +365,9 @@ ways to perform migrations, but here's an overview of one way:
    aggregate component.
 3. Use a paginated background
    [migration](https://www.npmjs.com/package/@convex-dev/migrations)
-   to walk all existing data and call `insertIfDoesNotExist`.
+   to walk all existing data and call `insertIfDoesNotExist`. In the example,
+   you would run `runAggregateBackfill` in
+   [leaderboard.ts](example/convex/leaderboard.ts).
 4. Now all of the data is represented in the `Aggregate`, you can start calling
    read methods like `aggregate.count(ctx)` and you can change the write methods
    back (`insertIfDoesNotExist` -> `insert` etc.).

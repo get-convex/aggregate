@@ -41,7 +41,13 @@ export const clearAggregates = internalMutation({
     await aggregateScoreByUser.clear(ctx);
   },
 });
-export const runAggregateBackfill = migrations.runner(internal.leaderboard.backfillAggregatesMigration);
+
+// This is what you can run, from the Convex dashboard or with `npx convex run`,
+// to backfill aggregates for existing leaderboard entries, if you created the
+// leaderboard before adding the aggregate components.
+export const runAggregateBackfill = migrations.runner(
+  internal.leaderboard.backfillAggregatesMigration
+);
 
 export const addScore = mutation({
   args: {
