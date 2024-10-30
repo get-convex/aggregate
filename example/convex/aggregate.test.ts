@@ -4,16 +4,19 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import schema from "./schema";
 import componentSchema from "../../src/component/schema";
+import migrationsSchema from "../node_modules/@convex-dev/migrations/src/component/schema";
 import { api, components, internal } from "./_generated/api";
 
 const modules = import.meta.glob("./**/*.ts");
 const componentModules = import.meta.glob("../../src/component/**/*.ts");
+const migrationsModules = import.meta.glob("../node_modules/@convex-dev/migrations/src/component/**/*.ts");
 
 describe("leaderboard", () => {
   async function setupTest() {
     const t = convexTest(schema, modules);
     t.registerComponent("aggregateByScore", componentSchema, componentModules);
     t.registerComponent("aggregateScoreByUser", componentSchema, componentModules);
+    t.registerComponent("migrations", migrationsSchema, migrationsModules);
     // Reduce maxNodeSize so we can test complex trees with fewer items.
     await t.mutation(components.aggregateByScore.public.clear, { maxNodeSize: 4 });
     await t.mutation(components.aggregateScoreByUser.public.clear, { maxNodeSize: 4 });
@@ -80,10 +83,10 @@ describe("leaderboard", () => {
     await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 15 });
     await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 25 });
     await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 30 });
-    await t.mutation(components.aggregateByScore.public.clear, {});
-    await t.mutation(components.aggregateScoreByUser.public.clear, {});
+    await t.mutation(internal.leaderboard.clearAggregates, {});
     expect(await t.query(api.leaderboard.countScores)).toStrictEqual(0);
-    await t.mutation(internal.leaderboard.backfillAggregates);
+    await t.mutation(internal.leaderboard.runAggregateBackfill, {});
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await t.query(api.leaderboard.countScores)).toStrictEqual(5);
   });
 

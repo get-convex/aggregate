@@ -4,9 +4,13 @@
 
 import { TableAggregate } from "@convex-dev/aggregate";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
+import { Migrations } from "@convex-dev/migrations";
+
+export const migrations = new Migrations<DataModel>(components.migrations);
+export const run = migrations.runner();
 
 const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
   components.aggregateByScore,
@@ -21,19 +25,23 @@ const aggregateScoreByUser = new TableAggregate<
   sumValue: (doc) => doc.score,
 });
 
-export const backfillAggregates = internalMutation({
+export const backfillAggregatesMigration = migrations.define({
+  table: "leaderboard",
+  migrateOne: async (ctx, doc) => {
+    await aggregateByScore.insertIfDoesNotExist(ctx, doc);
+    await aggregateScoreByUser.insertIfDoesNotExist(ctx, doc);
+    console.log("backfilled", doc.name, doc.score);
+  },
+});
+
+export const clearAggregates = internalMutation({
   args: {},
   handler: async (ctx) => {
     await aggregateByScore.clear(ctx);
     await aggregateScoreByUser.clear(ctx);
-
-    for await (const doc of ctx.db.query("leaderboard")) {
-      await aggregateByScore.insert(ctx, doc);
-      await aggregateScoreByUser.insert(ctx, doc);
-      console.log("backfilled", doc.name, doc.score);
-    }
   },
 });
+export const runAggregateBackfill = migrations.runner(internal.leaderboard.backfillAggregatesMigration);
 
 export const addScore = mutation({
   args: {
