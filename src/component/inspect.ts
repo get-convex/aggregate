@@ -1,12 +1,12 @@
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
-import { getTree, p } from "./btree.js";
+import { getTree, Namespace, p } from "./btree.js";
 
 export const display = query({
-  args: {},
-  handler: async (ctx) => {
-    const tree = await getTree(ctx.db);
+  args: { namespace: v.optional(v.any()) },
+  handler: async (ctx, args) => {
+    const tree = await getTree(ctx.db, args.namespace);
     if (!tree) {
       return "empty";
     }
@@ -32,15 +32,15 @@ async function displayNode(
 }
 
 export const dump = query({
-  args: {},
+  args: { namespace: v.optional(v.any()) },
   returns: v.string(),
-  handler: async (ctx) => {
-    return await dumpTree(ctx.db);
+  handler: async (ctx, args) => {
+    return await dumpTree(ctx.db, args.namespace);
   },
 });
 
-export async function dumpTree(db: DatabaseReader) {
-  const t = (await getTree(db))!;
+export async function dumpTree(db: DatabaseReader, namespace: Namespace) {
+  const t = (await getTree(db, namespace))!;
   return dumpNode(db, t.root);
 }
 
@@ -70,10 +70,10 @@ async function dumpNode(
 }
 
 export const inspectNode = query({
-  args: { node: v.optional(v.string()) },
+  args: { node: v.optional(v.string()), namespace: v.optional(v.any()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const tree = await getTree(ctx.db);
+    const tree = await getTree(ctx.db, args.namespace);
     if (!tree) {
       console.log("no tree");
       return;

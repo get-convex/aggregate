@@ -30,11 +30,12 @@ export const aggregate = v.object({
 export type Aggregate = Infer<typeof aggregate>;
 
 export default defineSchema({
-  // Singleton.
+  // One per namespace
   btree: defineTable({
     root: v.id("btreeNode"),
+    namespace: v.optional(v.any()),
     maxNodeSize: v.number(),
-  }),
+  }).index("by_namespace", ["namespace"]),
   btreeNode: defineTable({
     items: v.array(item),
     subtrees: v.array(v.id("btreeNode")),

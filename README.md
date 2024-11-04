@@ -234,6 +234,41 @@ To run the examples:
 4. The dashboard should open and you can run functions like
    `leaderboard:addScore` and `leaderboard:userAverageScore`.
 
+### Namespaces
+
+If you have a lot of separate data sets, you can put an identifier for the data
+set at the beginning of your `sortKey`. However, if you never need to aggregate
+across the data sets, there's another option which allows greater throughput
+by reducing write contention: use `namespaces`.
+
+For example, suppose you have a bunch of leaderboard scores for several games,
+and the scores for each game are independent. Then you can use the game id as a
+namespace. Then each game gets its own data structure in the aggregate
+component.
+
+```ts
+const aggregateByGame = new NamespacedTableAggregate<
+  [string, number],
+  DataModel,
+  "leaderboard",
+  Id<"games">
+>(components.aggregateByGame, {
+  sortKey: (doc) => [doc.username, doc.score],
+  namespace: (doc) => doc.gameId,
+});
+```
+
+Now when you need to aggregate within a game, you call `.get` to narrow down the
+computation to a single game.
+
+```ts
+const countTimesGamePlayed = await aggregateByGame.get(gameId).count();
+```
+
+There are namespaced classes for each kind of Aggregate you may want to build:
+`NamespacedTableAggregate`, `NamespacedRandomize`, and
+`NamespacedDirectAggregate`.
+
 ### Total Count and Randomization
 
 If you don't need the ordering, partitioning, or summing behavior of

@@ -17,7 +17,10 @@ import {
   Bounds,
   boundsToPositions,
 } from "./positions.js";
-import { GenericId } from "convex/values";
+import {
+  GenericId,
+  Value as ConvexValue,
+} from "convex/values";
 
 export type UsedAPI = UseApi<typeof api>;
 
@@ -52,8 +55,15 @@ export type { Key, Bound };
  * Once values have been added to the data structure, you can query for the
  * count and sum of items between a range of keys.
  */
-export class Aggregate<K extends Key, ID extends string> {
-  constructor(protected component: UsedAPI) {}
+export class Aggregate<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined = undefined,
+> {
+  constructor(
+    protected component: UsedAPI,
+    protected namespace: Namespace,
+  ) {}
 
   /// Aggregate queries.
 
@@ -63,7 +73,10 @@ export class Aggregate<K extends Key, ID extends string> {
   async count(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
     const { count } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
-      boundsToPositions(bounds)
+      {
+        ...boundsToPositions(bounds),
+        namespace: this.namespace,
+      },
     );
     return count;
   }
@@ -73,7 +86,10 @@ export class Aggregate<K extends Key, ID extends string> {
   async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
     const { sum } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
-      boundsToPositions(bounds)
+      {
+        ...boundsToPositions(bounds),
+        namespace: this.namespace,
+      },
     );
     return sum;
   }
@@ -93,12 +109,14 @@ export class Aggregate<K extends Key, ID extends string> {
     if (offset < 0) {
       const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
         offset: -offset - 1,
+        namespace: this.namespace,
         ...boundsToPositions(bounds),
       });
       return btreeItemToAggregateItem(item);
     }
     const item = await ctx.runQuery(this.component.btree.atOffset, {
       offset,
+      namespace: this.namespace,
       ...boundsToPositions(bounds),
     });
     return btreeItemToAggregateItem(item);
@@ -117,6 +135,7 @@ export class Aggregate<K extends Key, ID extends string> {
     return await ctx.runQuery(this.component.btree.offset, {
       key: boundToPosition("lower", { key, id, inclusive: true }),
       k1,
+      namespace: this.namespace,
     });
   }
   /**
@@ -133,6 +152,7 @@ export class Aggregate<K extends Key, ID extends string> {
     return await ctx.runQuery(this.component.btree.offsetUntil, {
       key: boundToPosition("upper", { key, id, inclusive: true }),
       k2,
+      namespace: this.namespace,
     });
   }
   /**
@@ -185,6 +205,7 @@ export class Aggregate<K extends Key, ID extends string> {
       cursor: newCursor,
       isDone,
     } = await ctx.runQuery(this.component.btree.paginate, {
+      namespace: this.namespace,
       ...boundsToPositions(bounds),
       cursor,
       order,
@@ -237,16 +258,19 @@ export class Aggregate<K extends Key, ID extends string> {
       key: keyToPosition(key, id),
       summand,
       value: id,
+      namespace: this.namespace,
     });
   }
   async _delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
     await ctx.runMutation(this.component.public.delete_, {
       key: keyToPosition(key, id),
+      namespace: this.namespace,
     });
   }
   async _replace(
     ctx: RunMutationCtx,
     currentKey: K,
+    newNamespace: Namespace,
     newKey: K,
     id: ID,
     summand?: number
@@ -256,6 +280,8 @@ export class Aggregate<K extends Key, ID extends string> {
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
+      namespace: this.namespace,
+      newNamespace,
     });
   }
   async _insertIfDoesNotExist(
@@ -264,16 +290,18 @@ export class Aggregate<K extends Key, ID extends string> {
     id: ID,
     summand?: number
   ): Promise<void> {
-    await this._replaceOrInsert(ctx, key, key, id, summand);
+    await this._replaceOrInsert(ctx, key, this.namespace, key, id, summand);
   }
   async _deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
     await ctx.runMutation(this.component.public.deleteIfExists, {
       key: keyToPosition(key, id),
+      namespace: this.namespace,
     });
   }
   async _replaceOrInsert(
     ctx: RunMutationCtx,
     currentKey: K,
+    newNamespace: Namespace,
     newKey: K,
     id: ID,
     summand?: number
@@ -283,6 +311,8 @@ export class Aggregate<K extends Key, ID extends string> {
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
+      namespace: this.namespace,
+      newNamespace,
     });
   }
 
@@ -308,6 +338,7 @@ export class Aggregate<K extends Key, ID extends string> {
     await ctx.runMutation(this.component.public.clear, {
       maxNodeSize,
       rootLazy,
+      namespace: this.namespace,
     });
   }
   /**
@@ -322,7 +353,7 @@ export class Aggregate<K extends Key, ID extends string> {
    * so larger maxNodeSize can also help.
    */
   async makeRootLazy(ctx: RunMutationCtx): Promise<void> {
-    await ctx.runMutation(this.component.public.makeRootLazy);
+    await ctx.runMutation(this.component.public.makeRootLazy, { namespace: this.namespace });
   }
 }
 
@@ -336,7 +367,14 @@ export class Aggregate<K extends Key, ID extends string> {
 export class DirectAggregate<
   K extends Key,
   ID extends string,
-> extends Aggregate<K, ID> {
+  Namespace extends ConvexValue | undefined = undefined,
+> extends Aggregate<K, ID, Namespace> {
+  constructor(
+    component: UsedAPI,
+    namespace?: Namespace,
+  ) {
+    super(component, namespace as Namespace);
+  }
   /**
    * Insert a new key into the data structure.
    * The id should be unique.
@@ -372,7 +410,7 @@ export class DirectAggregate<
     id: ID,
     sumValue?: number
   ): Promise<void> {
-    await this._replace(ctx, currentKey, newKey, id, sumValue);
+    await this._replace(ctx, currentKey, this.namespace, newKey, id, sumValue);
   }
   /**
    * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
@@ -400,7 +438,7 @@ export class DirectAggregate<
     id: ID,
     sumValue?: number
   ): Promise<void> {
-    await this._replaceOrInsert(ctx, currentKey, newKey, id, sumValue);
+    await this._replaceOrInsert(ctx, currentKey, this.namespace, newKey, id, sumValue);
   }
 }
 
@@ -408,15 +446,17 @@ export class TableAggregate<
   K extends Key,
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
-> extends Aggregate<K, GenericId<TableName>> {
+  Namespace extends ConvexValue | undefined = undefined,
+> extends Aggregate<K, GenericId<TableName>, Namespace> {
   constructor(
     component: UsedAPI,
     private options: {
       sortKey: (d: DocumentByName<DataModel, TableName>) => K;
       sumValue?: (d: DocumentByName<DataModel, TableName>) => number;
-    }
+    },
+    namespace?: Namespace,
   ) {
-    super(component);
+    super(component, namespace as Namespace);
   }
 
   async insert(
@@ -448,6 +488,7 @@ export class TableAggregate<
     await this._replace(
       ctx,
       this.options.sortKey(oldDoc),
+      this.namespace,
       this.options.sortKey(newDoc),
       newDoc._id as GenericId<TableName>,
       this.options.sumValue?.(newDoc)
@@ -482,6 +523,7 @@ export class TableAggregate<
     await this._replaceOrInsert(
       ctx,
       this.options.sortKey(oldDoc),
+      this.namespace,
       this.options.sortKey(newDoc),
       newDoc._id as GenericId<TableName>,
       this.options.sumValue?.(newDoc)
@@ -555,10 +597,11 @@ export type Change<
 export class Randomize<
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
+  Namespace extends ConvexValue | undefined = undefined,
 > {
-  private aggregate: TableAggregate<null, DataModel, TableName>;
-  constructor(component: UsedAPI) {
-    this.aggregate = new TableAggregate(component, { sortKey: (_doc) => null });
+  private aggregate: TableAggregate<null, DataModel, TableName, Namespace>;
+  constructor(component: UsedAPI, namespace?: Namespace) {
+    this.aggregate = new TableAggregate(component, { sortKey: (_doc) => null }, namespace);
   }
   async count(ctx: RunQueryCtx): Promise<number> {
     return await this.aggregate.count(ctx);
@@ -621,4 +664,196 @@ export function btreeItemToAggregateItem<K extends Key, ID extends string>({
     id: id as ID,
     sumValue: s,
   };
+}
+
+export class NamespacedAggregate<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined,
+> {
+  constructor(
+    protected component: UsedAPI,
+  ) {}
+
+  get(namespace: Namespace): Aggregate<K, ID, Namespace> {
+    return new Aggregate(this.component, namespace);
+  }
+
+  async paginateNamespaces(
+    ctx: RunQueryCtx,
+    cursor?: string,
+    pageSize: number = 100
+  ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
+    const { page, cursor: newCursor, isDone } = await ctx.runQuery(
+      this.component.btree.paginateNamespaces,
+      { cursor, limit: pageSize },
+    );
+    return {
+      page: page as Namespace[],
+      cursor: newCursor,
+      isDone,
+    };
+  }
+
+  async *iter(
+    ctx: RunQueryCtx,
+    pageSize: number = 100
+  ): AsyncGenerator<Namespace, void, undefined> {
+    let isDone = false;
+    let cursor: string | undefined = undefined;
+    while (!isDone) {
+      const {
+        page,
+        cursor: newCursor,
+        isDone: newIsDone,
+      } = await this.paginateNamespaces(ctx, cursor, pageSize);
+      for (const item of page) {
+        yield item;
+      }
+      isDone = newIsDone;
+      cursor = newCursor;
+    }
+  }
+
+  async clear(
+    ctx: RunMutationCtx & RunQueryCtx,
+    maxNodeSize?: number,
+    rootLazy?: boolean
+  ): Promise<void> {
+    for await (const namespace of this.iter(ctx)) {
+      await this.get(namespace).clear(ctx, maxNodeSize, rootLazy);
+    }
+    // In case there are no namespaces, make sure we create at least one tree,
+    // at namespace=undefined. This is where the default settings are stored.
+    await this.get(undefined as Namespace).clear(ctx, maxNodeSize, rootLazy);
+  }
+
+  async makeRootLazy(ctx: RunMutationCtx & RunQueryCtx): Promise<void> {
+    for await (const namespace of this.iter(ctx)) {
+      await this.get(namespace).makeRootLazy(ctx);
+    }
+  }
+}
+
+export class NamespacedDirectAggregate<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined,
+> extends NamespacedAggregate<K, ID, Namespace> {
+}
+
+export class NamespacedTableAggregate<
+  K extends Key,
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+  Namespace extends ConvexValue | undefined,
+> extends NamespacedAggregate<K, GenericId<TableName>, Namespace> {
+  constructor(
+    component: UsedAPI,
+    protected options: {
+      namespace: (d: DocumentByName<DataModel, TableName>) => Namespace;
+      sortKey: (d: DocumentByName<DataModel, TableName>) => K;
+      sumValue?: (d: DocumentByName<DataModel, TableName>) => number;
+    },
+  ) {
+    super(component);
+  }
+  private writer(doc: DocumentByName<DataModel, TableName>): TableAggregate<K, DataModel, TableName, Namespace> {
+    return new TableAggregate(this.component, this.options, this.options.namespace(doc));
+  }
+
+  async insert(
+    ctx: RunMutationCtx,
+    doc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(doc).insert(ctx, doc);
+  }
+  async delete(
+    ctx: RunMutationCtx,
+    doc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(doc).delete(ctx, doc);
+  }
+  async replace(
+    ctx: RunMutationCtx,
+    oldDoc: DocumentByName<DataModel, TableName>,
+    newDoc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(oldDoc)._replace(
+      ctx,
+      this.options.sortKey(oldDoc),
+      this.options.namespace(newDoc),
+      this.options.sortKey(newDoc),
+      newDoc._id as GenericId<TableName>,
+      this.options.sumValue?.(newDoc)
+    );
+  }
+  async insertIfDoesNotExist(
+    ctx: RunMutationCtx,
+    doc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(doc).insertIfDoesNotExist(ctx, doc);
+  }
+  async deleteIfExists(
+    ctx: RunMutationCtx,
+    doc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(doc).deleteIfExists(ctx, doc);
+  }
+  async replaceOrInsert(
+    ctx: RunMutationCtx,
+    oldDoc: DocumentByName<DataModel, TableName>,
+    newDoc: DocumentByName<DataModel, TableName>
+  ): Promise<void> {
+    await this.writer(oldDoc)._replaceOrInsert(
+      ctx,
+      this.options.sortKey(oldDoc),
+      this.options.namespace(newDoc),
+      this.options.sortKey(newDoc),
+      newDoc._id as GenericId<TableName>,
+      this.options.sumValue?.(newDoc)
+    );
+  }
+
+  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+    return async (ctx, change) => {
+      if (change.operation === "insert") {
+        await this.insert(ctx, change.newDoc);
+      } else if (change.operation === "update") {
+        await this.replace(ctx, change.oldDoc, change.newDoc);
+      } else if (change.operation === "delete") {
+        await this.delete(ctx, change.oldDoc);
+      }
+    };
+  }
+
+  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
+    Ctx,
+    DataModel,
+    TableName
+  > {
+    return async (ctx, change) => {
+      if (change.operation === "insert") {
+        await this.insertIfDoesNotExist(ctx, change.newDoc);
+      } else if (change.operation === "update") {
+        await this.replaceOrInsert(ctx, change.oldDoc, change.newDoc);
+      } else if (change.operation === "delete") {
+        await this.deleteIfExists(ctx, change.oldDoc);
+      }
+    };
+  }
+}
+
+export class NamespacedRandomize<
+  DataModel extends GenericDataModel,
+  TableName extends TableNamesInDataModel<DataModel>,
+  Namespace extends ConvexValue | undefined,
+> {
+  constructor(
+    private component: UsedAPI,
+  ) {}
+
+  get(namespace: Namespace): Randomize<DataModel, TableName, Namespace> {
+    return new Randomize(this.component, namespace);
+  }
 }

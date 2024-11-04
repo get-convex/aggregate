@@ -123,14 +123,15 @@ describe("photos", () => {
   });
 
   test("triggers and pagination", async () => {
+    const album = "birthday party";
     for (let i = 0; i < 30; i++) {
-      await t.mutation(api.photos.addPhoto, { url: `photo${i}` });
+      await t.mutation(api.photos.addPhoto, { album, url: `photo${i}` });
     }
-    const page0 = await t.query(api.photos.pageOfPhotos, { offset: 0, numItems: 10 });
+    const page0 = await t.query(api.photos.pageOfPhotos, { album, offset: 0, numItems: 10 });
     expect(page0).toEqual(Array.from({ length: 10 }, (_, i) => `photo${i}`));
-    const emptyPage = await t.query(api.photos.pageOfPhotos, { offset: 0, numItems: 0 });
+    const emptyPage = await t.query(api.photos.pageOfPhotos, { album, offset: 0, numItems: 0 });
     expect(emptyPage).toEqual([]);
-    const lastPage = await t.query(api.photos.pageOfPhotos, { offset: 28, numItems: 10 });
+    const lastPage = await t.query(api.photos.pageOfPhotos, { album, offset: 28, numItems: 10 });
     expect(lastPage).toEqual(["photo28", "photo29"]);
   });
 });

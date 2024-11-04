@@ -7,7 +7,7 @@
  * Also demonstrates aggregates automatically updating when the underlying table changes.
  */
 
-import { TableAggregate } from "@convex-dev/aggregate";
+import { NamespacedTableAggregate } from "@convex-dev/aggregate";
 import {
   internalMutation as rawInternalMutation,
   mutation as rawMutation,
@@ -22,9 +22,12 @@ import {
 } from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
-const photos = new TableAggregate<number, DataModel, "photos">(
+const photos = new NamespacedTableAggregate<number, DataModel, "photos", string>(
   components.photos,
-  { sortKey: (doc) => doc._creationTime }
+  {
+    namespace: (doc) => doc.album,
+    sortKey: (doc) => doc._creationTime,
+  }
 );
 
 const triggers = new Triggers<DataModel>();
@@ -49,11 +52,12 @@ export const init = internalMutation({
 
 export const addPhoto = mutation({
   args: {
+    album: v.string(),
     url: v.string(),
   },
   returns: v.id("photos"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("photos", { url: args.url });
+    return await ctx.db.insert("photos", { album: args.album, url: args.url });
   },
 });
 
@@ -63,12 +67,13 @@ export const addPhoto = mutation({
  */
 export const pageOfPhotos = query({
   args: {
+    album: v.string(),
     offset: v.number(),
     numItems: v.number(),
   },
   returns: v.array(v.string()),
-  handler: async (ctx, { offset, numItems }) => {
-    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset);
+  handler: async (ctx, { offset, numItems, album }) => {
+    const { key: firstPhotoCreationTime } = await photos.get(album).at(ctx, offset);
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_creation_time", (q) =>

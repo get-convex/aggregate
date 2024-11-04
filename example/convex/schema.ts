@@ -10,6 +10,7 @@ export default defineSchema({
     title: v.string(),
   }),
   photos: defineTable({
+    album: v.string(),
     url: v.string(),
   }),
 });
