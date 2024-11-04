@@ -124,7 +124,7 @@ export const rankOfScore = query({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    return await aggregateByScore.offsetUntil(ctx, args.score);
+    return await aggregateByScore.indexOf(ctx, args.score, { order: "desc" });
   },
 });
 
