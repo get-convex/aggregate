@@ -16,7 +16,7 @@ that the Aggregate component makes easy and efficient:
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: false } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
-5. Find the ranking for a score of 65 in the leaderboard: `aggregate.offsetOf(ctx, 65)`
+5. Find the ranking for a score of 65 in the leaderboard: `aggregate.indexOf(ctx, 65)`
 6. Find the average score for an individual user. You can define another aggregate
    partitioned by user and aggregate within each:
 
