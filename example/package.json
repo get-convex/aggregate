@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@convex-dev/aggregate": "file:..",
+    "@convex-dev/migrations": "^0.2.1",
     "convex": "^1.17.0",
     "convex-helpers": "^0.1.61",
     "rand-seed": "^2.1.7"

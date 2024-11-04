@@ -16,7 +16,7 @@ that the Aggregate component makes easy and efficient:
 2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: false } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
-5. Find the ranking for a score of 65 in the leaderboard: `aggregate.offsetOf(ctx, 65)`
+5. Find the ranking for a score of 65 in the leaderboard: `aggregate.indexOf(ctx, 65)`
 6. Find the average score for an individual user. You can define another aggregate
    partitioned by user and aggregate within each:
 
@@ -400,7 +400,9 @@ ways to perform migrations, but here's an overview of one way:
    aggregate component.
 3. Use a paginated background
    [migration](https://www.npmjs.com/package/@convex-dev/migrations)
-   to walk all existing data and call `insertIfDoesNotExist`.
+   to walk all existing data and call `insertIfDoesNotExist`. In the example,
+   you would run `runAggregateBackfill` in
+   [leaderboard.ts](example/convex/leaderboard.ts).
 4. Now all of the data is represented in the `Aggregate`, you can start calling
    read methods like `aggregate.count(ctx)` and you can change the write methods
    back (`insertIfDoesNotExist` -> `insert` etc.).

@@ -123,7 +123,32 @@ export class Aggregate<
   }
   /**
    * Returns the rank/offset/index of the given key, within the bounds.
-   * Specifically, it returns the index of the first item with a key >= the given key.
+   * Specifically, it returns the index of the first item with
+   *
+   * - key >= the given key if `order` is "asc" (default)
+   * - key <= the given key if `order` is "desc"
+   */
+  async indexOf(
+    ctx: RunQueryCtx,
+    key: K,
+    opts?: { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" }
+  ): Promise<number> {
+    const { k1, k2 } = boundsToPositions(opts?.bounds);
+    if (opts?.order === "desc") {
+      return await ctx.runQuery(this.component.btree.offsetUntil, {
+        key: boundToPosition("upper", { key, id: opts?.id, inclusive: true }),
+        k2,
+        namespace: this.namespace,
+      });
+    }
+    return await ctx.runQuery(this.component.btree.offset, {
+      key: boundToPosition("lower", { key, id: opts?.id, inclusive: true }),
+      k1,
+      namespace: this.namespace,
+    });
+  }
+  /**
+   * @deprecated Use `indexOf` instead.
    */
   async offsetOf(
     ctx: RunQueryCtx,
@@ -131,16 +156,10 @@ export class Aggregate<
     id?: ID,
     bounds?: Bounds<K, ID>
   ): Promise<number> {
-    const { k1 } = boundsToPositions(bounds);
-    return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id, inclusive: true }),
-      k1,
-      namespace: this.namespace,
-    });
+    return this.indexOf(ctx, key, { id, bounds });
   }
   /**
-   * Returns the rank/offset/index of the given key, counting from the end of
-   * the list (or `upperBound`).
+   * @deprecated Use `indexOf` instead.
    */
   async offsetUntil(
     ctx: RunQueryCtx,
@@ -148,13 +167,9 @@ export class Aggregate<
     id?: ID,
     bounds?: Bounds<K, ID>
   ): Promise<number> {
-    const { k2 } = boundsToPositions(bounds);
-    return await ctx.runQuery(this.component.btree.offsetUntil, {
-      key: boundToPosition("upper", { key, id, inclusive: true }),
-      k2,
-      namespace: this.namespace,
-    });
+    return this.indexOf(ctx, key, { id, bounds, order: "desc" });
   }
+
   /**
    * Gets the minimum item within the given bounds.
    */
@@ -528,6 +543,26 @@ export class TableAggregate<
       newDoc._id as GenericId<TableName>,
       this.options.sumValue?.(newDoc)
     );
+  }
+  /**
+   * Returns the rank/offset/index of the given document, within the bounds.
+   * This differs from `indexOf` in that it take the document rather than key.
+   * Specifically, it returns the index of the first item with
+   *
+   * - key >= the given doc's key if `order` is "asc" (default)
+   * - key <= the given doc's key if `order` is "desc"
+   */
+  async indexOfDoc(
+    ctx: RunQueryCtx,
+    doc: DocumentByName<DataModel, TableName>,
+    opts?: {
+      id?: GenericId<TableName>;
+      bounds?: Bounds<K, GenericId<TableName>>;
+      order?: "asc" | "desc";
+    }
+  ): Promise<number> {
+    const key = this.options.sortKey(doc);
+    return this.indexOf(ctx, key, opts);
   }
 
   trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
