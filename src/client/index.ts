@@ -128,6 +128,29 @@ export class Aggregate<K extends Key, ID extends string> {
     });
   }
   /**
+   * @deprecated Use `indexOf` instead.
+   */
+  async offsetOf(
+    ctx: RunQueryCtx,
+    key: K,
+    id?: ID,
+    bounds?: Bounds<K, ID>
+  ): Promise<number> {
+    return this.indexOf(ctx, key, { id, bounds });
+  }
+  /**
+   * @deprecated Use `indexOf` instead.
+   */
+  async offsetUntil(
+    ctx: RunQueryCtx,
+    key: K,
+    id?: ID,
+    bounds?: Bounds<K, ID>
+  ): Promise<number> {
+    return this.indexOf(ctx, key, { id, bounds, order: "desc" });
+  }
+
+  /**
    * Gets the minimum item within the given bounds.
    */
   async min(
