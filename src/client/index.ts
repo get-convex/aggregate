@@ -457,90 +457,98 @@ export class DirectAggregate<
   }
 }
 
+export type TableAggregateType<K extends Key, DataModel extends GenericDataModel, TableName extends TableNamesInDataModel<DataModel>, Namespace extends ConvexValue | undefined> = {
+  key: K,
+  dataModel: DataModel,
+  tableName: TableName,
+  namespace: Namespace,
+};
+type AnyTableAggregateType = TableAggregateType<Key, GenericDataModel, TableNamesInDataModel<GenericDataModel>, ConvexValue | undefined>;
+type TableAggregateDocument<T extends AnyTableAggregateType> = DocumentByName<T["dataModel"], T["tableName"]>;
+type TableAggregateId<T extends AnyTableAggregateType> = GenericId<T["tableName"]>;
+type TableAggregateTrigger<Ctx, T extends AnyTableAggregateType> = Trigger<Ctx, T["dataModel"], T["tableName"]>;
+
 export class TableAggregate<
-  K extends Key,
-  DataModel extends GenericDataModel,
-  TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined = undefined,
-> extends Aggregate<K, GenericId<TableName>, Namespace> {
+  T extends AnyTableAggregateType,
+> extends Aggregate<T["key"], GenericId<T["tableName"]>, T["namespace"]> {
   constructor(
     component: UsedAPI,
     private options: {
-      sortKey: (d: DocumentByName<DataModel, TableName>) => K;
-      sumValue?: (d: DocumentByName<DataModel, TableName>) => number;
+      sortKey: (d: TableAggregateDocument<T>) => T["key"];
+      sumValue?: (d: TableAggregateDocument<T>) => number;
     },
-    namespace?: Namespace,
+    namespace?: T["namespace"],
   ) {
-    super(component, namespace as Namespace);
+    super(component, namespace as T["namespace"]);
   }
 
   async insert(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._insert(
       ctx,
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>,
+      doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
     );
   }
   async delete(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._delete(
       ctx,
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>
+      doc._id as TableAggregateId<T>
     );
   }
   async replace(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._replace(
       ctx,
       this.options.sortKey(oldDoc),
       this.namespace,
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
   async insertIfDoesNotExist(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>,
+      doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
     );
   }
   async deleteIfExists(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>,
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>
+      doc._id as TableAggregateId<T>,
     );
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
       this.options.sortKey(oldDoc),
       this.namespace,
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
@@ -554,10 +562,10 @@ export class TableAggregate<
    */
   async indexOfDoc(
     ctx: RunQueryCtx,
-    doc: DocumentByName<DataModel, TableName>,
+    doc: TableAggregateDocument<T>,
     opts?: {
-      id?: GenericId<TableName>;
-      bounds?: Bounds<K, GenericId<TableName>>;
+      id?: TableAggregateId<T>;
+      bounds?: Bounds<T["key"], TableAggregateId<T>>;
       order?: "asc" | "desc";
     }
   ): Promise<number> {
@@ -565,7 +573,7 @@ export class TableAggregate<
     return this.indexOf(ctx, key, opts);
   }
 
-  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+  trigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc);
@@ -577,11 +585,7 @@ export class TableAggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
-    Ctx,
-    DataModel,
-    TableName
-  > {
+  idempotentTrigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insertIfDoesNotExist(ctx, change.newDoc);
@@ -623,69 +627,6 @@ export type Change<
     }
 );
 
-/**
- * Simplified TableAggregate API that doesn't have keys or sumValue, so it's
- * simpler to use for counting all items or getting a random item.
- *
- * See docstrings on Aggregate for more details.
- */
-export class Randomize<
-  DataModel extends GenericDataModel,
-  TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined = undefined,
-> {
-  private aggregate: TableAggregate<null, DataModel, TableName, Namespace>;
-  constructor(component: UsedAPI, namespace?: Namespace) {
-    this.aggregate = new TableAggregate(component, { sortKey: (_doc) => null }, namespace);
-  }
-  async count(ctx: RunQueryCtx): Promise<number> {
-    return await this.aggregate.count(ctx);
-  }
-  async at(ctx: RunQueryCtx, offset: number): Promise<GenericId<TableName>> {
-    const item = await this.aggregate.at(ctx, offset);
-    return item.id;
-  }
-  async random(ctx: RunQueryCtx): Promise<GenericId<TableName> | null> {
-    const item = await this.aggregate.random(ctx);
-    return item ? item.id : null;
-  }
-  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
-    return this.aggregate.trigger();
-  }
-  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
-    Ctx,
-    DataModel,
-    TableName
-  > {
-    return this.aggregate.idempotentTrigger();
-  }
-  async insert(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
-    await this.aggregate.insert(ctx, { _id: id });
-  }
-  async delete(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
-    await this.aggregate.delete(ctx, { _id: id });
-  }
-  async insertIfDoesNotExist(
-    ctx: RunMutationCtx,
-    id: GenericId<TableName>
-  ): Promise<void> {
-    await this.aggregate.insertIfDoesNotExist(ctx, { _id: id });
-  }
-  async deleteIfExists(
-    ctx: RunMutationCtx,
-    id: GenericId<TableName>
-  ): Promise<void> {
-    await this.aggregate.deleteIfExists(ctx, { _id: id });
-  }
-  async clear(
-    ctx: RunMutationCtx,
-    maxNodeSize?: number,
-    rootLazy?: boolean
-  ): Promise<void> {
-    await this.aggregate.clear(ctx, maxNodeSize, rootLazy);
-  }
-}
-
 export function btreeItemToAggregateItem<K extends Key, ID extends string>({
   k,
   s,
@@ -710,7 +651,7 @@ export class NamespacedAggregate<
     protected component: UsedAPI,
   ) {}
 
-  get(namespace: Namespace): Aggregate<K, ID, Namespace> {
+  for(namespace: Namespace): Aggregate<K, ID, Namespace> {
     return new Aggregate(this.component, namespace);
   }
 
@@ -756,16 +697,16 @@ export class NamespacedAggregate<
     rootLazy?: boolean
   ): Promise<void> {
     for await (const namespace of this.iter(ctx)) {
-      await this.get(namespace).clear(ctx, maxNodeSize, rootLazy);
+      await this.for(namespace).clear(ctx, maxNodeSize, rootLazy);
     }
     // In case there are no namespaces, make sure we create at least one tree,
     // at namespace=undefined. This is where the default settings are stored.
-    await this.get(undefined as Namespace).clear(ctx, maxNodeSize, rootLazy);
+    await this.for(undefined as Namespace).clear(ctx, maxNodeSize, rootLazy);
   }
 
   async makeRootLazy(ctx: RunMutationCtx & RunQueryCtx): Promise<void> {
     for await (const namespace of this.iter(ctx)) {
-      await this.get(namespace).makeRootLazy(ctx);
+      await this.for(namespace).makeRootLazy(ctx);
     }
   }
 }
@@ -778,79 +719,76 @@ export class NamespacedDirectAggregate<
 }
 
 export class NamespacedTableAggregate<
-  K extends Key,
-  DataModel extends GenericDataModel,
-  TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined,
-> extends NamespacedAggregate<K, GenericId<TableName>, Namespace> {
+  T extends AnyTableAggregateType
+> extends NamespacedAggregate<T["key"], TableAggregateId<T>, T["namespace"]> {
   constructor(
     component: UsedAPI,
     protected options: {
-      namespace: (d: DocumentByName<DataModel, TableName>) => Namespace;
-      sortKey: (d: DocumentByName<DataModel, TableName>) => K;
-      sumValue?: (d: DocumentByName<DataModel, TableName>) => number;
+      namespace: (d: TableAggregateDocument<T>) => T["namespace"];
+      sortKey: (d: TableAggregateDocument<T>) => T["key"];
+      sumValue?: (d: TableAggregateDocument<T>) => number;
     },
   ) {
     super(component);
   }
-  private writer(doc: DocumentByName<DataModel, TableName>): TableAggregate<K, DataModel, TableName, Namespace> {
+  private writer(doc: TableAggregateDocument<T>): TableAggregate<T> {
     return new TableAggregate(this.component, this.options, this.options.namespace(doc));
   }
 
   async insert(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(doc).insert(ctx, doc);
   }
   async delete(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(doc).delete(ctx, doc);
   }
   async replace(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(oldDoc)._replace(
       ctx,
       this.options.sortKey(oldDoc),
       this.options.namespace(newDoc),
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
   async insertIfDoesNotExist(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(doc).insertIfDoesNotExist(ctx, doc);
   }
   async deleteIfExists(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(doc).deleteIfExists(ctx, doc);
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this.writer(oldDoc)._replaceOrInsert(
       ctx,
       this.options.sortKey(oldDoc),
       this.options.namespace(newDoc),
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
 
-  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+  trigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc);
@@ -862,11 +800,7 @@ export class NamespacedTableAggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
-    Ctx,
-    DataModel,
-    TableName
-  > {
+  idempotentTrigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insertIfDoesNotExist(ctx, change.newDoc);
@@ -876,19 +810,5 @@ export class NamespacedTableAggregate<
         await this.deleteIfExists(ctx, change.oldDoc);
       }
     };
-  }
-}
-
-export class NamespacedRandomize<
-  DataModel extends GenericDataModel,
-  TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined,
-> {
-  constructor(
-    private component: UsedAPI,
-  ) {}
-
-  get(namespace: Namespace): Randomize<DataModel, TableName, Namespace> {
-    return new Randomize(this.component, namespace);
   }
 }

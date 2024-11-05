@@ -12,15 +12,21 @@ import { Migrations } from "@convex-dev/migrations";
 export const migrations = new Migrations<DataModel>(components.migrations);
 export const run = migrations.runner();
 
-const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
+const aggregateByScore = new TableAggregate<{
+  key: number,
+  dataModel: DataModel,
+  tableName: "leaderboard",
+  namespace: undefined,
+}>(
   components.aggregateByScore,
   { sortKey: (doc) => doc.score }
 );
-const aggregateScoreByUser = new TableAggregate<
-  [string, number],
-  DataModel,
-  "leaderboard"
->(components.aggregateScoreByUser, {
+const aggregateScoreByUser = new TableAggregate<{
+  key: [string, number],
+  dataModel: DataModel,
+  tableName: "leaderboard",
+  namespace: undefined,
+}>(components.aggregateScoreByUser, {
   sortKey: (doc) => [doc.name, doc.score],
   sumValue: (doc) => doc.score,
 });

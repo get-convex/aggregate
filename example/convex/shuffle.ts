@@ -3,14 +3,21 @@
  * implemented with Convex.
  */
 
-import { Randomize } from "@convex-dev/aggregate";
+import { TableAggregate } from "@convex-dev/aggregate";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import Rand from "rand-seed";
 
-const randomize = new Randomize<DataModel, "music">(components.music);
+const randomize = new TableAggregate<{
+  dataModel: DataModel,
+  tableName: "music",
+  namespace: undefined,
+  key: null
+}>(components.music, {
+  sortKey: () => null,
+});
 
 export const addMusic = mutation({
   args: {
@@ -19,7 +26,8 @@ export const addMusic = mutation({
   returns: v.id("music"),
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("music", { title: args.title });
-    await randomize.insert(ctx, id);
+    const doc = (await ctx.db.get(id))!;
+    await randomize.insert(ctx, doc);
     return id;
   },
 });
@@ -29,8 +37,9 @@ export const removeMusic = mutation({
     id: v.id("music"),
   },
   handler: async (ctx, { id }) => {
+    const doc = (await ctx.db.get(id))!;
     await ctx.db.delete(id);
-    await randomize.delete(ctx, id);
+    await randomize.delete(ctx, doc);
   },
 });
 
@@ -40,11 +49,11 @@ export const getRandomMusicTitle = query({
   },
   returns: v.string(),
   handler: async (ctx) => {
-    const id = await randomize.random(ctx);
-    if (!id) {
+    const randomMusic = await randomize.random(ctx);
+    if (!randomMusic) {
       throw new ConvexError("no music");
     }
-    const doc = (await ctx.db.get(id))!;
+    const doc = (await ctx.db.get(randomMusic.id))!;
     return doc.title;
   },
 });
@@ -92,8 +101,8 @@ export const shufflePaginated = query({
 
     return await Promise.all(
       indexes.map(async (i) => {
-        const id = await randomize.at(ctx, i);
-        const doc = (await ctx.db.get(id))!;
+        const atIndex = await randomize.at(ctx, i);
+        const doc = (await ctx.db.get(atIndex.id))!;
         return doc.title;
       })
     );
