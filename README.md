@@ -250,7 +250,7 @@ If you need to aggregate across top-level segments, use `sortKey` with a prefix.
 For example, suppose you have a bunch of leaderboard scores for several games,
 and the scores for each game are independent. You can use the game id as a
 namespace. Then each game gets its own data structure in the aggregate
-component.
+component, preventing reads and writes for different games to conflict with each other.
 
 ```ts
 const aggregateByGame = new NamespacedTableAggregate<
