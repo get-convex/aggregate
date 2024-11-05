@@ -236,10 +236,16 @@ To run the examples:
 
 ### Namespaces
 
-If you have a lot of separate data sets, you can put an identifier for the data
-set at the beginning of your `sortKey`. However, if you never need to aggregate
-across the data sets, there's another option which allows greater throughput
-by reducing write contention: use `namespaces`.
+When you have independent data sets, use `namespaces` for greater throughput.
+A namespace is a segment of your data points, like all users within a team,
+or all metrics related to a user.
+It behaves similarly to using a prefix on `sortKey`, but more efficiently.
+By dividing your data into namespaces, you can more read data more efficiently,
+since your queries will never be invalidated due to writes in other namespaces.
+Writes between namespaces will never conflict, reducing chances of write contention
+resulting in slowdowns and OCC failure.
+The limitation is that you cannot calculate aggregates across namespaces.
+If you need to aggregate across top-level segments, use `sortKey` with a prefix.
 
 For example, suppose you have a bunch of leaderboard scores for several games,
 and the scores for each game are independent. Then you can use the game id as a
