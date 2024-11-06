@@ -599,7 +599,7 @@ In order to calculate in `O(log(n))` time, the aggregate component stores
 denormalized counts in an internal data structure. Data points with nearby keys
 may have their counts accumulated in one place.
 
-Imagine the leaderboard aggregate defined with key=`[username, score]`. Users
+Imagine the leaderboard aggregate defined with `Key: [username, score]`. Users
 "Laura" and "Lauren" have adjacent keys, so there is a node internal to the
 Aggregate component that includes the counts of Laura and Lauren combined.
 If Laura is looking at her own high score, this involves reading from the
@@ -612,6 +612,12 @@ Corollary: if a table's aggregate uses a key on `_creationTime`,
 each new data point will be added to the same part of the data structure (the
 end), because `_creationTime` keeps increasing. Therefore all inserts will
 wait for each other and no mutations can run in parallel.
+
+On the other hand, each namespace has its own data structure and there's no
+overlap in internal nodes between namespaces. So if you use
+`Namespace: username` and `Key: score`, which has similar capabilities
+to an aggregate with `Key: [username, score]`, then you never have a problem
+with "Laura" and "Lauren" having contention.
 
 ### Put bounds on aggregated data
 
