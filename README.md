@@ -225,10 +225,6 @@ const aggregate = new TableAggregate<{
 });
 ```
 
-Since these are happening in a
-[mutation](https://docs.convex.dev/functions/mutation-functions#transactions),
-you can rest assured that the table and its aggregate will update atomically.
-
 Pick your key as described [above](#what-are-aggregates-for). For example,
 here's how you might define `aggregateByGame`, as an aggregate on the "scores"
 table:
@@ -270,7 +266,9 @@ It's important that _every_ modification to the table also updates
 the associated aggregate. See
 [tips](#automatically-update-aggregate-when-table-changes) below.
 
-Note that Convex mutations are atomic, so you don't need to worry about race
+Note that
+[Convex mutations are atomic](https://docs.convex.dev/functions/mutation-functions#transactions),
+so you don't need to worry about race
 conditions where the document is written but the aggregate isn't, and you don't
 need to worry about a query reading a document that isn't in the aggregate yet.
 
