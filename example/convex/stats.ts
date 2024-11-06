@@ -8,9 +8,9 @@ import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 
 const stats = new DirectAggregate<{
-  namespace: undefined,
-  key: number,
-  id: string,
+  Namespace: undefined;
+  Key: number;
+  Id: string;
 }>(components.stats);
 
 export const reportLatency = mutation({

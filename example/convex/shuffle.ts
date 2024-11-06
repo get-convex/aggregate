@@ -11,10 +11,10 @@ import { ConvexError, v } from "convex/values";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
-  dataModel: DataModel,
-  tableName: "music",
-  namespace: undefined,
-  key: null
+  DataModel: DataModel;
+  TableName: "music";
+  Namespace: undefined;
+  Key: null;
 }>(components.music, {
   namespace: () => undefined,
   sortKey: () => null,

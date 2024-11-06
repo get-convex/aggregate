@@ -40,13 +40,23 @@ export const makeRootLazy = mutation({
   args: { namespace: v.optional(v.any()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const tree = await getOrCreateTree(ctx.db, args.namespace, DEFAULT_MAX_NODE_SIZE, true);
+    const tree = await getOrCreateTree(
+      ctx.db,
+      args.namespace,
+      DEFAULT_MAX_NODE_SIZE,
+      true
+    );
     await ctx.db.patch(tree.root, { aggregate: undefined });
   },
 });
 
 export const insert = mutation({
-  args: { key: v.any(), value: v.any(), summand: v.optional(v.number()), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    value: v.any(),
+    summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+  },
   returns: v.null(),
   handler: insertHandler,
 });
@@ -69,7 +79,10 @@ export const replace = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await deleteHandler(ctx, { key: args.currentKey, namespace: args.namespace });
+    await deleteHandler(ctx, {
+      key: args.currentKey,
+      namespace: args.namespace,
+    });
     await insertHandler(ctx, {
       key: args.newKey,
       value: args.value,
@@ -104,7 +117,10 @@ export const replaceOrInsert = mutation({
   },
   handler: async (ctx, args) => {
     try {
-      await deleteHandler(ctx, { key: args.currentKey, namespace: args.namespace });
+      await deleteHandler(ctx, {
+        key: args.currentKey,
+        namespace: args.namespace,
+      });
     } catch (e) {
       if (
         !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")

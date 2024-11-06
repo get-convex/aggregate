@@ -23,17 +23,14 @@ import {
 import { Triggers } from "convex-helpers/server/triggers";
 
 const photos = new TableAggregate<{
-  key: number,
-  dataModel: DataModel,
-  tableName: "photos",
-  namespace: string,
-}>(
-  components.photos,
-  {
-    namespace: (doc) => doc.album,
-    sortKey: (doc) => doc._creationTime,
-  }
-);
+  Namespace: string;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "photos";
+}>(components.photos, {
+  namespace: (doc) => doc.album,
+  sortKey: (doc) => doc._creationTime,
+});
 
 const triggers = new Triggers<DataModel>();
 
@@ -81,7 +78,9 @@ export const pageOfPhotos = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems, album }) => {
-    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, { namespace: album });
+    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
+      namespace: album,
+    });
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>

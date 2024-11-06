@@ -13,22 +13,19 @@ export const migrations = new Migrations<DataModel>(components.migrations);
 export const run = migrations.runner();
 
 const aggregateByScore = new TableAggregate<{
-  key: number,
-  dataModel: DataModel,
-  tableName: "leaderboard",
-  namespace: undefined,
-}>(
-  components.aggregateByScore,
-  {
-    namespace: (_doc) => undefined,
-    sortKey: (doc) => doc.score,
-   }
-);
+  Namespace: undefined;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "leaderboard";
+}>(components.aggregateByScore, {
+  namespace: (_doc) => undefined,
+  sortKey: (doc) => doc.score,
+});
 const aggregateScoreByUser = new TableAggregate<{
-  key: [string, number],
-  dataModel: DataModel,
-  tableName: "leaderboard",
-  namespace: undefined,
+  Key: [string, number];
+  DataModel: DataModel;
+  TableName: "leaderboard";
+  Namespace: undefined;
 }>(components.aggregateScoreByUser, {
   namespace: (_doc) => undefined,
   sortKey: (doc) => [doc.name, doc.score],
@@ -109,10 +106,10 @@ export const scoresInOrder = query({
   handler: async (ctx) => {
     let count = 0;
     const lines = [];
-    for await (const { id, key } of aggregateByScore.iter(
-      ctx,
-      { bounds: undefined, order: "desc" },
-    )) {
+    for await (const { id, key } of aggregateByScore.iter(ctx, {
+      bounds: undefined,
+      order: "desc",
+    })) {
       if (count >= 200) {
         lines.push("...");
         break;
@@ -148,7 +145,9 @@ export const userAverageScore = query({
     if (!count) {
       throw new ConvexError("no scores for " + args.name);
     }
-    const sum = await aggregateScoreByUser.sum(ctx, { bounds: { prefix: [args.name] } });
+    const sum = await aggregateScoreByUser.sum(ctx, {
+      bounds: { prefix: [args.name] },
+    });
     return sum / count;
   },
 });

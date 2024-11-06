@@ -35,9 +35,14 @@ function log(s: string) {
 
 export async function insertHandler(
   ctx: { db: DatabaseWriter },
-  args: { key: Key; value: Value; summand?: number, namespace?: Namespace }
+  args: { key: Key; value: Value; summand?: number; namespace?: Namespace }
 ) {
-  const tree = await getOrCreateTree(ctx.db, args.namespace, DEFAULT_MAX_NODE_SIZE, true);
+  const tree = await getOrCreateTree(
+    ctx.db,
+    args.namespace,
+    DEFAULT_MAX_NODE_SIZE,
+    true
+  );
   const summand = args.summand ?? 0;
   const pushUp = await insertIntoNode(ctx, args.namespace, tree.root, {
     k: args.key,
@@ -65,9 +70,14 @@ export async function insertHandler(
 
 export async function deleteHandler(
   ctx: { db: DatabaseWriter },
-  args: { key: Key, namespace?: Namespace }
+  args: { key: Key; namespace?: Namespace }
 ) {
-  const tree = await getOrCreateTree(ctx.db, args.namespace, DEFAULT_MAX_NODE_SIZE, true);
+  const tree = await getOrCreateTree(
+    ctx.db,
+    args.namespace,
+    DEFAULT_MAX_NODE_SIZE,
+    true
+  );
   await deleteFromNode(ctx, args.namespace, tree.root, args.key);
   const root = (await ctx.db.get(tree.root))!;
   if (root.items.length === 0 && root.subtrees.length === 1) {
@@ -92,7 +102,10 @@ export const validate = query({
   handler: validateTree,
 });
 
-export async function validateTree(ctx: { db: DatabaseReader }, args: { namespace?: Namespace }) {
+export async function validateTree(
+  ctx: { db: DatabaseReader },
+  args: { namespace?: Namespace }
+) {
   const tree = await getTree(ctx.db, args.namespace);
   if (!tree) {
     return;
@@ -106,12 +119,18 @@ type ValidationResult = {
   height: number;
 };
 
-async function MAX_NODE_SIZE(ctx: { db: DatabaseReader }, namespace: Namespace) {
+async function MAX_NODE_SIZE(
+  ctx: { db: DatabaseReader },
+  namespace: Namespace
+) {
   const tree = await mustGetTree(ctx.db, namespace);
   return tree.maxNodeSize;
 }
 
-async function MIN_NODE_SIZE(ctx: { db: DatabaseReader }, namespace: Namespace) {
+async function MIN_NODE_SIZE(
+  ctx: { db: DatabaseReader },
+  namespace: Namespace
+) {
   const max = await MAX_NODE_SIZE(ctx, namespace);
   if (max % 2 !== 0 || max < 4) {
     throw new Error("MAX_NODE_SIZE must be even and at least 4");
@@ -148,7 +167,9 @@ async function validateNode(
     }
   }
   const validatedSubtrees = await Promise.all(
-    n.subtrees.map((subtree) => validateNode(ctx, namespace, subtree, depth + 1))
+    n.subtrees.map((subtree) =>
+      validateNode(ctx, namespace, subtree, depth + 1)
+    )
   );
   for (let i = 0; i < n.subtrees.length; i++) {
     // Each subtree's min is greater than the key at the prior index
@@ -204,7 +225,7 @@ async function validateNode(
 /// If k1 or k2 are undefined, that bound is unlimited.
 export async function aggregateBetweenHandler(
   ctx: { db: DatabaseReader },
-  args: { k1?: Key; k2?: Key, namespace?: Namespace },
+  args: { k1?: Key; k2?: Key; namespace?: Namespace }
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -271,7 +292,11 @@ async function filterBetween(
 }
 
 export const aggregateBetween = query({
-  args: { k1: v.optional(v.any()), k2: v.optional(v.any()), namespace: v.optional(v.any()) },
+  args: {
+    k1: v.optional(v.any()),
+    k2: v.optional(v.any()),
+    namespace: v.optional(v.any()),
+  },
   returns: aggregate,
   handler: aggregateBetweenHandler,
 });
@@ -297,7 +322,7 @@ async function aggregateBetweenInNode(
 
 export async function getHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key, namespace?: Namespace }
+  args: { key: Key; namespace?: Namespace }
 ) {
   const tree = (await getTree(ctx.db, args.namespace))!;
   return await getInNode(ctx.db, tree.root, args.key);
@@ -345,7 +370,7 @@ export const atOffset = query({
 
 export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { offset: number; k1?: Key; k2?: Key, namespace?: Namespace }
+  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace }
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -367,7 +392,7 @@ export const atNegativeOffset = query({
 
 export async function atNegativeOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { offset: number; k1?: Key; k2?: Key, namespace?: Namespace }
+  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace }
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -384,30 +409,48 @@ export async function atNegativeOffsetHandler(
 
 export async function offsetHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key; k1?: Key, namespace?: Namespace }
+  args: { key: Key; k1?: Key; namespace?: Namespace }
 ) {
-  return (await aggregateBetweenHandler(ctx, { k1: args.k1, k2: args.key, namespace: args.namespace }))
-    .count;
+  return (
+    await aggregateBetweenHandler(ctx, {
+      k1: args.k1,
+      k2: args.key,
+      namespace: args.namespace,
+    })
+  ).count;
 }
 
 // Returns the offset of the smallest key >= the given target key.
 export const offset = query({
-  args: { key: v.any(), k1: v.optional(v.any()), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    k1: v.optional(v.any()),
+    namespace: v.optional(v.any()),
+  },
   returns: v.number(),
   handler: offsetHandler,
 });
 
 export async function offsetUntilHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key; k2?: Key, namespace?: Namespace }
+  args: { key: Key; k2?: Key; namespace?: Namespace }
 ) {
-  return (await aggregateBetweenHandler(ctx, { k1: args.key, k2: args.k2, namespace: args.namespace }))
-    .count;
+  return (
+    await aggregateBetweenHandler(ctx, {
+      k1: args.key,
+      k2: args.k2,
+      namespace: args.namespace,
+    })
+  ).count;
 }
 
 // Returns the offset of the smallest key >= the given target key.
 export const offsetUntil = query({
-  args: { key: v.any(), k2: v.optional(v.any()), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    k2: v.optional(v.any()),
+    namespace: v.optional(v.any()),
+  },
   returns: v.number(),
   handler: offsetUntilHandler,
 });
@@ -855,7 +898,10 @@ function compareKeys(k1: Key, k2: Key) {
 }
 
 export async function getTree(db: DatabaseReader, namespace: Namespace) {
-  return await db.query("btree").withIndex("by_namespace", q => q.eq("namespace", namespace)).unique();
+  return await db
+    .query("btree")
+    .withIndex("by_namespace", (q) => q.eq("namespace", namespace))
+    .unique();
 }
 
 export async function mustGetTree(db: DatabaseReader, namespace: Namespace) {
@@ -884,8 +930,12 @@ export async function getOrCreateTree(
       sum: 0,
     },
   });
-  const effectiveMaxNodeSize = maxNodeSize ?? (await MAX_NODE_SIZE({ db }, undefined)) ?? DEFAULT_MAX_NODE_SIZE;
-  const effectiveRootLazy = rootLazy ?? (await isRootLazy(db, undefined)) ?? true;
+  const effectiveMaxNodeSize =
+    maxNodeSize ??
+    (await MAX_NODE_SIZE({ db }, undefined)) ??
+    DEFAULT_MAX_NODE_SIZE;
+  const effectiveRootLazy =
+    rootLazy ?? (await isRootLazy(db, undefined)) ?? true;
   const id = await db.insert("btree", {
     root,
     maxNodeSize: effectiveMaxNodeSize,
@@ -950,7 +1000,7 @@ export async function paginateHandler(
     cursor?: string;
     k1?: Key;
     k2?: Key;
-    namespace?: Namespace,
+    namespace?: Namespace;
   }
 ) {
   const tree = await getTree(ctx.db, args.namespace);
@@ -1072,11 +1122,14 @@ export async function paginateNamespacesHandler(
   if (args.cursor === undefined) {
     trees = await ctx.db.query("btree").withIndex("by_id").take(args.limit);
   } else {
-    trees = await ctx.db.query("btree").withIndex("by_id", q => q.gt("_id", args.cursor as Id<"btree">)).take(args.limit);
+    trees = await ctx.db
+      .query("btree")
+      .withIndex("by_id", (q) => q.gt("_id", args.cursor as Id<"btree">))
+      .take(args.limit);
   }
   const isDone = trees.length < args.limit;
   return {
-    page: trees.map(t => t.namespace),
+    page: trees.map((t) => t.namespace),
     cursor: isDone ? "endcursor" : trees[trees.length - 1]._id,
     isDone,
   };
