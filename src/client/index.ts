@@ -841,7 +841,7 @@ export type NamespacedArgs<Args, Namespace> =
   | (Namespace extends undefined ? Args : never);
 export type NamespacedOpts<Opts, Namespace> =
   | [{ namespace: Namespace } & Opts]
-  | (Namespace extends undefined ? [] | [Opts] : never);
+  | (Namespace extends undefined ? [Opts?] : never);
 
 function namespaceFromArg<Args extends object, Namespace>(
   args: NamespacedArgs<Args, Namespace>
