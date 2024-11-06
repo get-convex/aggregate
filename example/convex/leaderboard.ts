@@ -12,15 +12,22 @@ import { Migrations } from "@convex-dev/migrations";
 export const migrations = new Migrations<DataModel>(components.migrations);
 export const run = migrations.runner();
 
-const aggregateByScore = new TableAggregate<number, DataModel, "leaderboard">(
-  components.aggregateByScore,
-  { sortKey: (doc) => doc.score }
-);
-const aggregateScoreByUser = new TableAggregate<
-  [string, number],
-  DataModel,
-  "leaderboard"
->(components.aggregateScoreByUser, {
+const aggregateByScore = new TableAggregate<{
+  Namespace: undefined;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "leaderboard";
+}>(components.aggregateByScore, {
+  namespace: (_doc) => undefined,
+  sortKey: (doc) => doc.score,
+});
+const aggregateScoreByUser = new TableAggregate<{
+  Key: [string, number];
+  DataModel: DataModel;
+  TableName: "leaderboard";
+  Namespace: undefined;
+}>(components.aggregateScoreByUser, {
+  namespace: (_doc) => undefined,
   sortKey: (doc) => [doc.name, doc.score],
   sumValue: (doc) => doc.score,
 });
@@ -99,11 +106,10 @@ export const scoresInOrder = query({
   handler: async (ctx) => {
     let count = 0;
     const lines = [];
-    for await (const { id, key } of aggregateByScore.iter(
-      ctx,
-      undefined,
-      "desc"
-    )) {
+    for await (const { id, key } of aggregateByScore.iter(ctx, {
+      bounds: undefined,
+      order: "desc",
+    })) {
       if (count >= 200) {
         lines.push("...");
         break;
@@ -134,12 +140,14 @@ export const userAverageScore = query({
   },
   handler: async (ctx, args) => {
     const count = await aggregateScoreByUser.count(ctx, {
-      prefix: [args.name],
+      bounds: { prefix: [args.name] },
     });
     if (!count) {
       throw new ConvexError("no scores for " + args.name);
     }
-    const sum = await aggregateScoreByUser.sum(ctx, { prefix: [args.name] });
+    const sum = await aggregateScoreByUser.sum(ctx, {
+      bounds: { prefix: [args.name] },
+    });
     return sum / count;
   },
 });
@@ -151,7 +159,7 @@ export const userHighScore = query({
   returns: v.number(),
   handler: async (ctx, args) => {
     const item = await aggregateScoreByUser.max(ctx, {
-      prefix: [args.name],
+      bounds: { prefix: [args.name] },
     });
     if (!item) {
       throw new ConvexError("no scores for " + args.name);

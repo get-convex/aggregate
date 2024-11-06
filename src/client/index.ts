@@ -17,7 +17,7 @@ import {
   Bounds,
   boundsToPositions,
 } from "./positions.js";
-import { GenericId } from "convex/values";
+import { GenericId, Value as ConvexValue } from "convex/values";
 
 export type UsedAPI = UseApi<typeof api>;
 
@@ -52,7 +52,11 @@ export type { Key, Bound };
  * Once values have been added to the data structure, you can query for the
  * count and sum of items between a range of keys.
  */
-export class Aggregate<K extends Key, ID extends string> {
+export class Aggregate<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined = undefined,
+> {
   constructor(protected component: UsedAPI) {}
 
   /// Aggregate queries.
@@ -60,21 +64,30 @@ export class Aggregate<K extends Key, ID extends string> {
   /**
    * Counts items between the given bounds.
    */
-  async count(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
+  async count(
+    ctx: RunQueryCtx,
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+  ): Promise<number> {
     const { count } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
-      boundsToPositions(bounds)
+      {
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
+      }
     );
     return count;
   }
   /**
    * Adds up the sumValue of items between the given bounds.
    */
-  async sum(ctx: RunQueryCtx, bounds?: Bounds<K, ID>): Promise<number> {
-    const { sum } = await ctx.runQuery(
-      this.component.btree.aggregateBetween,
-      boundsToPositions(bounds)
-    );
+  async sum(
+    ctx: RunQueryCtx,
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+  ): Promise<number> {
+    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
+      ...boundsToPositions(opts[0]?.bounds),
+      namespace: namespaceFromOpts(opts),
+    });
     return sum;
   }
   /**
@@ -88,18 +101,20 @@ export class Aggregate<K extends Key, ID extends string> {
   async at(
     ctx: RunQueryCtx,
     offset: number,
-    bounds?: Bounds<K, ID>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID>> {
     if (offset < 0) {
       const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
         offset: -offset - 1,
-        ...boundsToPositions(bounds),
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
       });
       return btreeItemToAggregateItem(item);
     }
     const item = await ctx.runQuery(this.component.btree.atOffset, {
       offset,
-      ...boundsToPositions(bounds),
+      namespace: namespaceFromOpts(opts),
+      ...boundsToPositions(opts[0]?.bounds),
     });
     return btreeItemToAggregateItem(item);
   }
@@ -113,18 +128,27 @@ export class Aggregate<K extends Key, ID extends string> {
   async indexOf(
     ctx: RunQueryCtx,
     key: K,
-    opts?: { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" }
+    ...opts: NamespacedOpts<
+      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      Namespace
+    >
   ): Promise<number> {
-    const { k1, k2 } = boundsToPositions(opts?.bounds);
-    if (opts?.order === "desc") {
+    const { k1, k2 } = boundsToPositions(opts[0]?.bounds);
+    if (opts[0]?.order === "desc") {
       return await ctx.runQuery(this.component.btree.offsetUntil, {
-        key: boundToPosition("upper", { key, id: opts?.id, inclusive: true }),
+        key: boundToPosition("upper", {
+          key,
+          id: opts[0]?.id,
+          inclusive: true,
+        }),
         k2,
+        namespace: namespaceFromOpts(opts),
       });
     }
     return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id: opts?.id, inclusive: true }),
+      key: boundToPosition("lower", { key, id: opts[0]?.id, inclusive: true }),
       k1,
+      namespace: namespaceFromOpts(opts),
     });
   }
   /**
@@ -133,10 +157,11 @@ export class Aggregate<K extends Key, ID extends string> {
   async offsetOf(
     ctx: RunQueryCtx,
     key: K,
+    namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds });
+    return this.indexOf(ctx, key, { id, bounds, order: "asc", namespace });
   }
   /**
    * @deprecated Use `indexOf` instead.
@@ -144,10 +169,11 @@ export class Aggregate<K extends Key, ID extends string> {
   async offsetUntil(
     ctx: RunQueryCtx,
     key: K,
+    namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds, order: "desc" });
+    return this.indexOf(ctx, key, { id, bounds, order: "desc", namespace });
   }
 
   /**
@@ -155,9 +181,14 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async min(
     ctx: RunQueryCtx,
-    bounds?: Bounds<K, ID>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const { page } = await this.paginate(ctx, bounds, undefined, "asc", 1);
+    const { page } = await this.paginate(ctx, {
+      namespace: namespaceFromOpts(opts),
+      bounds: opts[0]?.bounds,
+      order: "asc",
+      pageSize: 1,
+    });
     return page[0] ?? null;
   }
   /**
@@ -165,9 +196,14 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async max(
     ctx: RunQueryCtx,
-    bounds?: Bounds<K, ID>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const { page } = await this.paginate(ctx, bounds, undefined, "desc", 1);
+    const { page } = await this.paginate(ctx, {
+      namespace: namespaceFromOpts(opts),
+      bounds: opts[0]?.bounds,
+      order: "desc",
+      pageSize: 1,
+    });
     return page[0] ?? null;
   }
   /**
@@ -175,14 +211,14 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async random(
     ctx: RunQueryCtx,
-    bounds?: Bounds<K, ID>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx, bounds);
+    const count = await this.count(ctx, ...opts);
     if (count === 0) {
       return null;
     }
     const index = Math.floor(Math.random() * count);
-    return await this.at(ctx, index, bounds);
+    return await this.at(ctx, index, ...opts);
   }
   /**
    * Get a page of items between the given bounds, with a cursor to paginate.
@@ -190,18 +226,26 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async paginate(
     ctx: RunQueryCtx,
-    bounds?: Bounds<K, ID>,
-    cursor?: string,
-    order: "asc" | "desc" = "asc",
-    pageSize: number = 100
+    ...opts: NamespacedOpts<
+      {
+        bounds?: Bounds<K, ID>;
+        cursor?: string;
+        order?: "asc" | "desc";
+        pageSize?: number;
+      },
+      Namespace
+    >
   ): Promise<{ page: Item<K, ID>[]; cursor: string; isDone: boolean }> {
+    const order = opts[0]?.order ?? "asc";
+    const pageSize = opts[0]?.pageSize ?? 100;
     const {
       page,
       cursor: newCursor,
       isDone,
     } = await ctx.runQuery(this.component.btree.paginate, {
-      ...boundsToPositions(bounds),
-      cursor,
+      namespace: namespaceFromOpts(opts),
+      ...boundsToPositions(opts[0]?.bounds),
+      cursor: opts[0]?.cursor,
       order,
       limit: pageSize,
     });
@@ -221,10 +265,15 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async *iter(
     ctx: RunQueryCtx,
-    bounds?: Bounds<K, ID>,
-    order: "asc" | "desc" = "asc",
-    pageSize: number = 100
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; order?: "asc" | "desc"; pageSize?: number },
+      Namespace
+    >
   ): AsyncGenerator<Item<K, ID>, void, undefined> {
+    const order = opts[0]?.order ?? "asc";
+    const pageSize = opts[0]?.pageSize ?? 100;
+    const bounds = opts[0]?.bounds;
+    const namespace = namespaceFromOpts(opts);
     let isDone = false;
     let cursor: string | undefined = undefined;
     while (!isDone) {
@@ -232,7 +281,13 @@ export class Aggregate<K extends Key, ID extends string> {
         page,
         cursor: newCursor,
         isDone: newIsDone,
-      } = await this.paginate(ctx, bounds, cursor, order, pageSize);
+      } = await this.paginate(ctx, {
+        namespace,
+        bounds,
+        cursor,
+        order,
+        pageSize,
+      });
       for (const item of page) {
         yield item;
       }
@@ -244,6 +299,7 @@ export class Aggregate<K extends Key, ID extends string> {
   /** Write operations. See {@link DirectAggregate} for docstrings. */
   async _insert(
     ctx: RunMutationCtx,
+    namespace: Namespace,
     key: K,
     id: ID,
     summand?: number
@@ -252,16 +308,25 @@ export class Aggregate<K extends Key, ID extends string> {
       key: keyToPosition(key, id),
       summand,
       value: id,
+      namespace,
     });
   }
-  async _delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+  async _delete(
+    ctx: RunMutationCtx,
+    namespace: Namespace,
+    key: K,
+    id: ID
+  ): Promise<void> {
     await ctx.runMutation(this.component.public.delete_, {
       key: keyToPosition(key, id),
+      namespace,
     });
   }
   async _replace(
     ctx: RunMutationCtx,
+    currentNamespace: Namespace,
     currentKey: K,
+    newNamespace: Namespace,
     newKey: K,
     id: ID,
     summand?: number
@@ -271,24 +336,43 @@ export class Aggregate<K extends Key, ID extends string> {
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
+      namespace: currentNamespace,
+      newNamespace,
     });
   }
   async _insertIfDoesNotExist(
     ctx: RunMutationCtx,
+    namespace: Namespace,
     key: K,
     id: ID,
     summand?: number
   ): Promise<void> {
-    await this._replaceOrInsert(ctx, key, key, id, summand);
+    await this._replaceOrInsert(
+      ctx,
+      namespace,
+      key,
+      namespace,
+      key,
+      id,
+      summand
+    );
   }
-  async _deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
+  async _deleteIfExists(
+    ctx: RunMutationCtx,
+    namespace: Namespace,
+    key: K,
+    id: ID
+  ): Promise<void> {
     await ctx.runMutation(this.component.public.deleteIfExists, {
       key: keyToPosition(key, id),
+      namespace,
     });
   }
   async _replaceOrInsert(
     ctx: RunMutationCtx,
+    currentNamespace: Namespace,
     currentKey: K,
+    newNamespace: Namespace,
     newKey: K,
     id: ID,
     summand?: number
@@ -298,6 +382,8 @@ export class Aggregate<K extends Key, ID extends string> {
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
+      namespace: currentNamespace,
+      newNamespace,
     });
   }
 
@@ -317,12 +403,15 @@ export class Aggregate<K extends Key, ID extends string> {
    */
   async clear(
     ctx: RunMutationCtx,
-    maxNodeSize?: number,
-    rootLazy?: boolean
+    ...opts: NamespacedOpts<
+      { maxNodeSize?: number; rootLazy?: boolean },
+      Namespace
+    >
   ): Promise<void> {
     await ctx.runMutation(this.component.public.clear, {
-      maxNodeSize,
-      rootLazy,
+      maxNodeSize: opts[0]?.maxNodeSize,
+      rootLazy: opts[0]?.rootLazy,
+      namespace: namespaceFromOpts(opts),
     });
   }
   /**
@@ -336,10 +425,83 @@ export class Aggregate<K extends Key, ID extends string> {
    * same shard of the tree. The number of shards is determined by maxNodeSize,
    * so larger maxNodeSize can also help.
    */
-  async makeRootLazy(ctx: RunMutationCtx): Promise<void> {
-    await ctx.runMutation(this.component.public.makeRootLazy);
+  async makeRootLazy(ctx: RunMutationCtx, namespace: Namespace): Promise<void> {
+    await ctx.runMutation(this.component.public.makeRootLazy, { namespace });
+  }
+
+  async paginateNamespaces(
+    ctx: RunQueryCtx,
+    cursor?: string,
+    pageSize: number = 100
+  ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
+    const {
+      page,
+      cursor: newCursor,
+      isDone,
+    } = await ctx.runQuery(this.component.btree.paginateNamespaces, {
+      cursor,
+      limit: pageSize,
+    });
+    return {
+      page: page as Namespace[],
+      cursor: newCursor,
+      isDone,
+    };
+  }
+
+  async *iterNamespaces(
+    ctx: RunQueryCtx,
+    pageSize: number = 100
+  ): AsyncGenerator<Namespace, void, undefined> {
+    let isDone = false;
+    let cursor: string | undefined = undefined;
+    while (!isDone) {
+      const {
+        page,
+        cursor: newCursor,
+        isDone: newIsDone,
+      } = await this.paginateNamespaces(ctx, cursor, pageSize);
+      for (const item of page) {
+        yield item;
+      }
+      isDone = newIsDone;
+      cursor = newCursor;
+    }
+  }
+
+  async clearAll(
+    ctx: RunMutationCtx & RunQueryCtx,
+    opts?: { maxNodeSize?: number; rootLazy?: boolean }
+  ): Promise<void> {
+    for await (const namespace of this.iterNamespaces(ctx)) {
+      await this.clear(ctx, { ...opts, namespace });
+    }
+    // In case there are no namespaces, make sure we create at least one tree,
+    // at namespace=undefined. This is where the default settings are stored.
+    await this.clear(ctx, { ...opts, namespace: undefined as Namespace });
+  }
+
+  async makeAllRootsLazy(ctx: RunMutationCtx & RunQueryCtx): Promise<void> {
+    for await (const namespace of this.iterNamespaces(ctx)) {
+      await this.makeRootLazy(ctx, namespace);
+    }
   }
 }
+
+export type DirectAggregateType<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined,
+> = {
+  Key: K;
+  Id: ID;
+  Namespace: Namespace;
+};
+type AnyDirectAggregateType = DirectAggregateType<
+  Key,
+  string,
+  ConvexValue | undefined
+>;
 
 /**
  * A DirectAggregate is an Aggregate where you can insert, delete, and replace
@@ -349,9 +511,8 @@ export class Aggregate<K extends Key, ID extends string> {
  * computes keys and sumValues from the table's documents.
  */
 export class DirectAggregate<
-  K extends Key,
-  ID extends string,
-> extends Aggregate<K, ID> {
+  T extends AnyDirectAggregateType,
+> extends Aggregate<T["Key"], T["Id"], T["Namespace"]> {
   /**
    * Insert a new key into the data structure.
    * The id should be unique.
@@ -362,18 +523,28 @@ export class DirectAggregate<
    */
   async insert(
     ctx: RunMutationCtx,
-    key: K,
-    id: ID,
-    sumValue?: number
+    args: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"]; sumValue?: number },
+      T["Namespace"]
+    >
   ): Promise<void> {
-    await this._insert(ctx, key, id, sumValue);
+    await this._insert(
+      ctx,
+      namespaceFromArg(args),
+      args.key,
+      args.id,
+      args.sumValue
+    );
   }
   /**
    * Delete the key with the given ID from the data structure.
    * Throws if the given key and ID do not exist.
    */
-  async delete(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
-    await this._delete(ctx, key, id);
+  async delete(
+    ctx: RunMutationCtx,
+    args: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>
+  ): Promise<void> {
+    await this._delete(ctx, namespaceFromArg(args), args.key, args.id);
   }
   /**
    * Update an existing item in the data structure.
@@ -382,12 +553,21 @@ export class DirectAggregate<
    */
   async replace(
     ctx: RunMutationCtx,
-    currentKey: K,
-    newKey: K,
-    id: ID,
-    sumValue?: number
+    currentItem: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>,
+    newItem: NamespacedArgs<
+      { key: T["Key"]; sumValue?: number },
+      T["Namespace"]
+    >
   ): Promise<void> {
-    await this._replace(ctx, currentKey, newKey, id, sumValue);
+    await this._replace(
+      ctx,
+      namespaceFromArg(currentItem),
+      currentItem.key,
+      namespaceFromArg(newItem),
+      newItem.key,
+      currentItem.id,
+      newItem.sumValue
+    );
   }
   /**
    * Equivalents to `insert`, `delete`, and `replace` where the item may or may not exist.
@@ -399,36 +579,86 @@ export class DirectAggregate<
    */
   async insertIfDoesNotExist(
     ctx: RunMutationCtx,
-    key: K,
-    id: ID,
-    sumValue?: number
+    args: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"]; sumValue?: number },
+      T["Namespace"]
+    >
   ): Promise<void> {
-    await this._insertIfDoesNotExist(ctx, key, id, sumValue);
+    await this._insertIfDoesNotExist(
+      ctx,
+      namespaceFromArg(args),
+      args.key,
+      args.id,
+      args.sumValue
+    );
   }
-  async deleteIfExists(ctx: RunMutationCtx, key: K, id: ID): Promise<void> {
-    await this._deleteIfExists(ctx, key, id);
+  async deleteIfExists(
+    ctx: RunMutationCtx,
+    args: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>
+  ): Promise<void> {
+    await this._deleteIfExists(ctx, namespaceFromArg(args), args.key, args.id);
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    currentKey: K,
-    newKey: K,
-    id: ID,
-    sumValue?: number
+    currentItem: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>,
+    newItem: NamespacedArgs<
+      { key: T["Key"]; sumValue?: number },
+      T["Namespace"]
+    >
   ): Promise<void> {
-    await this._replaceOrInsert(ctx, currentKey, newKey, id, sumValue);
+    await this._replaceOrInsert(
+      ctx,
+      namespaceFromArg(currentItem),
+      currentItem.key,
+      namespaceFromArg(newItem),
+      newItem.key,
+      currentItem.id,
+      newItem.sumValue
+    );
   }
 }
 
-export class TableAggregate<
+export type TableAggregateType<
   K extends Key,
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
-> extends Aggregate<K, GenericId<TableName>> {
+  Namespace extends ConvexValue | undefined,
+> = {
+  Key: K;
+  DataModel: DataModel;
+  TableName: TableName;
+  Namespace: Namespace;
+};
+type AnyTableAggregateType = TableAggregateType<
+  Key,
+  GenericDataModel,
+  TableNamesInDataModel<GenericDataModel>,
+  ConvexValue | undefined
+>;
+type TableAggregateDocument<T extends AnyTableAggregateType> = DocumentByName<
+  T["DataModel"],
+  T["TableName"]
+>;
+type TableAggregateId<T extends AnyTableAggregateType> = GenericId<
+  T["TableName"]
+>;
+type TableAggregateTrigger<Ctx, T extends AnyTableAggregateType> = Trigger<
+  Ctx,
+  T["DataModel"],
+  T["TableName"]
+>;
+
+export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
+  T["Key"],
+  GenericId<T["TableName"]>,
+  T["Namespace"]
+> {
   constructor(
     component: UsedAPI,
     private options: {
-      sortKey: (d: DocumentByName<DataModel, TableName>) => K;
-      sumValue?: (d: DocumentByName<DataModel, TableName>) => number;
+      namespace: (d: TableAggregateDocument<T>) => T["Namespace"];
+      sortKey: (d: TableAggregateDocument<T>) => T["Key"];
+      sumValue?: (d: TableAggregateDocument<T>) => number;
     }
   ) {
     super(component);
@@ -436,69 +666,77 @@ export class TableAggregate<
 
   async insert(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._insert(
       ctx,
+      this.options.namespace(doc),
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>,
+      doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
     );
   }
   async delete(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._delete(
       ctx,
+      this.options.namespace(doc),
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>
+      doc._id as TableAggregateId<T>
     );
   }
   async replace(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._replace(
       ctx,
+      this.options.namespace(oldDoc),
       this.options.sortKey(oldDoc),
+      this.options.namespace(newDoc),
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
   async insertIfDoesNotExist(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
+      this.options.namespace(doc),
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>,
+      doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
     );
   }
   async deleteIfExists(
     ctx: RunMutationCtx,
-    doc: DocumentByName<DataModel, TableName>
+    doc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
+      this.options.namespace(doc),
       this.options.sortKey(doc),
-      doc._id as GenericId<TableName>
+      doc._id as TableAggregateId<T>
     );
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    oldDoc: DocumentByName<DataModel, TableName>,
-    newDoc: DocumentByName<DataModel, TableName>
+    oldDoc: TableAggregateDocument<T>,
+    newDoc: TableAggregateDocument<T>
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
+      this.options.namespace(oldDoc),
       this.options.sortKey(oldDoc),
+      this.options.namespace(newDoc),
       this.options.sortKey(newDoc),
-      newDoc._id as GenericId<TableName>,
+      newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
     );
   }
@@ -512,18 +750,21 @@ export class TableAggregate<
    */
   async indexOfDoc(
     ctx: RunQueryCtx,
-    doc: DocumentByName<DataModel, TableName>,
+    doc: TableAggregateDocument<T>,
     opts?: {
-      id?: GenericId<TableName>;
-      bounds?: Bounds<K, GenericId<TableName>>;
+      id?: TableAggregateId<T>;
+      bounds?: Bounds<T["Key"], TableAggregateId<T>>;
       order?: "asc" | "desc";
     }
   ): Promise<number> {
     const key = this.options.sortKey(doc);
-    return this.indexOf(ctx, key, opts);
+    return this.indexOf(ctx, key, {
+      namespace: this.options.namespace(doc),
+      ...opts,
+    });
   }
 
-  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
+  trigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc);
@@ -535,10 +776,9 @@ export class TableAggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
+  idempotentTrigger<Ctx extends RunMutationCtx>(): TableAggregateTrigger<
     Ctx,
-    DataModel,
-    TableName
+    T
   > {
     return async (ctx, change) => {
       if (change.operation === "insert") {
@@ -581,68 +821,6 @@ export type Change<
     }
 );
 
-/**
- * Simplified TableAggregate API that doesn't have keys or sumValue, so it's
- * simpler to use for counting all items or getting a random item.
- *
- * See docstrings on Aggregate for more details.
- */
-export class Randomize<
-  DataModel extends GenericDataModel,
-  TableName extends TableNamesInDataModel<DataModel>,
-> {
-  private aggregate: TableAggregate<null, DataModel, TableName>;
-  constructor(component: UsedAPI) {
-    this.aggregate = new TableAggregate(component, { sortKey: (_doc) => null });
-  }
-  async count(ctx: RunQueryCtx): Promise<number> {
-    return await this.aggregate.count(ctx);
-  }
-  async at(ctx: RunQueryCtx, offset: number): Promise<GenericId<TableName>> {
-    const item = await this.aggregate.at(ctx, offset);
-    return item.id;
-  }
-  async random(ctx: RunQueryCtx): Promise<GenericId<TableName> | null> {
-    const item = await this.aggregate.random(ctx);
-    return item ? item.id : null;
-  }
-  trigger<Ctx extends RunMutationCtx>(): Trigger<Ctx, DataModel, TableName> {
-    return this.aggregate.trigger();
-  }
-  idempotentTrigger<Ctx extends RunMutationCtx>(): Trigger<
-    Ctx,
-    DataModel,
-    TableName
-  > {
-    return this.aggregate.idempotentTrigger();
-  }
-  async insert(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
-    await this.aggregate.insert(ctx, { _id: id });
-  }
-  async delete(ctx: RunMutationCtx, id: GenericId<TableName>): Promise<void> {
-    await this.aggregate.delete(ctx, { _id: id });
-  }
-  async insertIfDoesNotExist(
-    ctx: RunMutationCtx,
-    id: GenericId<TableName>
-  ): Promise<void> {
-    await this.aggregate.insertIfDoesNotExist(ctx, { _id: id });
-  }
-  async deleteIfExists(
-    ctx: RunMutationCtx,
-    id: GenericId<TableName>
-  ): Promise<void> {
-    await this.aggregate.deleteIfExists(ctx, { _id: id });
-  }
-  async clear(
-    ctx: RunMutationCtx,
-    maxNodeSize?: number,
-    rootLazy?: boolean
-  ): Promise<void> {
-    await this.aggregate.clear(ctx, maxNodeSize, rootLazy);
-  }
-}
-
 export function btreeItemToAggregateItem<K extends Key, ID extends string>({
   k,
   s,
@@ -656,4 +834,30 @@ export function btreeItemToAggregateItem<K extends Key, ID extends string>({
     id: id as ID,
     sumValue: s,
   };
+}
+
+export type NamespacedArgs<Args, Namespace> =
+  | (Args & { namespace: Namespace })
+  | (Namespace extends undefined ? Args : never);
+export type NamespacedOpts<Opts, Namespace> =
+  | [{ namespace: Namespace } & Opts]
+  | (Namespace extends undefined ? [Opts?] : never);
+
+function namespaceFromArg<Args extends object, Namespace>(
+  args: NamespacedArgs<Args, Namespace>
+): Namespace {
+  if ("namespace" in args) {
+    return args["namespace"];
+  }
+  return undefined as Namespace;
+}
+function namespaceFromOpts<Opts, Namespace>(
+  opts: NamespacedOpts<Opts, Namespace>
+): Namespace {
+  if (opts.length === 0) {
+    // Only possible if Namespace extends undefined, so undefined is the only valid namespace.
+    return undefined as Namespace;
+  }
+  const [{ namespace }] = opts as [{ namespace: Namespace }];
+  return namespace;
 }

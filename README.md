@@ -13,20 +13,37 @@ Suppose you have a leaderboard of game scores. These are some operations
 that the Aggregate component makes easy and efficient:
 
 1. Count the total number of scores: `aggregate.count(ctx)`
-2. Count the number of scores greater than 65: `aggregate.count(ctx, { lower: { key: 65, inclusive: false } })`
+2. Count the number of scores greater than 65: `aggregate.count(ctx, { bounds: { lower: { key: 65, inclusive: false } } })`
 3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
 5. Find the ranking for a score of 65 in the leaderboard: `aggregate.indexOf(ctx, 65)`
 6. Find the average score for an individual user. You can define another aggregate
-   partitioned by user and aggregate within each:
+   grouped by user and aggregate within each:
 
 ```ts
-// aggregateScoreByUser is the leaderboard scores partitioned by username.
+// aggregateScoreByUser is the leaderboard scores grouped by username.
 const bounds = { prefix: [username] };
-const highScoreForUser = aggregateScoreByUser.max(ctx, bounds);
+const highScoreForUser = await aggregateScoreByUser.max(ctx, { bounds });
 const avgScoreForUser =
-  aggregateScoreByUser.sum(ctx, bounds) /
-  aggregateScoreByUser.count(ctx, bounds);
+  (await aggregateScoreByUser.sum(ctx, { bounds })) /
+  (await aggregateScoreByUser.count(ctx, { bounds }));
+// It still enables adding or averaging all scores across all usernames.
+const globalAverageScore =
+  (await aggregateScoreByUser.sum(ctx)) /
+  (await aggregateScoreByUser.count(ctx));
+```
+
+7. Alternatively, you can define an aggregate with separate namespaces,
+   and do the same query. This method increases throughput because a user's data
+   won't interfere with other users. However, you lose the ability to aggregate
+   over all users.
+
+```ts
+const forUser = { namespace: username };
+const highScoreForUser = await aggregateScoreByUser.max(ctx, forUser);
+const avgScoreForUser =
+  (await aggregateScoreByUser.sum(ctx, { bounds })) /
+  (await aggregateScoreByUser.count(ctx, { bounds }));
 ```
 
 The Aggregate component provides `O(log(n))`-time lookups, instead of the `O(n)`
@@ -51,10 +68,9 @@ The keys may be arbitrary Convex values, so you can choose to sort your data by:
 4. Nothing, use `key=null` for everything if you just want
    [a total count, such as for random access](#total-count-and-randomization).
 
-### Partitioning
+### Grouping
 
-You can use sorting to partition your data set, enabling namspacing,
-multitenancy, sharding, and more.
+You can use sorting to group your data set.
 
 If you want to keep track of multiple games with scores for each user,
 use a tuple of `[game, username, score]` as the key.
@@ -75,6 +91,54 @@ would need to aggregate with key `[game, score]`.
 
 To support different sorting and partitioning keys, you can define multiple
 instances. See [below](#defining-multiple-aggregates) for details.
+
+If you separate your data via the `sortKey` and `prefix` bounds, you can look at
+your data from any altitude. You can do a global `count` to see how many total
+data points there are, or you can zero in on an individual group of the data.
+
+However, there's a tradeoff: nearby data points can interfere with each other
+in the internal data structure, reducing throughput. See
+[below](#read-dependencies-and-writes) for more details. To avoid interference,
+you can use Namespaces.
+
+### Namespacing
+
+If your data is separated into distinct partitions, and you don't need to
+aggregate between partitions, then you can put each partition into its own
+namespace. Each namespace gets its own internal data structure.
+
+If your app has multiple games, it's not useful to aggregate scores across
+different games. The scoring system for chess isn't related to the scoring
+system for football. So we can namespace our scores based on the game.
+
+Whenever we aggregate scores, we _must_ specify the namespace.
+On the other hand, the internal aggregation data structure can keep the scores
+separate and keep throughput high.
+
+Here's how you would create the aggregate we just described:
+
+```ts
+const leaderboardByGame = new TableAggregate<{
+  Namespace: Id<"games">;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "scores";
+}>(components.leaderboardByGame, {
+  namespace: (doc) => doc.gameId,
+  sortKey: (doc) => doc.score,
+});
+```
+
+And whenever you use this aggregate, you specify the namespace.
+
+```ts
+const footballHighScore = await leaderboardByGame.max(ctx, {
+  namespace: footballId,
+});
+```
+
+See an example of a namespaced aggregate in
+[example/convex/photos.ts](./example/convex/photos.ts).
 
 ### More examples
 
@@ -149,13 +213,16 @@ import { DataModel } from "./_generated/dataModel";
 import { mutation as rawMutation } from "./_generated/server";
 import { TableAggregate } from "@convex-dev/aggregate";
 
-const aggregate = new TableAggregate<number, DataModel, "mytable">(
-  components.aggregate,
-  {
-    sortKey: (doc) => doc._creationTime, // Allows querying across time ranges.
-    sumValue: (doc) => doc.value, // The value to be used in `.sum` calculations.
-  }
-);
+const aggregate = new TableAggregate<{
+  Namespace: undefined;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "mytable";
+}>(components.aggregate, {
+  namespace: (doc) => undefined, // disable namespacing.
+  sortKey: (doc) => doc._creationTime, // Allows querying across time ranges.
+  sumValue: (doc) => doc.value, // The value to be used in `.sum` calculations.
+});
 ```
 
 Since these are happening in a
@@ -167,12 +234,14 @@ here's how you might define `aggregateByGame`, as an aggregate on the "scores"
 table:
 
 ```ts
-const aggregateByGame = new TableAggregate<
-  [Id<"games">, string, number],
-  DataModel,
-  "leaderboard"
->(components.aggregateByGame, {
-  sortKey: (doc) => [doc.gameId, doc.username, doc.score],
+const aggregateByGame = new TableAggregate<{
+  Namespace: Id<"games">;
+  Key: [string, number];
+  DataModel: DataModel;
+  TableName: "leaderboard";
+}>(components.aggregateByGame, {
+  namespace: (doc) => doc.gameId,
+  sortKey: (doc) => [doc.username, doc.score],
 });
 ```
 
@@ -237,30 +306,23 @@ To run the examples:
 ### Total Count and Randomization
 
 If you don't need the ordering, partitioning, or summing behavior of
-`TableAggregate`, there's a simpler interface you can use: `Randomize`.
+`TableAggregate`, you can set `namespace: undefined` and `sortKey: null`.
 
 ```ts
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
-import { mutation as rawMutation } from "./_generated/server";
-import { Randomize } from "@convex-dev/aggregate";
-import { customMutation } from "convex-helpers/server/customFunctions";
-// This is like TableAggregate but there's no key or sumValue.
-const randomize = new Randomize<DataModel, "mytable">(components.aggregate);
-
-// In a mutation, insert into the component when you insert into your table.
-const id = await ctx.db.insert("mytable", data);
-await randomize.insert(ctx, id);
-
-// As before, delete from the component when you delete from your table
-await ctx.db.delete(id);
-await randomize.delete(ctx, id);
-
-// in a query, get the total document count.
-const totalCount = await randomize.count(ctx);
-// get a random document's id.
-const randomId = await randomize.random(ctx);
+const randomize = new TableAggregate<{
+  Namespace: undefined;
+  Key: null;
+  DataModel: DataModel;
+  TableName: "mytable";
+}>(components.aggregate, {
+  namespace: (doc) => undefined,
+  sortKey: (doc) => null,
+});
 ```
+
+Without sorting, all documents are ordered by their `_id` which is generally
+random. And you can look up the document at any index to find one at random
+or shuffle the whole table.
 
 See more examples in [`example/convex/shuffle.ts`](example/convex/shuffle.ts),
 including a paginated random shuffle of some music.
@@ -272,28 +334,34 @@ Convex supports infinite-scroll pagination which is
 to worry about items going missing from your list. But sometimes you want to
 display separate pages of results on separate pages of your app.
 
-For this example, imagine you have a table of photos
+For this example, imagine you have a table of photo albums.
 
 ```ts
 // convex/schema.ts
 defineSchema({
   photos: defineTable({
+    album: v.string(),
     url: v.string(),
-  }),
+  }).index("by_album_creation_time", ["album"]),
 });
 ```
 
-And an aggregate defined with key as `_creationTime`.
+And an aggregate defined with key as `_creationTime` and namespace as `album`.
 
 ```ts
 // convex/convex.config.ts
 app.use(aggregate, { name: "photos" });
 
 // convex/photos.ts
-const photos = new TableAggregate<number, DataModel, "photos">(
-  components.photos,
-  { sortKey: (doc) => doc._creationTime }
-);
+const photos = new TableAggregate<{
+  Namespace: string; // album name
+  Key: number; // creation time
+  DataModel: DataModel;
+  TableName: "photos";
+}>(components.photos, {
+  namespace: (doc) => doc.album,
+  sortKey: (doc) => doc._creationTime,
+});
 ```
 
 You can pick a page size and jump to any page once you have `TableAggregate` to
@@ -301,15 +369,15 @@ map from offset to an index key.
 
 In this example, if `offset` is 100 and `numItems` is 10, we get the hundredth
 `_creationTime` (in ascending order) and starting there we get the next ten
-documents.
+documents. In this way we can paginate through the whole photo album.
 
 ```ts
 export const pageOfPhotos({
-  args: { offset: v.number(), numItems: v.number() },
-  handler: async (ctx, { offset, numItems }) => {
-    const { key } = await photos.at(ctx, offset);
+  args: { offset: v.number(), numItems: v.number(), album: v.string() },
+  handler: async (ctx, { offset, numItems, album }) => {
+    const { key } = await photos.at(ctx, offset, { namespace: album });
     return await ctx.db.query("photos")
-      .withIndex("by_creation_time", q=>q.gte("_creationTime", key))
+      .withIndex("by_album_creation_time", q=>q.eq("album", album).gte("_creationTime", key))
       .take(numItems);
   },
 });
@@ -328,19 +396,22 @@ insert, delete, and replace operations yourself.
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { DirectAggregate } from "@convex-dev/aggregate";
-// The first generic parameter (number in this case) is the key.
-// The second generic parameter (string in this case) should be unique to
-// be a tie-breaker in case two data points have the same key.
-const aggregate = new DirectAggregate<number, string>(components.aggregate);
+// Note the `id` should be unique to be a tie-breaker in case two data points
+// have the same key.
+const aggregate = new DirectAggregate<{
+  Namespace: undefined;
+  Key: number;
+  Id: string;
+}>(components.aggregate);
 
 // within a mutation, add values to be aggregated
-await aggregate.insert(ctx, key, id);
+await aggregate.insert(ctx, { key, id });
 // if you want to use `.sum` to aggregate sums of values, insert with a sumValue
-await aggregate.insert(ctx, key, id, sumValue);
+await aggregate.insert(ctx, { key, id, sumValue });
 // or delete values that were previously added
-await aggregate.delete(ctx, key, id);
+await aggregate.delete(ctx, { key, id });
 // or update values
-await aggregate.replace(ctx, oldKey, newKey, id);
+await aggregate.replace(ctx, { key: oldKey, id }, { key: newKey });
 ```
 
 See [`example/convex/stats.ts`](example/convex/stats.ts) for an example.

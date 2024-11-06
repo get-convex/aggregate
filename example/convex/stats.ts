@@ -7,7 +7,11 @@ import { v } from "convex/values";
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 
-const stats = new DirectAggregate<number, string>(components.stats);
+const stats = new DirectAggregate<{
+  Namespace: undefined;
+  Key: number;
+  Id: string;
+}>(components.stats);
 
 export const reportLatency = mutation({
   args: {
@@ -15,7 +19,11 @@ export const reportLatency = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { latency }) => {
-    await stats.insert(ctx, latency, new Date().toISOString(), latency);
+    await stats.insert(ctx, {
+      key: latency,
+      id: new Date().toISOString(),
+      sumValue: latency,
+    });
   },
 });
 

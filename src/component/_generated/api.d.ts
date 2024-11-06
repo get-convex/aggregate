@@ -37,38 +37,37 @@ export type Mounts = {
     aggregateBetween: FunctionReference<
       "query",
       "public",
-      { k1?: any; k2?: any },
+      { k1?: any; k2?: any; namespace?: any },
       { count: number; sum: number }
     >;
     atNegativeOffset: FunctionReference<
       "query",
       "public",
-      { k1?: any; k2?: any; offset: number },
+      { k1?: any; k2?: any; namespace?: any; offset: number },
       { k: any; s: number; v: any }
     >;
     atOffset: FunctionReference<
       "query",
       "public",
-      { k1?: any; k2?: any; offset: number },
+      { k1?: any; k2?: any; namespace?: any; offset: number },
       { k: any; s: number; v: any }
     >;
-    count: FunctionReference<"query", "public", {}, any>;
     get: FunctionReference<
       "query",
       "public",
-      { key: any },
+      { key: any; namespace?: any },
       null | { k: any; s: number; v: any }
     >;
     offset: FunctionReference<
       "query",
       "public",
-      { k1?: any; key: any },
+      { k1?: any; key: any; namespace?: any },
       number
     >;
     offsetUntil: FunctionReference<
       "query",
       "public",
-      { k2?: any; key: any },
+      { k2?: any; key: any; namespace?: any },
       number
     >;
     paginate: FunctionReference<
@@ -79,6 +78,7 @@ export type Mounts = {
         k1?: any;
         k2?: any;
         limit: number;
+        namespace?: any;
         order: "asc" | "desc";
       },
       {
@@ -87,46 +87,85 @@ export type Mounts = {
         page: Array<{ k: any; s: number; v: any }>;
       }
     >;
-    sum: FunctionReference<"query", "public", {}, number>;
-    validate: FunctionReference<"query", "public", {}, any>;
+    paginateNamespaces: FunctionReference<
+      "query",
+      "public",
+      { cursor?: string; limit: number },
+      { cursor: string; isDone: boolean; page: Array<any> }
+    >;
+    validate: FunctionReference<"query", "public", { namespace?: any }, any>;
   };
   inspect: {
-    display: FunctionReference<"query", "public", {}, any>;
-    dump: FunctionReference<"query", "public", {}, string>;
-    inspectNode: FunctionReference<"query", "public", { node?: string }, null>;
+    display: FunctionReference<"query", "public", { namespace?: any }, any>;
+    dump: FunctionReference<"query", "public", { namespace?: any }, string>;
+    inspectNode: FunctionReference<
+      "query",
+      "public",
+      { namespace?: any; node?: string },
+      null
+    >;
   };
   public: {
     clear: FunctionReference<
       "mutation",
       "public",
-      { maxNodeSize?: number; rootLazy?: boolean },
+      { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
       null
     >;
-    deleteIfExists: FunctionReference<"mutation", "public", { key: any }, any>;
-    delete_: FunctionReference<"mutation", "public", { key: any }, null>;
+    deleteIfExists: FunctionReference<
+      "mutation",
+      "public",
+      { key: any; namespace?: any },
+      any
+    >;
+    delete_: FunctionReference<
+      "mutation",
+      "public",
+      { key: any; namespace?: any },
+      null
+    >;
     init: FunctionReference<
       "mutation",
       "public",
-      { maxNodeSize?: number; rootLazy?: boolean },
+      { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
       null
     >;
     insert: FunctionReference<
       "mutation",
       "public",
-      { key: any; summand?: number; value: any },
+      { key: any; namespace?: any; summand?: number; value: any },
       null
     >;
-    makeRootLazy: FunctionReference<"mutation", "public", {}, null>;
+    makeRootLazy: FunctionReference<
+      "mutation",
+      "public",
+      { namespace?: any },
+      null
+    >;
     replace: FunctionReference<
       "mutation",
       "public",
-      { currentKey: any; newKey: any; summand?: number; value: any },
+      {
+        currentKey: any;
+        namespace?: any;
+        newKey: any;
+        newNamespace?: any;
+        summand?: number;
+        value: any;
+      },
       null
     >;
     replaceOrInsert: FunctionReference<
       "mutation",
       "public",
-      { currentKey: any; newKey: any; summand?: number; value: any },
+      {
+        currentKey: any;
+        namespace?: any;
+        newKey: any;
+        newNamespace?: any;
+        summand?: number;
+        value: any;
+      },
       any
     >;
   };

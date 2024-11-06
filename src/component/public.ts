@@ -13,15 +13,17 @@ export const init = mutation({
   args: {
     maxNodeSize: v.optional(v.number()),
     rootLazy: v.optional(v.boolean()),
+    namespace: v.optional(v.any()),
   },
   returns: v.null(),
-  handler: async (ctx, { maxNodeSize, rootLazy }) => {
-    const existing = await getTree(ctx.db);
+  handler: async (ctx, { maxNodeSize, rootLazy, namespace }) => {
+    const existing = await getTree(ctx.db, namespace);
     if (existing) {
       throw new Error("tree already initialized");
     }
     await getOrCreateTree(
       ctx.db,
+      namespace,
       maxNodeSize ?? DEFAULT_MAX_NODE_SIZE,
       rootLazy ?? true
     );
@@ -35,23 +37,33 @@ export const init = mutation({
  * Lazy roots are the default; use `clear` to revert to eager roots.
  */
 export const makeRootLazy = mutation({
-  args: {},
+  args: { namespace: v.optional(v.any()) },
   returns: v.null(),
-  handler: async (ctx) => {
-    const tree = await getOrCreateTree(ctx.db, DEFAULT_MAX_NODE_SIZE, true);
+  handler: async (ctx, args) => {
+    const tree = await getOrCreateTree(
+      ctx.db,
+      args.namespace,
+      DEFAULT_MAX_NODE_SIZE,
+      true
+    );
     await ctx.db.patch(tree.root, { aggregate: undefined });
   },
 });
 
 export const insert = mutation({
-  args: { key: v.any(), value: v.any(), summand: v.optional(v.number()) },
+  args: {
+    key: v.any(),
+    value: v.any(),
+    summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+  },
   returns: v.null(),
   handler: insertHandler,
 });
 
 // delete is a keyword, hence the underscore.
 export const delete_ = mutation({
-  args: { key: v.any() },
+  args: { key: v.any(), namespace: v.optional(v.any()) },
   returns: v.null(),
   handler: deleteHandler,
 });
@@ -62,23 +74,29 @@ export const replace = mutation({
     newKey: v.any(),
     value: v.any(),
     summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+    newNamespace: v.optional(v.any()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await deleteHandler(ctx, { key: args.currentKey });
+    await deleteHandler(ctx, {
+      key: args.currentKey,
+      namespace: args.namespace,
+    });
     await insertHandler(ctx, {
       key: args.newKey,
       value: args.value,
       summand: args.summand,
+      namespace: args.newNamespace,
     });
   },
 });
 
 export const deleteIfExists = mutation({
-  args: { key: v.any() },
-  handler: async (ctx, { key }) => {
+  args: { key: v.any(), namespace: v.optional(v.any()) },
+  handler: async (ctx, { key, namespace }) => {
     try {
-      await deleteHandler(ctx, { key });
+      await deleteHandler(ctx, { key, namespace });
     } catch (e) {
       if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
         return;
@@ -94,10 +112,15 @@ export const replaceOrInsert = mutation({
     newKey: v.any(),
     value: v.any(),
     summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+    newNamespace: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     try {
-      await deleteHandler(ctx, { key: args.currentKey });
+      await deleteHandler(ctx, {
+        key: args.currentKey,
+        namespace: args.namespace,
+      });
     } catch (e) {
       if (
         !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
@@ -109,6 +132,7 @@ export const replaceOrInsert = mutation({
       key: args.newKey,
       value: args.value,
       summand: args.summand,
+      namespace: args.newNamespace,
     });
   },
 });
@@ -121,12 +145,13 @@ export const replaceOrInsert = mutation({
  */
 export const clear = mutation({
   args: {
+    namespace: v.optional(v.any()),
     maxNodeSize: v.optional(v.number()),
     rootLazy: v.optional(v.boolean()),
   },
   returns: v.null(),
-  handler: async (ctx, { maxNodeSize, rootLazy }) => {
-    const tree = await getTree(ctx.db);
+  handler: async (ctx, { maxNodeSize, rootLazy, namespace }) => {
+    const tree = await getTree(ctx.db, namespace);
     let existingRootLazy = true;
     let existingMaxNodeSize = DEFAULT_MAX_NODE_SIZE;
     if (tree) {
@@ -140,6 +165,7 @@ export const clear = mutation({
     }
     await getOrCreateTree(
       ctx.db,
+      namespace,
       maxNodeSize ?? existingMaxNodeSize,
       rootLazy ?? existingRootLazy
     );

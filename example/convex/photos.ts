@@ -22,10 +22,15 @@ import {
 } from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
-const photos = new TableAggregate<number, DataModel, "photos">(
-  components.photos,
-  { sortKey: (doc) => doc._creationTime }
-);
+const photos = new TableAggregate<{
+  Namespace: string;
+  Key: number;
+  DataModel: DataModel;
+  TableName: "photos";
+}>(components.photos, {
+  namespace: (doc) => doc.album,
+  sortKey: (doc) => doc._creationTime,
+});
 
 const triggers = new Triggers<DataModel>();
 
@@ -43,17 +48,21 @@ export const init = internalMutation({
     // rootLazy can be false because the table doesn't change much, and this
     // makes aggregates faster (this is entirely optional).
     // Also reducing node size uses less bandwidth, since nodes are smaller.
-    await photos.clear(ctx, 4, false);
+    await photos.clearAll(ctx, {
+      maxNodeSize: 4,
+      rootLazy: false,
+    });
   },
 });
 
 export const addPhoto = mutation({
   args: {
+    album: v.string(),
     url: v.string(),
   },
   returns: v.id("photos"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("photos", { url: args.url });
+    return await ctx.db.insert("photos", { album: args.album, url: args.url });
   },
 });
 
@@ -63,16 +72,19 @@ export const addPhoto = mutation({
  */
 export const pageOfPhotos = query({
   args: {
+    album: v.string(),
     offset: v.number(),
     numItems: v.number(),
   },
   returns: v.array(v.string()),
-  handler: async (ctx, { offset, numItems }) => {
-    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset);
+  handler: async (ctx, { offset, numItems, album }) => {
+    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
+      namespace: album,
+    });
     const photoDocs = await ctx.db
       .query("photos")
-      .withIndex("by_creation_time", (q) =>
-        q.gte("_creationTime", firstPhotoCreationTime)
+      .withIndex("by_album_creation_time", (q) =>
+        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);
