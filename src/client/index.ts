@@ -457,6 +457,13 @@ export class Aggregate<
   }
 }
 
+export type DirectAggregateType<K extends Key, ID extends string, Namespace extends ConvexValue | undefined> = {
+  key: K,
+  id: ID,
+  namespace: Namespace,
+};
+type AnyDirectAggregateType = DirectAggregateType<Key, string, ConvexValue | undefined>;
+
 /**
  * A DirectAggregate is an Aggregate where you can insert, delete, and replace
  * items directly, and keys and IDs can be customized.
@@ -465,10 +472,8 @@ export class Aggregate<
  * computes keys and sumValues from the table's documents.
  */
 export class DirectAggregate<
-  K extends Key,
-  ID extends string,
-  Namespace extends ConvexValue | undefined = undefined,
-> extends Aggregate<K, ID, Namespace> {
+  T extends AnyDirectAggregateType,
+> extends Aggregate<T["key"], T["id"], T["namespace"]> {
   /**
    * Insert a new key into the data structure.
    * The id should be unique.
@@ -479,7 +484,7 @@ export class DirectAggregate<
    */
   async insert(
     ctx: RunMutationCtx,
-    args: NamespacedArgs<{ key: K; id: ID; sumValue?: number }, Namespace>
+    args: NamespacedArgs<{ key: T["key"]; id: T["id"]; sumValue?: number }, T["namespace"]>
   ): Promise<void> {
     await this._insert(ctx, namespaceFromArg(args), args.key, args.id, args.sumValue);
   }
@@ -487,7 +492,7 @@ export class DirectAggregate<
    * Delete the key with the given ID from the data structure.
    * Throws if the given key and ID do not exist.
    */
-  async delete(ctx: RunMutationCtx, args: NamespacedArgs<{ key: K, id: ID }, Namespace>): Promise<void> {
+  async delete(ctx: RunMutationCtx, args: NamespacedArgs<{ key: T["key"], id: T["id"] }, T["namespace"]>): Promise<void> {
     await this._delete(ctx, namespaceFromArg(args), args.key, args.id);
   }
   /**
@@ -497,8 +502,8 @@ export class DirectAggregate<
    */
   async replace(
     ctx: RunMutationCtx,
-    currentItem: NamespacedArgs<{ key: K; id: ID }, Namespace>,
-    newItem: NamespacedArgs<{ key: K; sumValue?: number }, Namespace>,
+    currentItem: NamespacedArgs<{ key: T["key"]; id: T["id"] }, T["namespace"]>,
+    newItem: NamespacedArgs<{ key: T["key"]; sumValue?: number }, T["namespace"]>,
   ): Promise<void> {
     await this._replace(
       ctx,
@@ -520,17 +525,20 @@ export class DirectAggregate<
    */
   async insertIfDoesNotExist(
     ctx: RunMutationCtx,
-    args: NamespacedArgs<{ key: K; id: ID; sumValue?: number }, Namespace>
+    args: NamespacedArgs<{ key: T["key"]; id: T["id"]; sumValue?: number }, T["namespace"]>
   ): Promise<void> {
     await this._insertIfDoesNotExist(ctx, namespaceFromArg(args), args.key, args.id, args.sumValue);
   }
-  async deleteIfExists(ctx: RunMutationCtx, args: NamespacedArgs<{ key: K, id: ID }, Namespace>): Promise<void> {
+  async deleteIfExists(
+    ctx: RunMutationCtx,
+    args: NamespacedArgs<{ key: T["key"], id: T["id"] }, T["namespace"]>,
+  ): Promise<void> {
     await this._deleteIfExists(ctx, namespaceFromArg(args), args.key, args.id);
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    currentItem: NamespacedArgs<{ key: K; id: ID }, Namespace>,
-    newItem: NamespacedArgs<{ key: K; sumValue?: number }, Namespace>,
+    currentItem: NamespacedArgs<{ key: T["key"]; id: T["id"] }, T["namespace"]>,
+    newItem: NamespacedArgs<{ key: T["key"]; sumValue?: number }, T["namespace"]>,
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,

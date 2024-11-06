@@ -84,8 +84,8 @@ export const pageOfPhotos = query({
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, { namespace: album });
     const photoDocs = await ctx.db
       .query("photos")
-      .withIndex("by_creation_time", (q) =>
-        q.gte("_creationTime", firstPhotoCreationTime)
+      .withIndex("by_album_creation_time", (q) =>
+        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);

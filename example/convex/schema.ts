@@ -12,5 +12,5 @@ export default defineSchema({
   photos: defineTable({
     album: v.string(),
     url: v.string(),
-  }),
+  }).index("by_album_creation_time", ["album"]),
 });
