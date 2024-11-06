@@ -42,8 +42,8 @@ const globalAverageScore =
 const forUser = { namespace: username };
 const highScoreForUser = await aggregateScoreByUser.max(ctx, forUser);
 const avgScoreForUser =
-  (await aggregateScoreByUser.sum(ctx, { bounds })) /
-  (await aggregateScoreByUser.count(ctx, { bounds }));
+  (await aggregateScoreByUser.sum(ctx, forUser)) /
+  (await aggregateScoreByUser.count(ctx, forUser));
 ```
 
 The Aggregate component provides `O(log(n))`-time lookups, instead of the `O(n)`
