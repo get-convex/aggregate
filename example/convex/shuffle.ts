@@ -16,6 +16,7 @@ const randomize = new TableAggregate<{
   namespace: undefined,
   key: null
 }>(components.music, {
+  namespace: () => undefined,
   sortKey: () => null,
 });
 

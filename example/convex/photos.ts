@@ -7,7 +7,7 @@
  * Also demonstrates aggregates automatically updating when the underlying table changes.
  */
 
-import { NamespacedTableAggregate } from "@convex-dev/aggregate";
+import { TableAggregate } from "@convex-dev/aggregate";
 import {
   internalMutation as rawInternalMutation,
   mutation as rawMutation,
@@ -22,7 +22,7 @@ import {
 } from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
-const photos = new NamespacedTableAggregate<{
+const photos = new TableAggregate<{
   key: number,
   dataModel: DataModel,
   tableName: "photos",
@@ -51,7 +51,10 @@ export const init = internalMutation({
     // rootLazy can be false because the table doesn't change much, and this
     // makes aggregates faster (this is entirely optional).
     // Also reducing node size uses less bandwidth, since nodes are smaller.
-    await photos.clear(ctx, 4, false);
+    await photos.clearAll(ctx, {
+      maxNodeSize: 4,
+      rootLazy: false,
+    });
   },
 });
 
@@ -78,7 +81,7 @@ export const pageOfPhotos = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems, album }) => {
-    const { key: firstPhotoCreationTime } = await photos.for(album).at(ctx, offset);
+    const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, { namespace: album });
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_creation_time", (q) =>

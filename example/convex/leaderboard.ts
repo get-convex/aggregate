@@ -19,7 +19,10 @@ const aggregateByScore = new TableAggregate<{
   namespace: undefined,
 }>(
   components.aggregateByScore,
-  { sortKey: (doc) => doc.score }
+  {
+    namespace: (_doc) => undefined,
+    sortKey: (doc) => doc.score,
+   }
 );
 const aggregateScoreByUser = new TableAggregate<{
   key: [string, number],
@@ -27,6 +30,7 @@ const aggregateScoreByUser = new TableAggregate<{
   tableName: "leaderboard",
   namespace: undefined,
 }>(components.aggregateScoreByUser, {
+  namespace: (_doc) => undefined,
   sortKey: (doc) => [doc.name, doc.score],
   sumValue: (doc) => doc.score,
 });
@@ -107,8 +111,7 @@ export const scoresInOrder = query({
     const lines = [];
     for await (const { id, key } of aggregateByScore.iter(
       ctx,
-      undefined,
-      "desc"
+      { bounds: undefined, order: "desc" },
     )) {
       if (count >= 200) {
         lines.push("...");
