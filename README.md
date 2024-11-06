@@ -32,7 +32,7 @@ const globalAverageScore = await aggregateScoreByUser.sum(ctx) /
   await aggregateScoreByUser.count(ctx);
 ```
 
-7. Alternatively, you can define a third aggregate with separate namespaces,
+7. Alternatively, you can define an aggregate with separate namespaces,
    and do the same query. This method increases throughput because a user's data
    won't interfere with other users. However, you lose the ability to aggregate
    over all users.
