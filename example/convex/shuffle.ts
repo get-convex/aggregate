@@ -100,9 +100,12 @@ export const shufflePaginated = query({
 
     const indexes = allIndexes.slice(offset, offset + numItems);
 
+    const atIndexes = await Promise.all(
+      indexes.map((i) => randomize.at(ctx, i))
+    );
+
     return await Promise.all(
-      indexes.map(async (i) => {
-        const atIndex = await randomize.at(ctx, i);
+      atIndexes.map(async (atIndex) => {
         const doc = (await ctx.db.get(atIndex.id))!;
         return doc.title;
       })
