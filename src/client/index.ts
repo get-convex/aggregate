@@ -69,12 +69,12 @@ export class Aggregate<
   /**
    * Counts items between the given bounds.
    */
-  async count(ctx: RunQueryCtx, ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>): Promise<number> {
+  async count(ctx: RunQueryCtx, ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>): Promise<number> {
     const { count } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
       {
-        ...boundsToPositions(bounds[0]),
-        namespace: namespaceFromOpts(bounds),
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
       },
     );
     return count;
@@ -82,12 +82,12 @@ export class Aggregate<
   /**
    * Adds up the sumValue of items between the given bounds.
    */
-  async sum(ctx: RunQueryCtx, ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>): Promise<number> {
+  async sum(ctx: RunQueryCtx, ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>): Promise<number> {
     const { sum } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
       {
-        ...boundsToPositions(bounds[0]),
-        namespace: namespaceFromOpts(bounds),
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
       },
     );
     return sum;
@@ -103,20 +103,20 @@ export class Aggregate<
   async at(
     ctx: RunQueryCtx,
     offset: number,
-    ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID>> {
     if (offset < 0) {
       const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
         offset: -offset - 1,
-        namespace: namespaceFromOpts(bounds),
-        ...boundsToPositions(bounds[0]),
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
       });
       return btreeItemToAggregateItem(item);
     }
     const item = await ctx.runQuery(this.component.btree.atOffset, {
       offset,
-      namespace: namespaceFromOpts(bounds),
-      ...boundsToPositions(bounds[0]),
+      namespace: namespaceFromOpts(opts),
+      ...boundsToPositions(opts[0]?.bounds),
     });
     return btreeItemToAggregateItem(item);
   }
@@ -176,11 +176,11 @@ export class Aggregate<
    */
   async min(
     ctx: RunQueryCtx,
-    ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
-      namespace: namespaceFromOpts(bounds),
-      bounds: bounds[0],
+      namespace: namespaceFromOpts(opts),
+      bounds: opts[0]?.bounds,
       order: "asc",
       pageSize: 1,
     });
@@ -191,11 +191,11 @@ export class Aggregate<
    */
   async max(
     ctx: RunQueryCtx,
-    ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
-      namespace: namespaceFromOpts(bounds),
-      bounds: bounds[0],
+      namespace: namespaceFromOpts(opts),
+      bounds: opts[0]?.bounds,
       order: "desc",
       pageSize: 1,
     });
@@ -206,14 +206,14 @@ export class Aggregate<
    */
   async random(
     ctx: RunQueryCtx,
-    ...bounds: NamespacedOpts<Bounds<K, ID>, Namespace>
+    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx, ...bounds);
+    const count = await this.count(ctx, ...opts);
     if (count === 0) {
       return null;
     }
     const index = Math.floor(Math.random() * count);
-    return await this.at(ctx, index, ...bounds);
+    return await this.at(ctx, index, ...opts);
   }
   /**
    * Get a page of items between the given bounds, with a cursor to paginate.
