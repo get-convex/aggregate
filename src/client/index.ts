@@ -622,19 +622,22 @@ export type TableAggregateType<
   K extends Key,
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined,
+  Namespace extends ConvexValue | undefined = undefined,
 > = {
   Key: K;
   DataModel: DataModel;
   TableName: TableName;
-  Namespace: Namespace;
+  Namespace?: Namespace;
 };
+
 type AnyTableAggregateType = TableAggregateType<
   Key,
   GenericDataModel,
   TableNamesInDataModel<GenericDataModel>,
   ConvexValue | undefined
 >;
+type TableAggregateNamespace<T extends AnyTableAggregateType> =
+  "Namespace" extends keyof T ? T["Namespace"] : undefined;
 type TableAggregateDocument<T extends AnyTableAggregateType> = DocumentByName<
   T["DataModel"],
   T["TableName"]
@@ -651,15 +654,24 @@ type TableAggregateTrigger<Ctx, T extends AnyTableAggregateType> = Trigger<
 export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   T["Key"],
   GenericId<T["TableName"]>,
-  T["Namespace"]
+  TableAggregateNamespace<T>
 > {
   constructor(
     component: UsedAPI,
     private options: {
-      namespace: (d: TableAggregateDocument<T>) => T["Namespace"];
       sortKey: (d: TableAggregateDocument<T>) => T["Key"];
       sumValue?: (d: TableAggregateDocument<T>) => number;
-    }
+    } & (undefined extends TableAggregateNamespace<T>
+      ? {
+          namespace?: (
+            d: TableAggregateDocument<T>
+          ) => TableAggregateNamespace<T>;
+        }
+      : {
+          namespace: (
+            d: TableAggregateDocument<T>
+          ) => TableAggregateNamespace<T>;
+        })
   ) {
     super(component);
   }
@@ -670,7 +682,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._insert(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
@@ -682,7 +694,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._delete(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>
     );
@@ -694,9 +706,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._replace(
       ctx,
-      this.options.namespace(oldDoc),
+      this.options.namespace?.(oldDoc),
       this.options.sortKey(oldDoc),
-      this.options.namespace(newDoc),
+      this.options.namespace?.(newDoc),
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
@@ -708,7 +720,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
@@ -720,7 +732,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>
     );
@@ -732,9 +744,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
-      this.options.namespace(oldDoc),
+      this.options.namespace?.(oldDoc),
       this.options.sortKey(oldDoc),
-      this.options.namespace(newDoc),
+      this.options.namespace?.(newDoc),
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
@@ -759,7 +771,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<number> {
     const key = this.options.sortKey(doc);
     return this.indexOf(ctx, key, {
-      namespace: this.options.namespace(doc),
+      namespace: this.options.namespace?.(doc),
       ...opts,
     });
   }
@@ -841,7 +853,7 @@ export type NamespacedArgs<Args, Namespace> =
   | (Namespace extends undefined ? Args : never);
 export type NamespacedOpts<Opts, Namespace> =
   | [{ namespace: Namespace } & Opts]
-  | (Namespace extends undefined ? [Opts?] : never);
+  | (undefined extends Namespace ? [Opts?] : never);
 
 function namespaceFromArg<Args extends object, Namespace>(
   args: NamespacedArgs<Args, Namespace>

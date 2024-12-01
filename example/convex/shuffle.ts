@@ -13,10 +13,8 @@ import Rand from "rand-seed";
 const randomize = new TableAggregate<{
   DataModel: DataModel;
   TableName: "music";
-  Namespace: undefined;
   Key: null;
 }>(components.music, {
-  namespace: () => undefined,
   sortKey: () => null,
 });
 
