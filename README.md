@@ -214,12 +214,10 @@ import { mutation as rawMutation } from "./_generated/server";
 import { TableAggregate } from "@convex-dev/aggregate";
 
 const aggregate = new TableAggregate<{
-  Namespace: undefined;
   Key: number;
   DataModel: DataModel;
   TableName: "mytable";
 }>(components.aggregate, {
-  namespace: (doc) => undefined, // disable namespacing.
   sortKey: (doc) => doc._creationTime, // Allows querying across time ranges.
   sumValue: (doc) => doc.value, // The value to be used in `.sum` calculations.
 });
@@ -308,12 +306,10 @@ If you don't need the ordering, partitioning, or summing behavior of
 
 ```ts
 const randomize = new TableAggregate<{
-  Namespace: undefined;
   Key: null;
   DataModel: DataModel;
   TableName: "mytable";
 }>(components.aggregate, {
-  namespace: (doc) => undefined,
   sortKey: (doc) => null,
 });
 ```
@@ -397,7 +393,6 @@ import { DirectAggregate } from "@convex-dev/aggregate";
 // Note the `id` should be unique to be a tie-breaker in case two data points
 // have the same key.
 const aggregate = new DirectAggregate<{
-  Namespace: undefined;
   Key: number;
   Id: string;
 }>(components.aggregate);
