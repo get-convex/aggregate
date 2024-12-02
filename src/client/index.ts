@@ -491,17 +491,19 @@ export class Aggregate<
 export type DirectAggregateType<
   K extends Key,
   ID extends string,
-  Namespace extends ConvexValue | undefined,
+  Namespace extends ConvexValue | undefined = undefined,
 > = {
   Key: K;
   Id: ID;
-  Namespace: Namespace;
+  Namespace?: Namespace;
 };
 type AnyDirectAggregateType = DirectAggregateType<
   Key,
   string,
   ConvexValue | undefined
 >;
+type DirectAggregateNamespace<T extends AnyDirectAggregateType> =
+  "Namespace" extends keyof T ? T["Namespace"] : undefined;
 
 /**
  * A DirectAggregate is an Aggregate where you can insert, delete, and replace
@@ -512,7 +514,7 @@ type AnyDirectAggregateType = DirectAggregateType<
  */
 export class DirectAggregate<
   T extends AnyDirectAggregateType,
-> extends Aggregate<T["Key"], T["Id"], T["Namespace"]> {
+> extends Aggregate<T["Key"], T["Id"], DirectAggregateNamespace<T>> {
   /**
    * Insert a new key into the data structure.
    * The id should be unique.
@@ -525,7 +527,7 @@ export class DirectAggregate<
     ctx: RunMutationCtx,
     args: NamespacedArgs<
       { key: T["Key"]; id: T["Id"]; sumValue?: number },
-      T["Namespace"]
+      DirectAggregateNamespace<T>
     >
   ): Promise<void> {
     await this._insert(
@@ -542,7 +544,10 @@ export class DirectAggregate<
    */
   async delete(
     ctx: RunMutationCtx,
-    args: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>
+    args: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"] },
+      DirectAggregateNamespace<T>
+    >
   ): Promise<void> {
     await this._delete(ctx, namespaceFromArg(args), args.key, args.id);
   }
@@ -553,10 +558,13 @@ export class DirectAggregate<
    */
   async replace(
     ctx: RunMutationCtx,
-    currentItem: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>,
+    currentItem: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"] },
+      DirectAggregateNamespace<T>
+    >,
     newItem: NamespacedArgs<
       { key: T["Key"]; sumValue?: number },
-      T["Namespace"]
+      DirectAggregateNamespace<T>
     >
   ): Promise<void> {
     await this._replace(
@@ -581,7 +589,7 @@ export class DirectAggregate<
     ctx: RunMutationCtx,
     args: NamespacedArgs<
       { key: T["Key"]; id: T["Id"]; sumValue?: number },
-      T["Namespace"]
+      DirectAggregateNamespace<T>
     >
   ): Promise<void> {
     await this._insertIfDoesNotExist(
@@ -594,16 +602,22 @@ export class DirectAggregate<
   }
   async deleteIfExists(
     ctx: RunMutationCtx,
-    args: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>
+    args: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"] },
+      DirectAggregateNamespace<T>
+    >
   ): Promise<void> {
     await this._deleteIfExists(ctx, namespaceFromArg(args), args.key, args.id);
   }
   async replaceOrInsert(
     ctx: RunMutationCtx,
-    currentItem: NamespacedArgs<{ key: T["Key"]; id: T["Id"] }, T["Namespace"]>,
+    currentItem: NamespacedArgs<
+      { key: T["Key"]; id: T["Id"] },
+      DirectAggregateNamespace<T>
+    >,
     newItem: NamespacedArgs<
       { key: T["Key"]; sumValue?: number },
-      T["Namespace"]
+      DirectAggregateNamespace<T>
     >
   ): Promise<void> {
     await this._replaceOrInsert(
@@ -622,19 +636,22 @@ export type TableAggregateType<
   K extends Key,
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
-  Namespace extends ConvexValue | undefined,
+  Namespace extends ConvexValue | undefined = undefined,
 > = {
   Key: K;
   DataModel: DataModel;
   TableName: TableName;
-  Namespace: Namespace;
+  Namespace?: Namespace;
 };
+
 type AnyTableAggregateType = TableAggregateType<
   Key,
   GenericDataModel,
   TableNamesInDataModel<GenericDataModel>,
   ConvexValue | undefined
 >;
+type TableAggregateNamespace<T extends AnyTableAggregateType> =
+  "Namespace" extends keyof T ? T["Namespace"] : undefined;
 type TableAggregateDocument<T extends AnyTableAggregateType> = DocumentByName<
   T["DataModel"],
   T["TableName"]
@@ -651,15 +668,24 @@ type TableAggregateTrigger<Ctx, T extends AnyTableAggregateType> = Trigger<
 export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   T["Key"],
   GenericId<T["TableName"]>,
-  T["Namespace"]
+  TableAggregateNamespace<T>
 > {
   constructor(
     component: UsedAPI,
     private options: {
-      namespace: (d: TableAggregateDocument<T>) => T["Namespace"];
       sortKey: (d: TableAggregateDocument<T>) => T["Key"];
       sumValue?: (d: TableAggregateDocument<T>) => number;
-    }
+    } & (undefined extends TableAggregateNamespace<T>
+      ? {
+          namespace?: (
+            d: TableAggregateDocument<T>
+          ) => TableAggregateNamespace<T>;
+        }
+      : {
+          namespace: (
+            d: TableAggregateDocument<T>
+          ) => TableAggregateNamespace<T>;
+        })
   ) {
     super(component);
   }
@@ -670,7 +696,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._insert(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
@@ -682,7 +708,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._delete(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>
     );
@@ -694,9 +720,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._replace(
       ctx,
-      this.options.namespace(oldDoc),
+      this.options.namespace?.(oldDoc),
       this.options.sortKey(oldDoc),
-      this.options.namespace(newDoc),
+      this.options.namespace?.(newDoc),
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
@@ -708,7 +734,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc)
@@ -720,7 +746,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
-      this.options.namespace(doc),
+      this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>
     );
@@ -732,9 +758,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
-      this.options.namespace(oldDoc),
+      this.options.namespace?.(oldDoc),
       this.options.sortKey(oldDoc),
-      this.options.namespace(newDoc),
+      this.options.namespace?.(newDoc),
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc)
@@ -759,7 +785,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   ): Promise<number> {
     const key = this.options.sortKey(doc);
     return this.indexOf(ctx, key, {
-      namespace: this.options.namespace(doc),
+      namespace: this.options.namespace?.(doc),
       ...opts,
     });
   }
@@ -841,7 +867,7 @@ export type NamespacedArgs<Args, Namespace> =
   | (Namespace extends undefined ? Args : never);
 export type NamespacedOpts<Opts, Namespace> =
   | [{ namespace: Namespace } & Opts]
-  | (Namespace extends undefined ? [Opts?] : never);
+  | (undefined extends Namespace ? [Opts?] : never);
 
 function namespaceFromArg<Args extends object, Namespace>(
   args: NamespacedArgs<Args, Namespace>

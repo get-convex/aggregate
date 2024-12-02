@@ -13,21 +13,17 @@ export const migrations = new Migrations<DataModel>(components.migrations);
 export const run = migrations.runner();
 
 const aggregateByScore = new TableAggregate<{
-  Namespace: undefined;
   Key: number;
   DataModel: DataModel;
   TableName: "leaderboard";
 }>(components.aggregateByScore, {
-  namespace: (_doc) => undefined,
   sortKey: (doc) => doc.score,
 });
 const aggregateScoreByUser = new TableAggregate<{
   Key: [string, number];
   DataModel: DataModel;
   TableName: "leaderboard";
-  Namespace: undefined;
 }>(components.aggregateScoreByUser, {
-  namespace: (_doc) => undefined,
   sortKey: (doc) => [doc.name, doc.score],
   sumValue: (doc) => doc.score,
 });

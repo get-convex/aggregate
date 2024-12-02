@@ -8,7 +8,6 @@ import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 
 const stats = new DirectAggregate<{
-  Namespace: undefined;
   Key: number;
   Id: string;
 }>(components.stats);
