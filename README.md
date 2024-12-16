@@ -2,8 +2,6 @@
 
 [![npm version](https://img.shields.io/npm/v/@convex-dev/aggregate.svg)](https://www.npmjs.com/package/@convex-dev/aggregate)
 
-**Note: Convex Components are currently in beta**
-
 <!-- START: Include on https://convex.dev/components -->
 
 This Convex component calculates count and sums of values for efficient
