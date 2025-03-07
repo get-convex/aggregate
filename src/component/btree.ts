@@ -375,7 +375,7 @@ export async function atOffsetHandler(
   if (args.offset < 0) {
     throw new Error("offset must be non-negative");
   }
-  if (args.offset !== Math.floor(args.offset)) {
+  if (!Number.isInteger(args.offset)) {
     throw new Error("offset must be an integer");
   }
   const tree = await getTree(ctx.db, args.namespace);
@@ -403,7 +403,7 @@ export async function atNegativeOffsetHandler(
   if (args.offset < 0) {
     throw new Error("offset must be non-negative");
   }
-  if (args.offset !== Math.floor(args.offset)) {
+  if (!Number.isInteger(args.offset)) {
     throw new Error("offset must be an integer");
   }
   const tree = await getTree(ctx.db, args.namespace);
