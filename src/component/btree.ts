@@ -251,8 +251,8 @@ async function filterBetween(
   k2?: Key
 ): Promise<WithinBounds[]> {
   const n = (await db.get(node))!;
-  const included: WithinBounds[] = [];
-  async function includeSubtree(i: number, unboundedRight: boolean) {
+  const included: (WithinBounds | Promise<WithinBounds[]>)[] = [];
+  function includeSubtree(i: number, unboundedRight: boolean) {
     const unboundedLeft = k1 === undefined || included.length > 0;
     if (unboundedLeft && unboundedRight) {
       // Include the whole subtree
@@ -260,35 +260,37 @@ async function filterBetween(
     } else {
       // Recurse into the first or last subtree
       included.push(
-        ...(await filterBetween(
+        filterBetween(
           db,
           n.subtrees[i],
           unboundedLeft ? undefined : k1,
           unboundedRight ? undefined : k2
-        ))
+        )
       );
     }
   }
+  let done = false;
   for (let i = 0; i < n.items.length; i++) {
     const k1IsLeft = k1 === undefined || compareKeys(k1, n.items[i].k) === -1;
     const k2IsRight = k2 === undefined || compareKeys(k2, n.items[i].k) === 1;
     if (k1IsLeft && n.subtrees.length > 0) {
       // We definitely want to include items from n.subtrees[i],
-      await includeSubtree(i, k2IsRight);
+      includeSubtree(i, k2IsRight);
     }
     if (!k2IsRight) {
       // We've reached the right bound, so we're done.
-      return included;
+      done = true;
+      break;
     }
     if (k1IsLeft) {
       included.push({ type: "item", item: n.items[i] });
     }
   }
-  if (n.subtrees.length > 0) {
+  if (!done && n.subtrees.length > 0) {
     // Check the rightmost subtree
-    await includeSubtree(n.subtrees.length - 1, k2 === undefined);
+    includeSubtree(n.subtrees.length - 1, k2 === undefined);
   }
-  return included;
+  return (await Promise.all(included)).flat(1);
 }
 
 export const aggregateBetween = query({
@@ -307,15 +309,20 @@ async function aggregateBetweenInNode(
   k1?: Key,
   k2?: Key
 ): Promise<Aggregate> {
-  let count = { count: 0, sum: 0 };
   const filtered = await filterBetween(db, node, k1, k2);
-  for (const included of filtered) {
-    if (included.type === "item") {
-      count = add(count, itemAggregate(included.item));
-    } else {
-      const subtree = (await db.get(included.subtree))!;
-      count = add(count, await nodeAggregate(db, subtree));
-    }
+  const counts = await Promise.all(
+    filtered.map(async (included) => {
+      if (included.type === "item") {
+        return itemAggregate(included.item);
+      } else {
+        const subtree = (await db.get(included.subtree))!;
+        return await nodeAggregate(db, subtree);
+      }
+    })
+  );
+  let count = { count: 0, sum: 0 };
+  for (const c of counts) {
+    count = add(count, c);
   }
   return count;
 }
