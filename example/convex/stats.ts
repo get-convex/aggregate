@@ -2,15 +2,73 @@
  * Example of collecting statistics on data not tied to a Convex table.
  */
 
-import { mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  MutationCtx,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
-import { DirectAggregate } from "@convex-dev/aggregate";
+import { DirectAggregate, Trigger } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
+import { Triggers } from "convex-helpers/server/triggers";
+import { customCtx } from "convex-helpers/server/customFunctions";
+import { customMutation } from "convex-helpers/server/customFunctions";
+import schema from "./schema";
 
-const stats = new DirectAggregate<{
-  Key: number;
+const foodStats = new DirectAggregate<{
+  Namespace: string;
+  Key: string;
   Id: string;
 }>(components.stats);
+
+const foodStatsTrigger: Trigger<MutationCtx, DataModel, "dishes"> = async (
+  ctx,
+  change
+) => {
+  if (change.operation === "insert") {
+    const id = change.newDoc._id;
+    for (const ingredient in change.newDoc.ingredients) {
+      await foodStats.insert(ctx, { namespace: ingredient, id, key: id });
+    }
+  } else if (change.operation === "update") {
+    const id = change.newDoc._id;
+    for (const ingredient in change.newDoc.ingredients) {
+      if (!change.oldDoc.ingredients.includes(ingredient)) {
+        await foodStats.insert(ctx, { namespace: ingredient, id, key: id });
+      }
+    }
+    for (const ingredient in change.oldDoc.ingredients) {
+      if (!change.newDoc.ingredients.includes(ingredient)) {
+        await foodStats.delete(ctx, { namespace: ingredient, id, key: id });
+      }
+    }
+  } else if (change.operation === "delete") {
+    for (const ingredient in change.oldDoc.ingredients) {
+      const id = change.oldDoc._id;
+      await foodStats.insert(ctx, { namespace: ingredient, id, key: id });
+    }
+  }
+};
+
+const triggers = new Triggers<DataModel>();
+
+triggers.register("dishes", foodStatsTrigger);
+
+const wrappedMutation = customMutation(mutation, customCtx(triggers.wrapDB));
+const wrappedInternalMutation = customMutation(
+  internalMutation,
+  customCtx(triggers.wrapDB)
+);
+
+export const addDish = wrappedMutation({
+  args: schema.tables.dishes.validator,
+  handler: async (ctx, args) => {
+    await ctx.db.insert("dishes", args);
+  },
+});
 
 export const reportLatency = mutation({
   args: {
