@@ -10,7 +10,6 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider
       theme={{
-        colorScheme: "dark",
         colors: {
           dark: [
             "#C1C2C5",

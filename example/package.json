@@ -7,6 +7,7 @@
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "vite --open",
     "dev:backend": "convex dev --live-component-sources --typecheck-components",
+    "dev:ts": "tsc -b -w",
     "predev": "convex dev --until-success && convex dashboard",
     "build": "tsc -b && vite build",
     "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -24,7 +25,8 @@
     "convex-helpers": "^0.1.61",
     "rand-seed": "^2.1.7",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "type-route": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
