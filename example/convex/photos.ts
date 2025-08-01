@@ -12,9 +12,9 @@ import {
   internalMutation as rawInternalMutation,
   mutation as rawMutation,
   query,
-} from "./_generated/server";
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+} from "../../example/convex/_generated/server";
+import { components } from "../../example/convex/_generated/api";
+import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
 import {
   customCtx,
@@ -39,7 +39,7 @@ triggers.register("photos", photos.trigger());
 const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 const internalMutation = customMutation(
   rawInternalMutation,
-  customCtx(triggers.wrapDB)
+  customCtx(triggers.wrapDB),
 );
 
 export const init = internalMutation({
@@ -84,7 +84,7 @@ export const pageOfPhotos = query({
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>
-        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
+        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime),
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);

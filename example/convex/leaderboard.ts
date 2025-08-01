@@ -3,9 +3,13 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { mutation, query, internalMutation } from "./_generated/server";
-import { components, internal } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+import {
+  mutation,
+  query,
+  internalMutation,
+} from "../../example/convex/_generated/server";
+import { components, internal } from "../../example/convex/_generated/api";
+import { DataModel } from "../../example/convex/_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 import { Migrations } from "@convex-dev/migrations";
 
@@ -49,7 +53,7 @@ export const clearAggregates = internalMutation({
 // to backfill aggregates for existing leaderboard entries, if you created the
 // leaderboard before adding the aggregate components.
 export const runAggregateBackfill = migrations.runner(
-  internal.leaderboard.backfillAggregatesMigration
+  internal.leaderboard.backfillAggregatesMigration,
 );
 
 export const addScore = mutation({
