@@ -37,46 +37,11 @@ const triggers = new Triggers<DataModel>();
 triggers.register("photos", photos.trigger());
 
 const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
+
 const internalMutation = customMutation(
   rawInternalMutation,
   customCtx(triggers.wrapDB)
 );
-
-export const init = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // rootLazy can be false because the table doesn't change much, and this
-    // makes aggregates faster (this is entirely optional).
-    // Also reducing node size uses less bandwidth, since nodes are smaller.
-    await photos.clearAll(ctx, {
-      maxNodeSize: 4,
-      rootLazy: false,
-    });
-  },
-});
-
-export const resetPhotos = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    console.log("Resetting photos...");
-
-    // Clear table first to avoid race conditions with queries
-    const photosDocs = await ctx.db.query("photos").collect();
-    for (const doc of photosDocs) {
-      await ctx.db.delete(doc._id);
-    }
-
-    // Then clear and reinitialize the aggregate
-    await photos.clearAll(ctx, {
-      maxNodeSize: 4,
-      rootLazy: false,
-    });
-
-    console.log("Photos reset complete");
-    return null;
-  },
-});
 
 export const addPhoto = mutation({
   args: {
@@ -118,5 +83,24 @@ export const pageOfPhotos = query({
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);
+  },
+});
+
+// -----
+
+export const resetWithoutTriggers = rawInternalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Just delete table records - triggers will automatically keep aggregate in sync
+    const photosDocs = await ctx.db.query("photos").collect();
+    for (const doc of photosDocs) await ctx.db.delete(doc._id);
+
+    // rootLazy can be false because the table doesn't change much, and this
+    // makes aggregates faster (this is entirely optional).
+    // Also reducing node size uses less bandwidth, since nodes are smaller.
+    await photos.clearAll(ctx, {
+      maxNodeSize: 4,
+      rootLazy: false,
+    });
   },
 });

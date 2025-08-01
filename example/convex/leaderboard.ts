@@ -7,6 +7,7 @@ import {
   mutation,
   query,
   internalMutation,
+  MutationCtx,
 } from "../../example/convex/_generated/server";
 import { components, internal } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
@@ -41,13 +42,12 @@ export const backfillAggregatesMigration = migrations.define({
   },
 });
 
-export const clearAggregates = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    await aggregateByScore.clear(ctx);
-    await aggregateScoreByUser.clear(ctx);
-  },
-});
+const _clearAggregates = async (ctx: MutationCtx) => {
+  await aggregateByScore.clear(ctx);
+  await aggregateScoreByUser.clear(ctx);
+};
+
+export const clearAggregates = internalMutation(_clearAggregates);
 
 export const resetLeaderboard = internalMutation({
   args: {},
@@ -55,15 +55,12 @@ export const resetLeaderboard = internalMutation({
   handler: async (ctx) => {
     console.log("Resetting leaderboard...");
 
-    // Clear table first to avoid race conditions
+    // Clear docs
     const leaderboardDocs = await ctx.db.query("leaderboard").collect();
-    for (const doc of leaderboardDocs) {
-      await ctx.db.delete(doc._id);
-    }
+    for (const doc of leaderboardDocs) await ctx.db.delete(doc._id);
 
-    // Then clear aggregates
-    await aggregateByScore.clear(ctx);
-    await aggregateScoreByUser.clear(ctx);
+    // Reset aggregate
+    await _clearAggregates(ctx);
 
     console.log("Leaderboard reset complete");
     return null;

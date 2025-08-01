@@ -8,6 +8,7 @@ import {
   mutation,
   query,
   internalMutation,
+  MutationCtx,
 } from "../../example/convex/_generated/server";
 import { components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
@@ -22,16 +23,24 @@ const randomize = new TableAggregate<{
   sortKey: () => null,
 });
 
+const _addMusic = async (ctx: MutationCtx, { title }: { title: string }) => {
+  const id = await ctx.db.insert("music", { title });
+  const doc = (await ctx.db.get(id))!;
+  await randomize.insert(ctx, doc);
+  return id;
+};
+
 export const addMusic = mutation({
+  args: { title: v.string() },
+  handler: _addMusic,
+});
+
+export const addAllMusic = internalMutation({
   args: {
-    title: v.string(),
+    titles: v.array(v.string()),
   },
-  returns: v.id("music"),
-  handler: async (ctx, args) => {
-    const id = await ctx.db.insert("music", { title: args.title });
-    const doc = (await ctx.db.get(id))!;
-    await randomize.insert(ctx, doc);
-    return id;
+  handler: async (ctx, { titles }) => {
+    await Promise.all(titles.map((title) => _addMusic(ctx, { title })));
   },
 });
 
