@@ -7,7 +7,7 @@ import { TableAggregate } from "@convex-dev/aggregate";
 import { mutation, query } from "../../example/convex/_generated/server";
 import { components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -46,12 +46,9 @@ export const getRandomMusicTitle = query({
   args: {
     cacheBuster: v.optional(v.number()),
   },
-  returns: v.string(),
   handler: async (ctx) => {
     const randomMusic = await randomize.random(ctx);
-    if (!randomMusic) {
-      throw new ConvexError("no music");
-    }
+    if (!randomMusic) return null;
     const doc = (await ctx.db.get(randomMusic.id))!;
     return doc.title;
   },
@@ -99,14 +96,14 @@ export const shufflePaginated = query({
     const indexes = allIndexes.slice(offset, offset + numItems);
 
     const atIndexes = await Promise.all(
-      indexes.map((i) => randomize.at(ctx, i)),
+      indexes.map((i) => randomize.at(ctx, i))
     );
 
     return await Promise.all(
       atIndexes.map(async (atIndex) => {
         const doc = (await ctx.db.get(atIndex.id))!;
         return doc.title;
-      }),
+      })
     );
   },
 });

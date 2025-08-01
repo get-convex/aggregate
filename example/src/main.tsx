@@ -4,6 +4,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { MantineProvider } from "@mantine/core";
 import "./index.css";
 import App from "./App.tsx";
+import { RouteProvider } from "./routes.ts";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 createRoot(document.getElementById("root")!).render(
@@ -27,7 +28,9 @@ createRoot(document.getElementById("root")!).render(
       }}
     >
       <ConvexProvider client={convex}>
-        <App />
+        <RouteProvider>
+          <App />
+        </RouteProvider>
       </ConvexProvider>
     </MantineProvider>
   </StrictMode>

@@ -6,34 +6,16 @@ import {
   Group,
   Stack,
 } from "@mantine/core";
-import { useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PhotosPage } from "./pages/PhotosPage";
 import { ShufflePage } from "./pages/ShufflePage";
 import { StatsPage } from "./pages/StatsPage";
-
-type Page = "home" | "leaderboard" | "photos" | "shuffle" | "stats";
+import { routes, useRoute } from "./routes";
+import { exhaustiveCheck } from "./utils/utils";
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("home");
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case "home":
-        return <HomePage />;
-      case "leaderboard":
-        return <LeaderboardPage />;
-      case "photos":
-        return <PhotosPage />;
-      case "shuffle":
-        return <ShufflePage />;
-      case "stats":
-        return <StatsPage />;
-      default:
-        return <HomePage />;
-    }
-  };
+  const route = useRoute();
 
   return (
     <AppShell header={{ height: 60 }} padding="md" bg="dark.8">
@@ -49,32 +31,32 @@ export default function App() {
         <Stack gap="xs">
           <NavLink
             label="Home"
-            active={currentPage === "home"}
-            onClick={() => setCurrentPage("home")}
+            active={route.name === "home"}
+            onClick={() => routes.home().push()}
             c="white"
           />
           <NavLink
             label="Leaderboard"
-            active={currentPage === "leaderboard"}
-            onClick={() => setCurrentPage("leaderboard")}
+            active={route.name === "leaderboard"}
+            onClick={() => routes.leaderboard().push()}
             c="white"
           />
           <NavLink
             label="Photos"
-            active={currentPage === "photos"}
-            onClick={() => setCurrentPage("photos")}
+            active={route.name === "photos"}
+            onClick={() => routes.photos().push()}
             c="white"
           />
           <NavLink
             label="Shuffle"
-            active={currentPage === "shuffle"}
-            onClick={() => setCurrentPage("shuffle")}
+            active={route.name === "shuffle"}
+            onClick={() => routes.shuffle().push()}
             c="white"
           />
           <NavLink
             label="Stats"
-            active={currentPage === "stats"}
-            onClick={() => setCurrentPage("stats")}
+            active={route.name === "stats"}
+            onClick={() => routes.stats().push()}
             c="white"
           />
         </Stack>
@@ -82,9 +64,23 @@ export default function App() {
 
       <AppShell.Main bg="dark.8">
         <Container size="lg" py="xl">
-          {renderPage()}
+          <Routes />
         </Container>
       </AppShell.Main>
     </AppShell>
   );
+}
+
+function Routes() {
+  const route = useRoute();
+
+  if (route.name === "home") return <HomePage />;
+  if (route.name === "leaderboard") return <LeaderboardPage />;
+  if (route.name === "photos") return <PhotosPage />;
+  if (route.name === "shuffle") return <ShufflePage />;
+  if (route.name === "stats") return <StatsPage />;
+
+  if (route.name == false) return <HomePage />;
+
+  exhaustiveCheck(route);
 }

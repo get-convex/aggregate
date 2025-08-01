@@ -30,9 +30,8 @@ export const getStats = query({
   args: {},
   handler: async (ctx) => {
     const count = await stats.count(ctx);
-    if (count === 0) {
-      throw new Error("No data");
-    }
+    if (count === 0) return null;
+
     const mean = (await stats.sum(ctx)) / count;
     const median = (await stats.at(ctx, Math.floor(count / 2))).key;
     const p75 = (await stats.at(ctx, Math.floor(count * 0.75))).key;

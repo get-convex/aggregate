@@ -39,7 +39,7 @@ triggers.register("photos", photos.trigger());
 const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 const internalMutation = customMutation(
   rawInternalMutation,
-  customCtx(triggers.wrapDB),
+  customCtx(triggers.wrapDB)
 );
 
 export const init = internalMutation({
@@ -84,7 +84,7 @@ export const pageOfPhotos = query({
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>
-        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime),
+        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);

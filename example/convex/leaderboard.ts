@@ -53,7 +53,7 @@ export const clearAggregates = internalMutation({
 // to backfill aggregates for existing leaderboard entries, if you created the
 // leaderboard before adding the aggregate components.
 export const runAggregateBackfill = migrations.runner(
-  internal.leaderboard.backfillAggregatesMigration,
+  internal.leaderboard.backfillAggregatesMigration
 );
 
 export const addScore = mutation({
@@ -142,9 +142,7 @@ export const userAverageScore = query({
     const count = await aggregateScoreByUser.count(ctx, {
       bounds: { prefix: [args.name] },
     });
-    if (!count) {
-      throw new ConvexError("no scores for " + args.name);
-    }
+    if (!count) return null;
     const sum = await aggregateScoreByUser.sum(ctx, {
       bounds: { prefix: [args.name] },
     });
@@ -156,14 +154,11 @@ export const userHighScore = query({
   args: {
     name: v.string(),
   },
-  returns: v.number(),
   handler: async (ctx, args) => {
     const item = await aggregateScoreByUser.max(ctx, {
       bounds: { prefix: [args.name] },
     });
-    if (!item) {
-      throw new ConvexError("no scores for " + args.name);
-    }
+    if (!item) return null;
     return item.sumValue;
   },
 });
