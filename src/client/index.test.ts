@@ -23,6 +23,7 @@ describe("TableAggregate", () => {
       return await aggregate.count(ctx);
     });
 
+    expect(result).toBe(0);
   });
 
   test("should count two items after inserting two documents", async () => {
@@ -50,7 +51,7 @@ describe("TableAggregate", () => {
       await aggregate.insert(ctx, doc2!);
     });
 
-    const result = await t.run(async (ctx: any) => {
+    const result = await t.run(async (ctx) => {
       return await aggregate.count(ctx);
     });
 
