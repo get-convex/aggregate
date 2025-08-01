@@ -1,15 +1,23 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { AppShell, Container, Title, Text } from "@mantine/core";
 
 export default function App() {
   return (
-    <>
-      <header className="sticky top-0 z-10 bg-light dark:bg-dark p-4 border-b-2 border-slate-200 dark:border-slate-800">
-        Convex + React
-      </header>
-      <main className="p-8 flex flex-col gap-16">
-        <h1 className="text-4xl font-bold text-center">Convex + React</h1>
-      </main>
-    </>
+    <AppShell header={{ height: 60 }} padding="md" bg="dark.8">
+      <AppShell.Header bg="dark.7">
+        <Text size="lg" fw={500} p="md" c="white">
+          Convex + React
+        </Text>
+      </AppShell.Header>
+
+      <AppShell.Main bg="dark.8">
+        <Container size="lg" py="xl">
+          <Title order={1} ta="center" size="3rem" fw={700} c="white">
+            Convex + React
+          </Title>
+        </Container>
+      </AppShell.Main>
+    </AppShell>
   );
 }
