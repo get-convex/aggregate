@@ -10,7 +10,7 @@ import {
 } from "../../example/convex/_generated/server";
 import { components, internal } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { Migrations } from "@convex-dev/migrations";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
@@ -103,22 +103,33 @@ export const scoreAtRank = query({
 });
 
 export const scoresInOrder = query({
+  returns: v.array(
+    v.union(
+      v.object({
+        _id: v.id("leaderboard"),
+        name: v.string(),
+        score: v.number(),
+        _creationTime: v.number(),
+      }),
+      v.string()
+    )
+  ),
   handler: async (ctx) => {
     let count = 0;
-    const lines = [];
-    for await (const { id, key } of aggregateByScore.iter(ctx, {
+    const scores = [];
+    for await (const { id, key: _key } of aggregateByScore.iter(ctx, {
       bounds: undefined,
       order: "desc",
     })) {
       if (count >= 200) {
-        lines.push("...");
+        scores.push("...");
         break;
       }
       const doc = (await ctx.db.get(id))!;
-      lines.push(`${doc.name}: ${key}`);
+      scores.push(doc);
       count += 1;
     }
-    return lines;
+    return scores;
   },
 });
 

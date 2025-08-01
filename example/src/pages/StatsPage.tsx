@@ -10,6 +10,7 @@ import {
   Button,
   Alert,
 } from "@mantine/core";
+import { IconChartPie } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function StatsPage() {
@@ -37,9 +38,12 @@ export function StatsPage() {
 
   return (
     <Stack gap="xl">
-      <Title order={1} ta="center" c="white">
-        Stats Demo
-      </Title>
+      <Group justify="center" gap="md">
+        <IconChartPie size={32} color="yellow" />
+        <Title order={1} ta="center" c="white">
+          Stats Demo
+        </Title>
+      </Group>
 
       <Text c="gray.3" ta="center">
         Direct aggregation without table dependencies - perfect for analytics

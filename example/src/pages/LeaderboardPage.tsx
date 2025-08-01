@@ -13,6 +13,7 @@ import {
   Badge,
   Alert,
 } from "@mantine/core";
+import { IconTrophy } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function LeaderboardPage() {
@@ -55,9 +56,7 @@ export function LeaderboardPage() {
     }
   };
 
-  const handleRemoveScore = (id: string) => {
-    removeScore({ id: id as any }).catch(console.error);
-  };
+  const handleRemoveScore = (id: string) => {};
 
   const handleScoreChange = (value: number | string) => {
     setScore(value === "" ? "" : (value as number));
@@ -69,9 +68,12 @@ export function LeaderboardPage() {
 
   return (
     <Stack gap="xl">
-      <Title order={1} ta="center" c="white">
-        Leaderboard Demo
-      </Title>
+      <Group justify="center" gap="md">
+        <IconTrophy size={32} color="orange" />
+        <Title order={1} ta="center" c="white">
+          Leaderboard Demo
+        </Title>
+      </Group>
 
       <Text c="gray.3" ta="center">
         Add scores and explore aggregation features like rankings, averages, and
@@ -216,22 +218,37 @@ export function LeaderboardPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {scores.map((score, index) => (
-                  <Table.Tr key={index}>
-                    <Table.Td c="white">{index + 1}</Table.Td>
-                    <Table.Td c="white">{score.split(": ")[0]}</Table.Td>
-                    <Table.Td c="white">{score.split(": ")[1]}</Table.Td>
-                    <Table.Td>
-                      <Button
-                        size="xs"
-                        color="red"
-                        onClick={() => handleRemoveScore(score)}
-                      >
-                        Remove
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                {scores.map((score, index) => {
+                  // Handle the "..." truncation string case
+                  if (typeof score === "string") {
+                    return (
+                      <Table.Tr key={index}>
+                        <Table.Td c="white" colSpan={4} ta="center">
+                          {score}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  }
+
+                  return (
+                    <Table.Tr key={score._id}>
+                      <Table.Td c="white">{index + 1}</Table.Td>
+                      <Table.Td c="white">{score.name}</Table.Td>
+                      <Table.Td c="white">{score.score}</Table.Td>
+                      <Table.Td>
+                        <Button
+                          size="xs"
+                          color="red"
+                          onClick={() =>
+                            removeScore({ id: score._id }).catch(console.error)
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
               </Table.Tbody>
             </Table>
           ) : (
