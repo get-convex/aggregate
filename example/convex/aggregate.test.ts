@@ -10,7 +10,7 @@ import { api, components, internal } from "../../example/convex/_generated/api";
 const modules = import.meta.glob("./**/*.ts");
 const componentModules = import.meta.glob("../../src/component/**/*.ts");
 const migrationsModules = import.meta.glob(
-  "../node_modules/@convex-dev/migrations/src/component/**/*.ts",
+  "../node_modules/@convex-dev/migrations/src/component/**/*.ts"
 );
 
 describe("leaderboard", () => {
@@ -20,7 +20,7 @@ describe("leaderboard", () => {
     t.registerComponent(
       "aggregateScoreByUser",
       componentSchema,
-      componentModules,
+      componentModules
     );
     t.registerComponent("migrations", migrationsSchema, migrationsModules);
     // Reduce maxNodeSize so we can test complex trees with fewer items.
@@ -77,26 +77,26 @@ describe("leaderboard", () => {
     await t.mutation(api.leaderboard.addScore, { name: "Sarah", score: 5 });
 
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 0 }),
+      await t.query(api.leaderboard.scoreAtRank, { rank: 0 })
     ).toMatchObject({ name: "Sarah", score: 35 });
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 1 }),
+      await t.query(api.leaderboard.scoreAtRank, { rank: 1 })
     ).toMatchObject({ name: "Lee", score: 30 });
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 5 }),
+      await t.query(api.leaderboard.scoreAtRank, { rank: 5 })
     ).toMatchObject({ name: "Sujay", score: 10 });
 
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 35 }),
+      await t.query(api.leaderboard.rankOfScore, { score: 35 })
     ).toStrictEqual(0);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 30 }),
+      await t.query(api.leaderboard.rankOfScore, { score: 30 })
     ).toStrictEqual(1);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 10 }),
+      await t.query(api.leaderboard.rankOfScore, { score: 10 })
     ).toStrictEqual(5);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 33 }),
+      await t.query(api.leaderboard.rankOfScore, { score: 33 })
     ).toStrictEqual(1);
 
     const scoresInOrder = await t.query(api.leaderboard.scoresInOrder);
