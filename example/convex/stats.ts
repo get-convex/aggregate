@@ -2,7 +2,11 @@
  * Example of collecting statistics on data not tied to a Convex table.
  */
 
-import { mutation, query } from "../../example/convex/_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+} from "../../example/convex/_generated/server";
 import { v } from "convex/values";
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "../../example/convex/_generated/api";
@@ -23,6 +27,20 @@ export const reportLatency = mutation({
       id: new Date().toISOString(),
       sumValue: latency,
     });
+  },
+});
+
+export const resetStats = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting stats...");
+
+    // Clear the direct aggregate
+    await stats.clear(ctx);
+
+    console.log("Stats reset complete");
+    return null;
   },
 });
 

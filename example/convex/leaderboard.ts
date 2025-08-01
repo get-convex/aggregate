@@ -49,6 +49,27 @@ export const clearAggregates = internalMutation({
   },
 });
 
+export const resetLeaderboard = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting leaderboard...");
+
+    // Clear table first to avoid race conditions
+    const leaderboardDocs = await ctx.db.query("leaderboard").collect();
+    for (const doc of leaderboardDocs) {
+      await ctx.db.delete(doc._id);
+    }
+
+    // Then clear aggregates
+    await aggregateByScore.clear(ctx);
+    await aggregateScoreByUser.clear(ctx);
+
+    console.log("Leaderboard reset complete");
+    return null;
+  },
+});
+
 // This is what you can run, from the Convex dashboard or with `npx convex run`,
 // to backfill aggregates for existing leaderboard entries, if you created the
 // leaderboard before adding the aggregate components.
@@ -177,5 +198,54 @@ export const userHighScore = query({
 export const sumNumbers = query({
   handler: async (ctx) => {
     return await aggregateScoreByUser.sum(ctx);
+  },
+});
+
+export const add100MockScores = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const playerNames = [
+      "Alex",
+      "Jordan",
+      "Casey",
+      "Morgan",
+      "Riley",
+      "Avery",
+      "Quinn",
+      "Blake",
+      "Orion",
+    ];
+
+    const mockScores = [];
+    for (let i = 0; i < 100; i++) {
+      const randomName =
+        playerNames[Math.floor(Math.random() * playerNames.length)];
+      // Generate scores with some variety - mostly between 100-1000, with some outliers
+      let score;
+      const rand = Math.random();
+      if (rand < 0.1) {
+        // 10% chance for very high scores (1000-5000)
+        score = Math.floor(Math.random() * 4000) + 1000;
+      } else if (rand < 0.2) {
+        // 10% chance for low scores (10-100)
+        score = Math.floor(Math.random() * 90) + 10;
+      } else {
+        // 80% chance for normal scores (100-1000)
+        score = Math.floor(Math.random() * 900) + 100;
+      }
+
+      mockScores.push({ name: randomName, score });
+    }
+
+    // Insert all scores and update aggregates
+    for (const mockScore of mockScores) {
+      const id = await ctx.db.insert("leaderboard", mockScore);
+      const doc = await ctx.db.get(id);
+      await aggregateByScore.insert(ctx, doc!);
+      await aggregateScoreByUser.insert(ctx, doc!);
+    }
+
+    return null;
   },
 });

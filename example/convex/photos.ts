@@ -55,6 +55,29 @@ export const init = internalMutation({
   },
 });
 
+export const resetPhotos = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting photos...");
+
+    // Clear table first to avoid race conditions with queries
+    const photosDocs = await ctx.db.query("photos").collect();
+    for (const doc of photosDocs) {
+      await ctx.db.delete(doc._id);
+    }
+
+    // Then clear and reinitialize the aggregate
+    await photos.clearAll(ctx, {
+      maxNodeSize: 4,
+      rootLazy: false,
+    });
+
+    console.log("Photos reset complete");
+    return null;
+  },
+});
+
 export const addPhoto = mutation({
   args: {
     album: v.string(),

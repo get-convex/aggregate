@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as crons from "../crons.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
@@ -28,6 +29,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
   leaderboard: typeof leaderboard;
   photos: typeof photos;
   shuffle: typeof shuffle;

@@ -24,6 +24,7 @@ export function LeaderboardPage() {
   const [score, setScore] = useState<number | "">("");
   const [searchScore, setSearchScore] = useState<number | "">("");
   const [searchPlayer, setSearchPlayer] = useState("");
+  const [isAddingMockScores, setIsAddingMockScores] = useState(false);
 
   const scores = useQuery(api.leaderboard.scoresInOrder);
   const totalCount = useQuery(api.leaderboard.countScores);
@@ -31,6 +32,7 @@ export function LeaderboardPage() {
 
   const addScore = useMutation(api.leaderboard.addScore);
   const removeScore = useMutation(api.leaderboard.removeScore);
+  const addMockScores = useMutation(api.leaderboard.add100MockScores);
 
   const rankOfScore = useQuery(
     api.leaderboard.rankOfScore,
@@ -98,6 +100,21 @@ export function LeaderboardPage() {
               style={{ alignSelf: "end" }}
             >
               Add Score
+            </Button>
+            <Button
+              onClick={() => {
+                setIsAddingMockScores(true);
+                addMockScores({})
+                  .catch(onApiError)
+                  .finally(() => setIsAddingMockScores(false));
+              }}
+              disabled={isAddingMockScores}
+              color="blue"
+              variant="outline"
+              style={{ alignSelf: "end" }}
+              loading={isAddingMockScores}
+            >
+              Add 100 Mock Scores
             </Button>
           </Group>
         </Stack>

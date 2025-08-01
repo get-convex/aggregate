@@ -4,7 +4,11 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { mutation, query } from "../../example/convex/_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+} from "../../example/convex/_generated/server";
 import { components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
@@ -39,6 +43,26 @@ export const removeMusic = mutation({
     const doc = (await ctx.db.get(id))!;
     await ctx.db.delete(id);
     await randomize.delete(ctx, doc);
+  },
+});
+
+export const resetShuffle = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting shuffle/music...");
+
+    // Clear table first to avoid race conditions
+    const musicDocs = await ctx.db.query("music").collect();
+    for (const doc of musicDocs) {
+      await ctx.db.delete(doc._id);
+    }
+
+    // Then clear the aggregate
+    await randomize.clear(ctx);
+
+    console.log("Shuffle/music reset complete");
+    return null;
   },
 });
 
