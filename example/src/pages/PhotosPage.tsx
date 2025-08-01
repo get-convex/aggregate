@@ -22,26 +22,13 @@ export function PhotosPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
 
-  // Queries
   const photos = useQuery(api.photos.pageOfPhotos, {
     album: album || "default",
     offset: (currentPage - 1) * pageSize,
     numItems: pageSize,
   });
 
-  // Mutations
   const addPhoto = useMutation(api.photos.addPhoto);
-
-  const handleAddPhoto = () => {
-    if (album && url) {
-      addPhoto({ album, url })
-        .then(() => {
-          setAlbum("");
-          setUrl("");
-        })
-        .catch(console.error);
-    }
-  };
 
   return (
     <Stack gap="xl">
@@ -77,7 +64,16 @@ export function PhotosPage() {
               placeholder="Enter photo URL"
             />
             <Button
-              onClick={handleAddPhoto}
+              onClick={() => {
+                if (album && url) {
+                  addPhoto({ album, url })
+                    .then(() => {
+                      setAlbum("");
+                      setUrl("");
+                    })
+                    .catch(console.error);
+                }
+              }}
               disabled={!album || !url}
               style={{ alignSelf: "end" }}
               fullWidth

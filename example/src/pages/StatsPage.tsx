@@ -16,25 +16,9 @@ import { useState } from "react";
 export function StatsPage() {
   const [latency, setLatency] = useState<number | "">("");
 
-  // Queries
   const stats = useQuery(api.stats.getStats);
 
-  // Mutations
   const reportLatency = useMutation(api.stats.reportLatency);
-
-  const handleReportLatency = () => {
-    if (latency !== "") {
-      reportLatency({ latency: latency })
-        .then(() => {
-          setLatency("");
-        })
-        .catch(console.error);
-    }
-  };
-
-  const handleLatencyChange = (value: number | string) => {
-    setLatency(value === "" ? "" : typeof value === "number" ? value : "");
-  };
 
   return (
     <Stack gap="xl">
@@ -60,13 +44,25 @@ export function StatsPage() {
             <NumberInput
               label="Latency (ms)"
               value={latency}
-              onChange={handleLatencyChange}
+              onChange={(value) =>
+                setLatency(
+                  value === "" ? "" : typeof value === "number" ? value : ""
+                )
+              }
               placeholder="Enter latency value"
               min={0}
               style={{ flex: 1 }}
             />
             <Button
-              onClick={handleReportLatency}
+              onClick={() => {
+                if (latency !== "") {
+                  reportLatency({ latency: latency })
+                    .then(() => {
+                      setLatency("");
+                    })
+                    .catch(console.error);
+                }
+              }}
               disabled={latency === ""}
               style={{ alignSelf: "end" }}
             >

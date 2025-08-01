@@ -22,16 +22,13 @@ export function LeaderboardPage() {
   const [searchScore, setSearchScore] = useState<number | "">("");
   const [searchPlayer, setSearchPlayer] = useState("");
 
-  // Queries
   const scores = useQuery(api.leaderboard.scoresInOrder);
   const totalCount = useQuery(api.leaderboard.countScores);
   const totalSum = useQuery(api.leaderboard.sumNumbers);
 
-  // Mutations
   const addScore = useMutation(api.leaderboard.addScore);
   const removeScore = useMutation(api.leaderboard.removeScore);
 
-  // Computed queries
   const rankOfScore = useQuery(
     api.leaderboard.rankOfScore,
     searchScore !== "" ? { score: searchScore } : "skip"
@@ -44,27 +41,6 @@ export function LeaderboardPage() {
     api.leaderboard.userHighScore,
     searchPlayer ? { name: searchPlayer } : "skip"
   );
-
-  const handleAddScore = () => {
-    if (playerName && score !== "") {
-      addScore({ name: playerName, score: score })
-        .then(() => {
-          setPlayerName("");
-          setScore("");
-        })
-        .catch(console.error);
-    }
-  };
-
-  const handleRemoveScore = (id: string) => {};
-
-  const handleScoreChange = (value: number | string) => {
-    setScore(value === "" ? "" : (value as number));
-  };
-
-  const handleSearchScoreChange = (value: number | string) => {
-    setSearchScore(value === "" ? "" : (value as number));
-  };
 
   return (
     <Stack gap="xl">
@@ -97,13 +73,24 @@ export function LeaderboardPage() {
             <NumberInput
               label="Score"
               value={score}
-              onChange={handleScoreChange}
+              onChange={(value) =>
+                setScore(value === "" ? "" : (value as number))
+              }
               placeholder="Enter score"
               min={0}
               style={{ flex: 1 }}
             />
             <Button
-              onClick={handleAddScore}
+              onClick={() => {
+                if (playerName && score !== "") {
+                  addScore({ name: playerName, score: score })
+                    .then(() => {
+                      setPlayerName("");
+                      setScore("");
+                    })
+                    .catch(console.error);
+                }
+              }}
               disabled={!playerName || score === ""}
               style={{ alignSelf: "end" }}
             >
@@ -164,7 +151,9 @@ export function LeaderboardPage() {
               <Group gap="md">
                 <NumberInput
                   value={searchScore}
-                  onChange={handleSearchScoreChange}
+                  onChange={(value) =>
+                    setSearchScore(value === "" ? "" : (value as number))
+                  }
                   placeholder="Enter score"
                   min={0}
                   style={{ flex: 1 }}

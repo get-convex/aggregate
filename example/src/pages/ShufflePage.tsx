@@ -21,7 +21,6 @@ export function ShufflePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
 
-  // Queries
   const randomMusic = useQuery(api.shuffle.getRandomMusicTitle, {
     cacheBuster: Date.now(),
   });
@@ -31,18 +30,7 @@ export function ShufflePage() {
     seed,
   });
 
-  // Mutations
   const addMusic = useMutation(api.shuffle.addMusic);
-
-  const handleAddMusic = () => {
-    if (title) {
-      addMusic({ title })
-        .then(() => {
-          setTitle("");
-        })
-        .catch(console.error);
-    }
-  };
 
   return (
     <Stack gap="xl">
@@ -76,7 +64,15 @@ export function ShufflePage() {
               style={{ flex: 1 }}
             />
             <Button
-              onClick={handleAddMusic}
+              onClick={() => {
+                if (title) {
+                  addMusic({ title })
+                    .then(() => {
+                      setTitle("");
+                    })
+                    .catch(console.error);
+                }
+              }}
               disabled={!title}
               style={{ alignSelf: "end" }}
             >
