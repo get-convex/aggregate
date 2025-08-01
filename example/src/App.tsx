@@ -18,7 +18,12 @@ export default function App() {
   const route = useRoute();
 
   return (
-    <AppShell header={{ height: 60 }} padding="md" bg="dark.8">
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 200, breakpoint: "sm" }}
+      padding="md"
+      bg="dark.8"
+    >
       <AppShell.Header bg="dark.7">
         <Group justify="space-between" p="md">
           <Text size="lg" fw={500} c="white">
@@ -27,7 +32,7 @@ export default function App() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Aside bg="dark.7" p="md">
+      <AppShell.Navbar bg="dark.7" p="md">
         <Stack gap="xs">
           <NavLink
             label="Home"
@@ -60,10 +65,14 @@ export default function App() {
             c="white"
           />
         </Stack>
-      </AppShell.Aside>
+      </AppShell.Navbar>
 
       <AppShell.Main bg="dark.8">
-        <Container size="lg" py="xl">
+        <Container
+          size="xl"
+          py={{ base: "md", sm: "xl" }}
+          px={{ base: "sm", sm: "md" }}
+        >
           <Routes />
         </Container>
       </AppShell.Main>

@@ -11,6 +11,7 @@ import {
   Image,
   Pagination,
   Alert,
+  SimpleGrid,
 } from "@mantine/core";
 import { useState } from "react";
 
@@ -58,29 +59,28 @@ export function PhotosPage() {
           <Title order={2} c="white">
             Add New Photo
           </Title>
-          <Group gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
             <TextInput
               label="Album"
               value={album}
               onChange={(e) => setAlbum(e.target.value)}
               placeholder="Enter album name"
-              style={{ flex: 1 }}
             />
             <TextInput
               label="Photo URL"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="Enter photo URL"
-              style={{ flex: 1 }}
             />
             <Button
               onClick={handleAddPhoto}
               disabled={!album || !url}
               style={{ alignSelf: "end" }}
+              fullWidth
             >
               Add Photo
             </Button>
-          </Group>
+          </SimpleGrid>
         </Stack>
       </Card>
 
@@ -93,9 +93,12 @@ export function PhotosPage() {
 
           {photos && photos.length > 0 ? (
             <Stack gap="md">
-              <Group gap="md">
+              <SimpleGrid
+                cols={{ base: 1, xs: 2, sm: 3, md: 4, lg: 5 }}
+                spacing="md"
+              >
                 {photos.map((photoUrl, index) => (
-                  <Card key={index} bg="dark.6" p="md" style={{ width: 200 }}>
+                  <Card key={index} bg="dark.6" p="md">
                     <Image
                       src={photoUrl}
                       alt={`Photo ${index + 1}`}
@@ -107,7 +110,7 @@ export function PhotosPage() {
                     </Text>
                   </Card>
                 ))}
-              </Group>
+              </SimpleGrid>
 
               <Group justify="center">
                 <Pagination
