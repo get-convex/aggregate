@@ -6,6 +6,7 @@ import {
   IconArrowsShuffle,
   IconChartPie,
 } from "@tabler/icons-react";
+import { routes } from "../routes";
 
 export function HomePage() {
   return (
@@ -23,7 +24,13 @@ export function HomePage() {
       </Text>
 
       <Group justify="center" gap="md">
-        <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
+        <Card
+          bg="dark.7"
+          p="lg"
+          style={{ minWidth: 200, cursor: "pointer" }}
+          onClick={() => routes.leaderboard().push()}
+          className="hover-card"
+        >
           <Stack gap="md">
             <Group gap="sm">
               <IconTrophy size={24} color="orange" />
@@ -38,7 +45,13 @@ export function HomePage() {
           </Stack>
         </Card>
 
-        <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
+        <Card
+          bg="dark.7"
+          p="lg"
+          style={{ minWidth: 200, cursor: "pointer" }}
+          onClick={() => routes.photos().push()}
+          className="hover-card"
+        >
           <Stack gap="md">
             <Group gap="sm">
               <IconPhoto size={24} color="cyan" />
@@ -53,7 +66,13 @@ export function HomePage() {
           </Stack>
         </Card>
 
-        <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
+        <Card
+          bg="dark.7"
+          p="lg"
+          style={{ minWidth: 200, cursor: "pointer" }}
+          onClick={() => routes.shuffle().push()}
+          className="hover-card"
+        >
           <Stack gap="md">
             <Group gap="sm">
               <IconArrowsShuffle size={24} color="purple" />
@@ -68,7 +87,13 @@ export function HomePage() {
           </Stack>
         </Card>
 
-        <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
+        <Card
+          bg="dark.7"
+          p="lg"
+          style={{ minWidth: 200, cursor: "pointer" }}
+          onClick={() => routes.stats().push()}
+          className="hover-card"
+        >
           <Stack gap="md">
             <Group gap="sm">
               <IconChartPie size={24} color="yellow" />
