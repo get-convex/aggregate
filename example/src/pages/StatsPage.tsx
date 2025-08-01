@@ -9,6 +9,7 @@ import {
   NumberInput,
   Button,
   Alert,
+  SimpleGrid,
 } from "@mantine/core";
 import { IconChartPie } from "@tabler/icons-react";
 import { useState } from "react";
@@ -80,8 +81,8 @@ export function StatsPage() {
           </Title>
 
           {stats ? (
-            <Group gap="md">
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+            <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 6 }} spacing="md">
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     Mean
@@ -91,7 +92,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     Median
@@ -101,7 +102,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     75th Percentile
@@ -111,7 +112,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     95th Percentile
@@ -121,7 +122,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     Min
@@ -131,7 +132,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-              <Card bg="dark.6" p="md" style={{ flex: 1 }}>
+              <Card bg="dark.6" p="md">
                 <Stack gap="xs">
                   <Text size="sm" c="gray.4">
                     Max
@@ -141,7 +142,7 @@ export function StatsPage() {
                   </Title>
                 </Stack>
               </Card>
-            </Group>
+            </SimpleGrid>
           ) : (
             <Alert color="blue" title="No stats yet">
               Report some latency values to see the statistics!
