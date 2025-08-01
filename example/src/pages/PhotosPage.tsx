@@ -15,8 +15,11 @@ import {
 } from "@mantine/core";
 import { IconPhoto } from "@tabler/icons-react";
 import { useState } from "react";
+import { useApiErrorHandler } from "@/utils/errors";
 
 export function PhotosPage() {
+  const onApiError = useApiErrorHandler();
+
   const [album, setAlbum] = useState("");
   const [url, setUrl] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -65,14 +68,14 @@ export function PhotosPage() {
             />
             <Button
               onClick={() => {
-                if (album && url) {
-                  addPhoto({ album, url })
-                    .then(() => {
-                      setAlbum("");
-                      setUrl("");
-                    })
-                    .catch(console.error);
-                }
+                if (!album) return;
+                if (!url) return;
+                addPhoto({ album, url })
+                  .then(() => {
+                    setAlbum("");
+                    setUrl("");
+                  })
+                  .catch(onApiError);
               }}
               disabled={!album || !url}
               style={{ alignSelf: "end" }}

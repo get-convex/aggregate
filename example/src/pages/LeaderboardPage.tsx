@@ -15,8 +15,11 @@ import {
 } from "@mantine/core";
 import { IconTrophy } from "@tabler/icons-react";
 import { useState } from "react";
+import { useApiErrorHandler } from "@/utils/errors";
 
 export function LeaderboardPage() {
+  const onApiError = useApiErrorHandler();
+
   const [playerName, setPlayerName] = useState("");
   const [score, setScore] = useState<number | "">("");
   const [searchScore, setSearchScore] = useState<number | "">("");
@@ -82,14 +85,14 @@ export function LeaderboardPage() {
             />
             <Button
               onClick={() => {
-                if (playerName && score !== "") {
-                  addScore({ name: playerName, score: score })
-                    .then(() => {
-                      setPlayerName("");
-                      setScore("");
-                    })
-                    .catch(console.error);
-                }
+                if (!playerName) return;
+                if (!score) return;
+                addScore({ name: playerName, score: score })
+                  .then(() => {
+                    setPlayerName("");
+                    setScore("");
+                  })
+                  .catch(onApiError);
               }}
               disabled={!playerName || score === ""}
               style={{ alignSelf: "end" }}
@@ -229,7 +232,7 @@ export function LeaderboardPage() {
                           size="xs"
                           color="red"
                           onClick={() =>
-                            removeScore({ id: score._id }).catch(console.error)
+                            removeScore({ id: score._id }).catch(onApiError)
                           }
                         >
                           Remove

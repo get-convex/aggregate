@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { MantineProvider, createTheme } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import "./index.css";
 import App from "./App.tsx";
 import { RouteProvider } from "./routes.ts";
@@ -27,6 +28,7 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="dark">
+      <Notifications />
       <ConvexProvider client={convex}>
         <RouteProvider>
           <App />

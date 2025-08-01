@@ -14,15 +14,19 @@ import {
 } from "@mantine/core";
 import { IconArrowsShuffle, IconMusic } from "@tabler/icons-react";
 import { useState } from "react";
+import { useApiErrorHandler } from "@/utils/errors";
 
 export function ShufflePage() {
+  const onApiError = useApiErrorHandler();
+
   const [title, setTitle] = useState("");
   const [seed, setSeed] = useState("music");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
+  const [cacheBuster, setCacheBuster] = useState(0);
 
   const randomMusic = useQuery(api.shuffle.getRandomMusicTitle, {
-    cacheBuster: Date.now(),
+    cacheBuster,
   });
   const shuffledMusic = useQuery(api.shuffle.shufflePaginated, {
     offset: (currentPage - 1) * pageSize,
@@ -65,13 +69,12 @@ export function ShufflePage() {
             />
             <Button
               onClick={() => {
-                if (title) {
-                  addMusic({ title })
-                    .then(() => {
-                      setTitle("");
-                    })
-                    .catch(console.error);
-                }
+                if (!title) return;
+                addMusic({ title })
+                  .then(() => {
+                    setTitle("");
+                  })
+                  .catch(onApiError);
               }}
               disabled={!title}
               style={{ alignSelf: "end" }}
@@ -97,7 +100,10 @@ export function ShufflePage() {
                 {randomMusic ?? "Loading..."}
               </Badge>
             </Stack>
-            <Button onClick={() => window.location.reload()} variant="outline">
+            <Button
+              onClick={() => setCacheBuster((prev) => prev + 1)}
+              variant="outline"
+            >
               Get New Random
             </Button>
           </Group>
