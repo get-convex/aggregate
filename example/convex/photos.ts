@@ -78,6 +78,13 @@ export const pageOfPhotos = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems, album }) => {
+    // Check if the album has any photos first
+    const firstPhoto = await ctx.db
+      .query("photos")
+      .withIndex("by_album_creation_time", (q) => q.eq("album", album))
+      .first();
+    if (!firstPhoto) return [];
+
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
       namespace: album,
     });
