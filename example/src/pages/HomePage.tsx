@@ -1,11 +1,21 @@
 import { Title, Text, Card, Stack, Group, Badge } from "@mantine/core";
+import {
+  IconHome,
+  IconTrophy,
+  IconPhoto,
+  IconArrowsShuffle,
+  IconChartPie,
+} from "@tabler/icons-react";
 
 export function HomePage() {
   return (
     <Stack gap="xl">
-      <Title order={1} ta="center" size="3rem" fw={700} c="white">
-        Convex Aggregate Demo
-      </Title>
+      <Group justify="center" gap="md">
+        <IconHome size={48} color="white" />
+        <Title order={1} ta="center" size="3rem" fw={700} c="white">
+          Convex Aggregate Demo
+        </Title>
+      </Group>
 
       <Text size="lg" c="gray.3" ta="center">
         Explore the power of Convex Aggregate component with these interactive
@@ -15,9 +25,12 @@ export function HomePage() {
       <Group justify="center" gap="md">
         <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
           <Stack gap="md">
-            <Title order={3} c="white">
-              Leaderboard
-            </Title>
+            <Group gap="sm">
+              <IconTrophy size={24} color="orange" />
+              <Title order={3} c="white">
+                Leaderboard
+              </Title>
+            </Group>
             <Text size="sm" c="gray.4">
               Game scores with rankings, averages, and user statistics
             </Text>
@@ -27,9 +40,12 @@ export function HomePage() {
 
         <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
           <Stack gap="md">
-            <Title order={3} c="white">
-              Photos
-            </Title>
+            <Group gap="sm">
+              <IconPhoto size={24} color="cyan" />
+              <Title order={3} c="white">
+                Photos
+              </Title>
+            </Group>
             <Text size="sm" c="gray.4">
               Offset-based pagination for photo galleries
             </Text>
@@ -39,9 +55,12 @@ export function HomePage() {
 
         <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
           <Stack gap="md">
-            <Title order={3} c="white">
-              Shuffle
-            </Title>
+            <Group gap="sm">
+              <IconArrowsShuffle size={24} color="purple" />
+              <Title order={3} c="white">
+                Shuffle
+              </Title>
+            </Group>
             <Text size="sm" c="gray.4">
               Random selection and shuffled music playlists
             </Text>
@@ -51,9 +70,12 @@ export function HomePage() {
 
         <Card bg="dark.7" p="lg" style={{ minWidth: 200 }}>
           <Stack gap="md">
-            <Title order={3} c="white">
-              Stats
-            </Title>
+            <Group gap="sm">
+              <IconChartPie size={24} color="yellow" />
+              <Title order={3} c="white">
+                Stats
+              </Title>
+            </Group>
             <Text size="sm" c="gray.4">
               Direct aggregation without table dependencies
             </Text>

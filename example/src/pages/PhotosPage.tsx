@@ -13,6 +13,7 @@ import {
   Alert,
   SimpleGrid,
 } from "@mantine/core";
+import { IconPhoto } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function PhotosPage() {
@@ -44,9 +45,12 @@ export function PhotosPage() {
 
   return (
     <Stack gap="xl">
-      <Title order={1} ta="center" c="white">
-        Photos Demo
-      </Title>
+      <Group justify="center" gap="md">
+        <IconPhoto size={32} color="white" />
+        <Title order={1} ta="center" c="white">
+          Photos Demo
+        </Title>
+      </Group>
 
       <Text c="gray.3" ta="center">
         Offset-based pagination for photo galleries with efficient O(log(n))

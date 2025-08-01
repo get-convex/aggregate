@@ -12,6 +12,7 @@ import {
   Alert,
   List,
 } from "@mantine/core";
+import { IconArrowsShuffle, IconMusic } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function ShufflePage() {
@@ -45,9 +46,12 @@ export function ShufflePage() {
 
   return (
     <Stack gap="xl">
-      <Title order={1} ta="center" c="white">
-        Shuffle Demo
-      </Title>
+      <Group justify="center" gap="md">
+        <IconArrowsShuffle size={32} color="white" />
+        <Title order={1} ta="center" c="white">
+          Shuffle Demo
+        </Title>
+      </Group>
 
       <Text c="gray.3" ta="center">
         Random selection and shuffled music playlists with O(log(n)) random
@@ -57,9 +61,12 @@ export function ShufflePage() {
       {/* Add Music Section */}
       <Card bg="dark.7" p="xl">
         <Stack gap="md">
-          <Title order={2} c="white">
-            Add New Music
-          </Title>
+          <Group gap="sm">
+            <IconMusic size={24} color="white" />
+            <Title order={2} c="white">
+              Add New Music
+            </Title>
+          </Group>
           <Group gap="md">
             <TextInput
               label="Song Title"
