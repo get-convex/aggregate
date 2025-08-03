@@ -1,8 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { TableAggregate } from "./index.js";
-import { initConvexTest, components } from "./setup.test.js";
+import {
+  components,
+  componentSchema,
+  componentModules,
+  modules,
+} from "./setup.test.js";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { convexTest } from "convex-test";
 
 const schema = defineSchema({
   testItems: defineTable({
@@ -11,9 +17,15 @@ const schema = defineSchema({
   }),
 });
 
+function setupTest() {
+  const t = convexTest(schema, modules);
+  t.registerComponent("aggregate", componentSchema, componentModules);
+  return t;
+}
+
 describe("TableAggregate", () => {
   test("should count zero items in empty table", async () => {
-    const t = initConvexTest(schema);
+    const t = setupTest();
 
     const aggregate = new TableAggregate(components.aggregate, {
       sortKey: (doc) => doc.value,
@@ -27,7 +39,7 @@ describe("TableAggregate", () => {
   });
 
   test("should count two items after inserting two documents", async () => {
-    const t = initConvexTest(schema);
+    const t = setupTest();
 
     const aggregate = new TableAggregate(components.aggregate, {
       sortKey: (doc) => doc.value,
