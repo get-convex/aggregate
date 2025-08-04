@@ -13,7 +13,7 @@ import {
   mutation as rawMutation,
   query,
 } from "../../example/convex/_generated/server";
-import { components } from "../../example/convex/_generated/api";
+import { api, components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
 import {
@@ -86,9 +86,9 @@ export const pageOfPhotos = query({
   },
 });
 
-// -----
+// ----- internal -----
 
-export const resetWithoutTriggers = rawInternalMutation({
+export const resetAll = internalMutation({
   args: {},
   handler: async (ctx) => {
     // Just delete table records - triggers will automatically keep aggregate in sync
@@ -102,5 +102,18 @@ export const resetWithoutTriggers = rawInternalMutation({
       maxNodeSize: 4,
       rootLazy: false,
     });
+  },
+});
+
+export const addPhotos = internalMutation({
+  args: {
+    photos: v.array(v.object({ album: v.string(), url: v.string() })),
+  },
+  handler: async (ctx, { photos }) => {
+    await Promise.all(
+      photos.map((photo) =>
+        ctx.db.insert("photos", { album: photo.album, url: photo.url })
+      )
+    );
   },
 });

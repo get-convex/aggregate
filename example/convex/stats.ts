@@ -30,20 +30,6 @@ export const reportLatency = mutation({
   },
 });
 
-export const resetStats = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    console.log("Resetting stats...");
-
-    // Clear the direct aggregate
-    await stats.clear(ctx);
-
-    console.log("Stats reset complete");
-    return null;
-  },
-});
-
 export const getStats = query({
   args: {},
   handler: async (ctx) => {
@@ -64,5 +50,39 @@ export const getStats = query({
       max,
       min,
     };
+  },
+});
+
+// ----- internal -----
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting stats...");
+
+    // Clear the direct aggregate
+    await stats.clear(ctx);
+
+    console.log("Stats reset complete");
+    return null;
+  },
+});
+
+export const addLatencies = mutation({
+  args: {
+    latencies: v.array(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { latencies }) => {
+    await Promise.all(
+      latencies.map((latency) =>
+        stats.insert(ctx, {
+          key: latency,
+          id: new Date().toISOString(),
+          sumValue: latency,
+        })
+      )
+    );
   },
 });

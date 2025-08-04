@@ -1,80 +1,102 @@
 import { cronJobs } from "convex/server";
 import { api, internal } from "./_generated/api";
-import { internalAction, internalMutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { resetWithoutTriggers } from "./photos";
 
-export const resetAllData = internalMutation({
+export const resetAndSeed = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
     console.log("Starting daily data reset...");
 
-    await ctx.runMutation(internal.photos.resetWithoutTriggers);
-    // Reset all modules in parallel for better performance
-    // await Promise.all([
-    //   ctx.runMutation(internal.leaderboard.resetLeaderboard),
+    // Reset all modules in parallel
+    await Promise.all([
+      ctx.runMutation(internal.leaderboard.resetAll),
+      ctx.runMutation(internal.photos.resetAll),
+      ctx.runMutation(internal.shuffle.resetAll),
+      ctx.runMutation(internal.stats.resetAll),
+    ]);
 
-    //   ctx.runMutation(internal.shuffle.resetShuffle),
-    //   ctx.runMutation(internal.stats.resetStats),
-    // ]);
+    await ctx.runMutation(api.leaderboard.add100MockScores);
 
-    // // Seed some initial data
-    // await ctx.runMutation(internal.crons.seedInitialData);
+    // Add some initial photos
+    await ctx.runMutation(internal.photos.addPhotos, {
+      photos: [
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
+        },
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+        },
+        {
+          album: "Cities",
+          url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000",
+        },
+        {
+          album: "Cities",
+          url: "https://images.unsplash.com/photo-1444723121867-7a241cacace9",
+        },
+        {
+          album: "People",
+          url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
+        },
+      ],
+    });
+
+    await ctx.runMutation(internal.shuffle.addAll, {
+      titles: [
+        "Bohemian Rhapsody - Queen",
+        "Stairway to Heaven - Led Zeppelin",
+        "Hotel California - Eagles",
+        "Imagine - John Lennon",
+        "Sweet Child O' Mine - Guns N' Roses",
+        "Smells Like Teen Spirit - Nirvana",
+        "Hey Jude - The Beatles",
+        "Like a Rolling Stone - Bob Dylan",
+        "Billie Jean - Michael Jackson",
+        "Comfortably Numb - Pink Floyd",
+        "Let It Be - The Beatles",
+        "Wonderwall - Oasis",
+        "Purple Rain - Prince",
+        "Yesterday - The Beatles",
+        "Losing My Religion - R.E.M.",
+        "Hallelujah - Jeff Buckley",
+        "No Woman, No Cry - Bob Marley",
+        "Livin' on a Prayer - Bon Jovi",
+        "Every Breath You Take - The Police",
+        "Africa - Toto",
+        "Don't Stop Believin' - Journey",
+        "Back in Black - AC/DC",
+        "Wish You Were Here - Pink Floyd",
+        "November Rain - Guns N' Roses",
+        "One - U2",
+        "Paint It Black - The Rolling Stones",
+        "Creep - Radiohead",
+        "Enter Sandman - Metallica",
+        "With or Without You - U2",
+        "Heroes - David Bowie",
+        "Blackbird - The Beatles",
+        "Nothing Else Matters - Metallica",
+        "Space Oddity - David Bowie",
+        "Under Pressure - Queen & David Bowie",
+        "Sultans of Swing - Dire Straits",
+        "Imagine Dragons - Radioactive",
+      ],
+    });
+
+    await ctx.runMutation(api.stats.addLatencies, {
+      latencies: (() => {
+        const latencies = new Set<number>()
+        while (latencies.size < 55) {
+          latencies.add(Math.floor(Math.random() * 1000) + 50)
+        }
+        return Array.from(latencies)
+      })(),
+    });
 
     console.log("Daily data reset completed successfully!");
-    return null;
-  },
-});
-
-/**
- * Seed some initial data after reset.
- * This directly inserts data since aggregates have been cleared.
- * The aggregates will be rebuilt through triggers when data is accessed.
- */
-export const seedInitialData = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    // await ctx.runMutation(internal.shuffle.addAllMusic, {
-    //   titles: [
-    //     "Bohemian Rhapsody - Queen",
-    //     "Stairway to Heaven - Led Zeppelin",
-    //     "Hotel California - Eagles",
-    //     "Imagine - John Lennon",
-    //     "Sweet Child O' Mine - Guns N' Roses",
-    //   ],
-    // });
-
-    // // Add some initial photos directly
-    // const initialPhotos = [
-    //   {
-    //     album: "Nature",
-    //     url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
-    //   },
-    //   {
-    //     album: "Nature",
-    //     url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
-    //   },
-    //   {
-    //     album: "Cities",
-    //     url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000",
-    //   },
-    //   {
-    //     album: "Cities",
-    //     url: "https://images.unsplash.com/photo-1444723121867-7a241cacace9",
-    //   },
-    //   {
-    //     album: "People",
-    //     url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
-    //   },
-    // ];
-
-    // for (const photo of initialPhotos) await ctx.db.insert("photos", photo);
-
-    // await ctx.runMutation(api.leaderboard.add100MockScores);
-
-    console.log("Initial data seeded - aggregates will rebuild when accessed");
     return null;
   },
 });
@@ -86,7 +108,7 @@ const crons = cronJobs();
 crons.interval(
   "daily data reset",
   { hours: 24 },
-  internal.crons.resetAllData,
+  internal.crons.resetAndSeed,
   {}
 );
 

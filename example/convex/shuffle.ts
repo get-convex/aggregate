@@ -35,15 +35,6 @@ export const addMusic = mutation({
   handler: _addMusic,
 });
 
-export const addAllMusic = internalMutation({
-  args: {
-    titles: v.array(v.string()),
-  },
-  handler: async (ctx, { titles }) => {
-    await Promise.all(titles.map((title) => _addMusic(ctx, { title })));
-  },
-});
-
 export const removeMusic = mutation({
   args: {
     id: v.id("music"),
@@ -52,26 +43,6 @@ export const removeMusic = mutation({
     const doc = (await ctx.db.get(id))!;
     await ctx.db.delete(id);
     await randomize.delete(ctx, doc);
-  },
-});
-
-export const resetShuffle = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    console.log("Resetting shuffle/music...");
-
-    // Clear table first to avoid race conditions
-    const musicDocs = await ctx.db.query("music").collect();
-    for (const doc of musicDocs) {
-      await ctx.db.delete(doc._id);
-    }
-
-    // Then clear the aggregate
-    await randomize.clear(ctx);
-
-    console.log("Shuffle/music reset complete");
-    return null;
   },
 });
 
@@ -149,3 +120,34 @@ function shuffle<T>(array: T[], rand: Rand): T[] {
   }
   return array;
 }
+
+// ----- internal -----
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting shuffle/music...");
+
+    // Clear table first to avoid race conditions
+    const musicDocs = await ctx.db.query("music").collect();
+    for (const doc of musicDocs) {
+      await ctx.db.delete(doc._id);
+    }
+
+    // Then clear the aggregate
+    await randomize.clearAll(ctx);
+
+    console.log("Shuffle/music reset complete");
+    return null;
+  },
+});
+
+export const addAll = internalMutation({
+  args: {
+    titles: v.array(v.string()),
+  },
+  handler: async (ctx, { titles }) => {
+    await Promise.all(titles.map((title) => _addMusic(ctx, { title })));
+  },
+});

@@ -33,47 +33,6 @@ const aggregateScoreByUser = new TableAggregate<{
   sumValue: (doc) => doc.score,
 });
 
-export const backfillAggregatesMigration = migrations.define({
-  table: "leaderboard",
-  migrateOne: async (ctx, doc) => {
-    await aggregateByScore.insertIfDoesNotExist(ctx, doc);
-    await aggregateScoreByUser.insertIfDoesNotExist(ctx, doc);
-    console.log("backfilled", doc.name, doc.score);
-  },
-});
-
-const _clearAggregates = async (ctx: MutationCtx) => {
-  await aggregateByScore.clear(ctx);
-  await aggregateScoreByUser.clear(ctx);
-};
-
-export const clearAggregates = internalMutation(_clearAggregates);
-
-export const resetLeaderboard = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    console.log("Resetting leaderboard...");
-
-    // Clear docs
-    const leaderboardDocs = await ctx.db.query("leaderboard").collect();
-    for (const doc of leaderboardDocs) await ctx.db.delete(doc._id);
-
-    // Reset aggregate
-    await _clearAggregates(ctx);
-
-    console.log("Leaderboard reset complete");
-    return null;
-  },
-});
-
-// This is what you can run, from the Convex dashboard or with `npx convex run`,
-// to backfill aggregates for existing leaderboard entries, if you created the
-// leaderboard before adding the aggregate components.
-export const runAggregateBackfill = migrations.runner(
-  internal.leaderboard.backfillAggregatesMigration
-);
-
 export const addScore = mutation({
   args: {
     name: v.string(),
@@ -243,6 +202,51 @@ export const add100MockScores = mutation({
       await aggregateScoreByUser.insert(ctx, doc!);
     }
 
+    return null;
+  },
+});
+
+// ---- migrations ----
+
+export const backfillAggregatesMigration = migrations.define({
+  table: "leaderboard",
+  migrateOne: async (ctx, doc) => {
+    await aggregateByScore.insertIfDoesNotExist(ctx, doc);
+    await aggregateScoreByUser.insertIfDoesNotExist(ctx, doc);
+    console.log("backfilled", doc.name, doc.score);
+  },
+});
+
+// This is what you can run, from the Convex dashboard or with `npx convex run`,
+// to backfill aggregates for existing leaderboard entries, if you created the
+// leaderboard before adding the aggregate components.
+export const runAggregateBackfill = migrations.runner(
+  internal.leaderboard.backfillAggregatesMigration
+);
+
+// ---- internal ----
+
+const _clearAggregates = async (ctx: MutationCtx) => {
+  await aggregateByScore.clear(ctx);
+  await aggregateScoreByUser.clear(ctx);
+};
+
+export const clearAggregates = internalMutation(_clearAggregates);
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Resetting leaderboard...");
+
+    // Clear docs
+    const leaderboardDocs = await ctx.db.query("leaderboard").collect();
+    for (const doc of leaderboardDocs) await ctx.db.delete(doc._id);
+
+    // Reset aggregate
+    await _clearAggregates(ctx);
+
+    console.log("Leaderboard reset complete");
     return null;
   },
 });
