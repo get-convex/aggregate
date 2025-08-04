@@ -9,11 +9,16 @@ import {
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { convexTest } from "convex-test";
+import { GenericDataModel, DataModelFromSchemaDefinition } from "convex/server";
 
 const schema = defineSchema({
   testItems: defineTable({
     name: v.string(),
     value: v.number(),
+  }),
+  photos: defineTable({
+    album: v.string(),
+    url: v.string(),
   }),
 });
 
@@ -24,6 +29,7 @@ function setupTest() {
 }
 
 type ConvexTest = ReturnType<typeof setupTest>;
+type DataModel = DataModelFromSchemaDefinition<typeof schema>;
 
 describe("TableAggregate", () => {
   describe("count", () => {
@@ -171,6 +177,105 @@ describe("TableAggregate", () => {
         return await aggregate.count(ctx);
       });
       expect(countAfterSecondClear).toBe(0);
+    });
+  });
+});
+
+describe("TableAggregate with namespace", () => {
+  let t: ConvexTest;
+  const aggregateWithNamespace = new TableAggregate<{
+    Namespace: string;
+    Key: number;
+    DataModel: DataModel;
+    TableName: "photos";
+  }>(components.aggregate, {
+    namespace: (doc) => doc.album,
+    sortKey: (doc) => doc._creationTime,
+  });
+
+  beforeEach(() => {
+    t = setupTest();
+  });
+
+  describe("count", () => {
+    test("should require bounds when namespace is used", async () => {
+      // This demonstrates that bounds is now required
+      const result = await t.run(async (ctx) => {
+        // With namespace, we must provide bounds - this should compile
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "album1",
+          bounds: { lower: { key: 0, inclusive: true } },
+        });
+      });
+
+      expect(result).toBe(0);
+
+      // Note: The following line would cause a TypeScript compilation error:
+      // await aggregateWithNamespace.count(ctx); // ❌ Error: bounds required when namespace is used
+
+      // The error would be something like:
+      // Expected 2 arguments, but got 1. An argument for 'opts' was not provided.
+    });
+
+    test("should demonstrate namespace requirement with actual data", async () => {
+      type PhotosAggregateType = {
+        Namespace: string;
+        Key: number;
+        DataModel: GenericDataModel;
+        TableName: "photos";
+      };
+
+      const photosAggregate = new TableAggregate<PhotosAggregateType>(
+        components.aggregate,
+        {
+          namespace: (doc) => (doc as { album: string }).album,
+          sortKey: (doc) => (doc as { _creationTime: number })._creationTime,
+        }
+      );
+
+      // Insert some test photos in different albums
+      await t.run(async (ctx) => {
+        const id1 = await ctx.db.insert("photos", {
+          album: "vacation",
+          url: "photo1.jpg",
+        });
+        const doc1 = await ctx.db.get(id1);
+        await photosAggregate.insert(ctx, doc1!);
+
+        const id2 = await ctx.db.insert("photos", {
+          album: "vacation",
+          url: "photo2.jpg",
+        });
+        const doc2 = await ctx.db.get(id2);
+        await photosAggregate.insert(ctx, doc2!);
+
+        const id3 = await ctx.db.insert("photos", {
+          album: "family",
+          url: "photo3.jpg",
+        });
+        const doc3 = await ctx.db.get(id3);
+        await photosAggregate.insert(ctx, doc3!);
+      });
+
+      // Count photos in "vacation" album - bounds required due to namespace
+      const vacationCount = await t.run(async (ctx) => {
+        return await photosAggregate.count(ctx, {
+          namespace: "vacation",
+          bounds: {}, // Empty bounds means all items in the namespace
+        });
+      });
+
+      expect(vacationCount).toBe(2);
+
+      // Count photos in "family" album
+      const familyCount = await t.run(async (ctx) => {
+        return await photosAggregate.count(ctx, {
+          namespace: "family",
+          bounds: {},
+        });
+      });
+
+      expect(familyCount).toBe(1);
     });
   });
 });
