@@ -5,6 +5,7 @@ import {
   NavLink,
   Group,
   Stack,
+  Button,
 } from "@mantine/core";
 import {
   IconHome,
@@ -12,6 +13,8 @@ import {
   IconPhoto,
   IconArrowsShuffle,
   IconChartPie,
+  IconBrandGithub,
+  IconExternalLink,
 } from "@tabler/icons-react";
 import { HomePage } from "./pages/HomePage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
@@ -36,6 +39,16 @@ export default function App() {
           <Text size="lg" fw={500} c="white">
             Convex Aggregate Demo
           </Text>
+          <Button
+            component="a"
+            href="https://github.com/get-convex/aggregate"
+            target="_blank"
+            color="cyan"
+            leftSection={<IconBrandGithub size={18} />}
+            rightSection={<IconExternalLink size={18} />}
+          >
+            View Source
+          </Button>
         </Group>
       </AppShell.Header>
 

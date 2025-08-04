@@ -14,11 +14,7 @@ import {
   SimpleGrid,
   Badge,
   Select,
-  Code,
-  Paper,
-  List,
   ThemeIcon,
-  Divider,
   Grid,
   Anchor,
 } from "@mantine/core";
@@ -73,13 +69,6 @@ export function PhotosPage() {
         <Title order={1} ta="center" c="white">
           Offset-Based Pagination Demo
         </Title>
-        <Badge
-          size="lg"
-          variant="gradient"
-          gradient={{ from: "blue", to: "cyan" }}
-        >
-          O(log n) Performance
-        </Badge>
       </Group>
 
       <Text c="gray.3" ta="center" size="lg">

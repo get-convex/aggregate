@@ -65,13 +65,6 @@ export function LeaderboardPage() {
         <Title order={1} ta="center" c="white">
           Leaderboard Demo
         </Title>
-        <Badge
-          size="lg"
-          variant="gradient"
-          gradient={{ from: "orange", to: "red" }}
-        >
-          O(log n) Rankings
-        </Badge>
       </Group>
 
       <Text c="gray.3" ta="center" size="lg">

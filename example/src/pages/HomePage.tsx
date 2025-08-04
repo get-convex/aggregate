@@ -1,11 +1,10 @@
-import { Title, Text, Card, Stack, Group, Badge, Anchor } from "@mantine/core";
+import { Title, Text, Card, Stack, Group } from "@mantine/core";
 import {
   IconHome,
   IconTrophy,
   IconPhoto,
   IconArrowsShuffle,
   IconChartPie,
-  IconCode,
 } from "@tabler/icons-react";
 import { routes } from "../routes";
 
@@ -23,25 +22,6 @@ export function HomePage() {
         Explore the power of Convex Aggregate component with these interactive
         examples
       </Text>
-
-      <Group justify="center">
-        <Card bg="dark.6" p="md">
-          <Group gap="md">
-            <IconCode size={20} color="cyan" />
-            <Text size="sm" c="gray.3">
-              View the component source:
-            </Text>
-            <Anchor
-              href="https://github.com/get-convex/aggregate"
-              target="_blank"
-              c="cyan"
-              size="sm"
-            >
-              GitHub Repository
-            </Anchor>
-          </Group>
-        </Card>
-      </Group>
 
       <Group justify="center" gap="md">
         <Card
