@@ -55,8 +55,48 @@ export const addPhoto = mutation({
 });
 
 /**
+ * Get the total count of photos in an album - demonstrates O(log(n)) count operation
+ */
+export const photoCount = query({
+  args: { album: v.string() },
+  returns: v.number(),
+  handler: async (ctx, { album }) => {
+    // @ts-ignore - namespace should work without bounds
+    return await photos.count(ctx, { namespace: album });
+  },
+});
+
+/**
+ * Get all available albums - useful for the UI
+ */
+export const availableAlbums = query({
+  args: {},
+  returns: v.array(v.object({ name: v.string(), count: v.number() })),
+  handler: async (ctx) => {
+    // Get unique albums from the photos table
+    const allPhotos = await ctx.db.query("photos").collect();
+    const albumNames = [...new Set(allPhotos.map((photo) => photo.album))];
+
+    // Get count for each album using the aggregate
+    const albumsWithCounts = await Promise.all(
+      albumNames.map(async (album) => ({
+        name: album,
+        // @ts-ignore - namespace should work without bounds
+        count: await photos.count(ctx, { namespace: album }),
+      }))
+    );
+
+    return albumsWithCounts.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+/**
  * Call this with {offset:0, numItems:10} to get the first page of photos,
  * then {offset:10, numItems:10} to get the second page, etc.
+ *
+ * This demonstrates the key feature: O(log(n)) offset-based pagination!
+ * Instead of scanning through all photos to find page N, we use the aggregate
+ * to jump directly to the right position.
  */
 export const pageOfPhotos = query({
   args: {
@@ -73,6 +113,7 @@ export const pageOfPhotos = query({
       .first();
     if (!firstPhoto) return [];
 
+    // This is the magic! photos.at() gives us O(log(n)) lookup to any position
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
       namespace: album,
     });

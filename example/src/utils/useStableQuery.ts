@@ -1,0 +1,92 @@
+import { useQuery, usePaginatedQuery } from "convex/react";
+import { useRef } from "react";
+
+/**
+ * Drop-in replacement for useQuery intended to be used with a parametrized query.
+ * Unlike useQuery, useStableQuery does not return undefined while loading new
+ * data when the query arguments change, but instead will continue to return
+ * the previously loaded data until the new data has finished loading.
+ *
+ * See https://stack.convex.dev/help-my-app-is-overreacting for details.
+ *
+ * @param name - string naming the query function
+ * @param ...args - arguments to be passed to the query function
+ * @returns UseQueryResult
+ */
+export const useStableQuery = ((name, ...args) => {
+  const result = useQuery(name, ...args);
+  const stored = useRef(result); // ref objects are stable between rerenders
+
+  // result is only undefined while data is loading
+  // if a freshly loaded result is available, use the ref to store it
+  if (result !== undefined) {
+    stored.current = result;
+  }
+
+  // undefined on first load, stale data while loading, fresh data after loading
+  return stored.current;
+}) as typeof useQuery;
+
+/**
+ * Drop-in replacement for usePaginatedQuery for use with a parametrized query.
+ * Unlike usePaginatedQuery, when query arguments change useStablePaginatedQuery
+ * does not return empty results and 'LoadingMore' status. Instead, it continues
+ * to return the previously loaded results until the new results have finished
+ * loading.
+ *
+ * See https://stack.convex.dev/help-my-app-is-overreacting for details.
+ *
+ * @param name - string naming the query function
+ * @param ...args - arguments to be passed to the query function
+ * @returns UsePaginatedQueryResult
+ */
+export const useStablePaginatedQuery = ((name, ...args) => {
+  const result = usePaginatedQuery(name, ...args);
+  const stored = useRef(result); // ref objects are stable between rerenders
+
+  // If data is still loading, wait and do nothing
+  // If data has finished loading, store the result
+  if (result.status !== "LoadingMore" && result.status !== "LoadingFirstPage") {
+    stored.current = result;
+  }
+
+  return stored.current;
+}) as typeof usePaginatedQuery;
+
+/**
+ * Similar to useStableQuery but returns an object with data and isLoading properties.
+ * The data property contains the stable query result, and isLoading indicates whether
+ * new data is currently being fetched (true when the underlying result === undefined). 
+ * 
+ * This is useful for cases where you want to show loading state while the query is loading,
+ * but also want to show the stable data while it's loading.
+ *
+ * @param name - string naming the query function
+ * @param ...args - arguments to be passed to the query function
+ * @returns Object with data and isLoading properties
+ */
+export const useRicherStableQuery = ((name, ...args) => {
+  const queryResult = useQuery(
+    name as Parameters<typeof useQuery>[0],
+    ...(args as Parameters<typeof useQuery> extends [unknown, ...infer R]
+      ? R
+      : [])
+  );
+  const stableData = useStableQuery(
+    name as Parameters<typeof useQuery>[0],
+    ...(args as Parameters<typeof useQuery> extends [unknown, ...infer R]
+      ? R
+      : [])
+  );
+
+  return {
+    data: stableData,
+    isLoading: queryResult === undefined,
+  };
+}) as <T extends Parameters<typeof useQuery>[0]>(
+  name: T,
+  ..._args: Parameters<typeof useQuery<T>> extends [T, ...infer R] ? R : []
+) => {
+  data: ReturnType<typeof useQuery<T>>;
+  isLoading: boolean;
+};

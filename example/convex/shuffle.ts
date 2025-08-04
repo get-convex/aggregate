@@ -76,7 +76,14 @@ export const shufflePaginated = query({
     numItems: v.number(),
     seed: v.string(),
   },
-  returns: v.array(v.string()),
+  returns: v.object({
+    items: v.array(v.string()),
+    totalCount: v.number(),
+    totalPages: v.number(),
+    currentPage: v.number(),
+    hasNextPage: v.boolean(),
+    hasPrevPage: v.boolean(),
+  }),
   handler: async (ctx, { offset, numItems, seed }) => {
     const count = await randomize.count(ctx);
     // `rand` is a seeded pseudo-random number generator.
@@ -103,12 +110,24 @@ export const shufflePaginated = query({
       indexes.map((i) => randomize.at(ctx, i))
     );
 
-    return await Promise.all(
+    const items = await Promise.all(
       atIndexes.map(async (atIndex) => {
         const doc = (await ctx.db.get(atIndex.id))!;
         return doc.title;
       })
     );
+
+    const totalPages = Math.ceil(count / numItems);
+    const currentPage = Math.floor(offset / numItems) + 1;
+
+    return {
+      items,
+      totalCount: count,
+      totalPages,
+      currentPage,
+      hasNextPage: offset + numItems < count,
+      hasPrevPage: offset > 0,
+    };
   },
 });
 

@@ -15,6 +15,7 @@ import {
 import { IconArrowsShuffle, IconMusic } from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
+import { useStableQuery, useRicherStableQuery } from "../utils/useStableQuery";
 
 export function ShufflePage() {
   const onApiError = useApiErrorHandler();
@@ -28,11 +29,15 @@ export function ShufflePage() {
   const randomMusic = useQuery(api.shuffle.getRandomMusicTitle, {
     cacheBuster,
   });
-  const shuffledMusic = useQuery(api.shuffle.shufflePaginated, {
-    offset: (currentPage - 1) * pageSize,
-    numItems: pageSize,
-    seed,
-  });
+
+  const { data: shuffledMusicResult, isLoading } = useRicherStableQuery(
+    api.shuffle.shufflePaginated,
+    {
+      offset: (currentPage - 1) * pageSize,
+      numItems: pageSize,
+      seed,
+    }
+  );
 
   const addMusic = useMutation(api.shuffle.addMusic);
 
@@ -130,10 +135,16 @@ export function ShufflePage() {
             </Button>
           </Group>
 
-          {shuffledMusic && shuffledMusic.length > 0 ? (
+          {shuffledMusicResult && shuffledMusicResult.items.length > 0 ? (
             <Stack gap="md">
+              <Group justify="space-between" align="center">
+                <Text c="gray.6" size="sm">
+                  {shuffledMusicResult.totalCount} songs total
+                </Text>
+              </Group>
+
               <List spacing="xs">
-                {shuffledMusic.map((song, index) => (
+                {shuffledMusicResult.items.map((song, index) => (
                   <List.Item key={index} c="white">
                     {song}
                   </List.Item>
@@ -143,15 +154,21 @@ export function ShufflePage() {
               <Group justify="center">
                 <Button
                   onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
+                  disabled={!shuffledMusicResult.hasPrevPage || isLoading}
+                  loading={isLoading}
                   variant="outline"
                 >
                   Previous
                 </Button>
-                <Text c="white">Page {currentPage}</Text>
+
+                <Text c="white">
+                  Page {shuffledMusicResult.currentPage} of{" "}
+                  {shuffledMusicResult.totalPages}
+                </Text>
                 <Button
                   onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={shuffledMusic.length < pageSize}
+                  disabled={!shuffledMusicResult.hasNextPage || isLoading}
+                  loading={isLoading}
                   variant="outline"
                 >
                   Next
