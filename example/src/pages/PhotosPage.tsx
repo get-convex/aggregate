@@ -20,6 +20,7 @@ import {
   ThemeIcon,
   Divider,
   Grid,
+  Anchor,
 } from "@mantine/core";
 import {
   IconPhoto,
@@ -28,6 +29,7 @@ import {
   IconChartBar,
   IconBolt,
   IconInfoCircle,
+  IconCode,
 } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
@@ -83,6 +85,25 @@ export function PhotosPage() {
       <Text c="gray.3" ta="center" size="lg">
         Efficient photo gallery pagination using Convex Aggregate component
       </Text>
+
+      <Group justify="center">
+        <Card bg="dark.6" p="md">
+          <Group gap="md">
+            <IconCode size={20} color="cyan" />
+            <Text size="sm" c="gray.3">
+              View the source:
+            </Text>
+            <Anchor
+              href="https://github.com/get-convex/aggregate/blob/main/example/convex/photos.ts"
+              target="_blank"
+              c="cyan"
+              size="sm"
+            >
+              convex/photos.ts
+            </Anchor>
+          </Group>
+        </Card>
+      </Group>
 
       {/* Quick explanation */}
       <Card bg="dark.7" p="md">
@@ -279,74 +300,6 @@ export function PhotosPage() {
           </Stack>
         </Grid.Col>
       </Grid>
-
-      {/* Full-Width Technical Explanation */}
-      <Card bg="dark.7" p="xl">
-        <Stack gap="md">
-          <Group justify="center">
-            <IconRocket size={32} color="white" />
-            <Title order={2} c="white">
-              🚀 The Magic: O(log n) Offset-Based Pagination
-            </Title>
-          </Group>
-
-          <Paper bg="dark.6" p="md">
-            <Text c="gray.3" mb="md">
-              <strong>Traditional approach (slow):</strong> To show page 50 of
-              photos, scan through 2,500 photos to skip the first 49 pages.{" "}
-              <Badge color="red">O(n)</Badge>
-            </Text>
-            <Code block c="red.3">
-              {`// Naive pagination - gets slower as data grows
-const photos = await db.query("photos")
-  .skip(page * pageSize)  // ⚠️ Scans through all skipped items
-  .take(pageSize);`}
-            </Code>
-          </Paper>
-
-          <Paper bg="dark.6" p="md">
-            <Text c="gray.3" mb="md">
-              <strong>Aggregate approach (fast):</strong> Jump directly to any
-              page in logarithmic time, no matter how much data you have!{" "}
-              <Badge color="green">O(log n)</Badge>
-            </Text>
-            <Code block c="green.3">
-              {`// Aggregate pagination - always fast!
-const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
-  namespace: album,
-});
-const photoDocs = await ctx.db
-  .query("photos")
-  .withIndex("by_album_creation_time", (q) =>
-    q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
-  )
-  .take(numItems);
-return photoDocs.map((doc) => doc.url);`}
-            </Code>
-          </Paper>
-
-          <Alert color="cyan" title="Key Benefits" icon={<IconBolt />}>
-            <List>
-              <List.Item>
-                <strong>Namespacing:</strong> Each album is isolated - no
-                interference between albums
-              </List.Item>
-              <List.Item>
-                <strong>Reactive:</strong> UI updates automatically when photos
-                are added/removed
-              </List.Item>
-              <List.Item>
-                <strong>Scalable:</strong> Performance stays consistent with
-                millions of photos
-              </List.Item>
-              <List.Item>
-                <strong>Transactional:</strong> Never see inconsistent data
-                during updates
-              </List.Item>
-            </List>
-          </Alert>
-        </Stack>
-      </Card>
     </Stack>
   );
 }

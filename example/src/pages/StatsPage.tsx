@@ -10,8 +10,9 @@ import {
   Button,
   Alert,
   SimpleGrid,
+  Anchor,
 } from "@mantine/core";
-import { IconChartPie } from "@tabler/icons-react";
+import { IconChartPie, IconCode } from "@tabler/icons-react";
 import { useState } from "react";
 
 export function StatsPage() {
@@ -34,6 +35,25 @@ export function StatsPage() {
         Direct aggregation without table dependencies - perfect for analytics
         and metrics
       </Text>
+
+      <Group justify="center">
+        <Card bg="dark.6" p="md">
+          <Group gap="md">
+            <IconCode size={20} color="cyan" />
+            <Text size="sm" c="gray.3">
+              View the source:
+            </Text>
+            <Anchor
+              href="https://github.com/get-convex/aggregate/blob/main/example/convex/stats.ts"
+              target="_blank"
+              c="cyan"
+              size="sm"
+            >
+              convex/stats.ts
+            </Anchor>
+          </Group>
+        </Card>
+      </Group>
 
       {/* Add Latency Section */}
       <Card bg="dark.7" p="xl">
@@ -148,31 +168,6 @@ export function StatsPage() {
               Report some latency values to see the statistics!
             </Alert>
           )}
-        </Stack>
-      </Card>
-
-      {/* Info Section */}
-      <Card bg="dark.7" p="xl">
-        <Stack gap="md">
-          <Title order={2} c="white">
-            How It Works
-          </Title>
-          <Text c="gray.3">
-            This demo uses DirectAggregate, which allows you to aggregate data
-            that isn't stored in a Convex table. This is perfect for analytics,
-            metrics, and temporary data that you want to aggregate efficiently.
-          </Text>
-          <Text c="gray.3">
-            Unlike TableAggregate, DirectAggregate gives you full control over
-            when data is inserted, updated, or deleted. You handle all the
-            operations yourself, making it ideal for complex aggregation
-            scenarios.
-          </Text>
-          <Text c="gray.3">
-            The aggregate still provides O(log(n)) performance for counting,
-            summing, and finding min/max values, but without the automatic table
-            synchronization.
-          </Text>
         </Stack>
       </Card>
     </Stack>

@@ -65,7 +65,6 @@ export const getTotalMusicCount = query({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
-    // @ts-ignore - aggregate count should work without bounds
     return await randomize.count(ctx);
   },
 });

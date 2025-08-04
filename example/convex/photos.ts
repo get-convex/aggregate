@@ -61,7 +61,6 @@ export const photoCount = query({
   args: { album: v.string() },
   returns: v.number(),
   handler: async (ctx, { album }) => {
-    // @ts-ignore - namespace should work without bounds
     return await photos.count(ctx, { namespace: album });
   },
 });
@@ -81,7 +80,6 @@ export const availableAlbums = query({
     const albumsWithCounts = await Promise.all(
       albumNames.map(async (album) => ({
         name: album,
-        // @ts-ignore - namespace should work without bounds
         count: await photos.count(ctx, { namespace: album }),
       }))
     );

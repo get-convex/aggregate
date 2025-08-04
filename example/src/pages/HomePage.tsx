@@ -1,10 +1,11 @@
-import { Title, Text, Card, Stack, Group, Badge } from "@mantine/core";
+import { Title, Text, Card, Stack, Group, Badge, Anchor } from "@mantine/core";
 import {
   IconHome,
   IconTrophy,
   IconPhoto,
   IconArrowsShuffle,
   IconChartPie,
+  IconCode,
 } from "@tabler/icons-react";
 import { routes } from "../routes";
 
@@ -22,6 +23,25 @@ export function HomePage() {
         Explore the power of Convex Aggregate component with these interactive
         examples
       </Text>
+
+      <Group justify="center">
+        <Card bg="dark.6" p="md">
+          <Group gap="md">
+            <IconCode size={20} color="cyan" />
+            <Text size="sm" c="gray.3">
+              View the component source:
+            </Text>
+            <Anchor
+              href="https://github.com/get-convex/aggregate"
+              target="_blank"
+              c="cyan"
+              size="sm"
+            >
+              GitHub Repository
+            </Anchor>
+          </Group>
+        </Card>
+      </Group>
 
       <Group justify="center" gap="md">
         <Card
@@ -41,7 +61,6 @@ export function HomePage() {
             <Text size="sm" c="gray.4">
               Game scores with rankings, averages, and user statistics
             </Text>
-            <Badge color="blue">Score Aggregation</Badge>
           </Stack>
         </Card>
 
@@ -62,7 +81,6 @@ export function HomePage() {
             <Text size="sm" c="gray.4">
               Offset-based pagination for photo galleries
             </Text>
-            <Badge color="green">Pagination</Badge>
           </Stack>
         </Card>
 
@@ -83,7 +101,6 @@ export function HomePage() {
             <Text size="sm" c="gray.4">
               Random selection and shuffled music playlists
             </Text>
-            <Badge color="purple">Random Access</Badge>
           </Stack>
         </Card>
 
@@ -104,29 +121,9 @@ export function HomePage() {
             <Text size="sm" c="gray.4">
               Direct aggregation without table dependencies
             </Text>
-            <Badge color="orange">Direct Aggregation</Badge>
           </Stack>
         </Card>
       </Group>
-
-      <Card bg="dark.7" p="xl">
-        <Stack gap="md">
-          <Title order={2} c="white">
-            What is Convex Aggregate?
-          </Title>
-          <Text c="gray.3">
-            The Aggregate component provides O(log(n))-time lookups for
-            counting, summing, and ranking data. It's perfect for leaderboards,
-            pagination, random access, and statistical calculations without the
-            O(n) complexity of traditional approaches.
-          </Text>
-          <Text c="gray.3">
-            Each example demonstrates different aggregation patterns and use
-            cases that showcase the component's capabilities for efficient data
-            analysis and retrieval.
-          </Text>
-        </Stack>
-      </Card>
     </Stack>
   );
 }

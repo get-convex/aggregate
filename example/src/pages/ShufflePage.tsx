@@ -16,6 +16,9 @@ import {
   Paper,
   Grid,
   Divider,
+  Anchor,
+  ActionIcon,
+  Modal,
 } from "@mantine/core";
 import {
   IconArrowsShuffle,
@@ -26,6 +29,7 @@ import {
   IconBolt,
   IconInfoCircle,
   IconRefresh,
+  IconCode,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
@@ -39,6 +43,7 @@ export function ShufflePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
   const [cacheBuster, setCacheBuster] = useState(0);
+  const [codeModalOpened, setCodeModalOpened] = useState(false);
 
   // Get total music count for live stats
   const totalMusic = useQuery(api.shuffle.getTotalMusicCount);
@@ -66,19 +71,31 @@ export function ShufflePage() {
         <Title order={1} ta="center" c="white">
           Random Access & Shuffle Demo
         </Title>
-        <Badge
-          size="lg"
-          variant="gradient"
-          gradient={{ from: "purple", to: "pink" }}
-        >
-          O(log n) Random Access
-        </Badge>
       </Group>
 
       <Text c="gray.3" ta="center" size="lg">
         Efficient random selection and deterministic shuffling using Convex
         Aggregate
       </Text>
+
+      <Group justify="center">
+        <Card bg="dark.6" p="md">
+          <Group gap="md">
+            <IconCode size={20} color="cyan" />
+            <Text size="sm" c="gray.3">
+              View the source:
+            </Text>
+            <Anchor
+              href="https://github.com/get-convex/aggregate/blob/main/example/convex/shuffle.ts"
+              target="_blank"
+              c="cyan"
+              size="sm"
+            >
+              convex/shuffle.ts
+            </Anchor>
+          </Group>
+        </Card>
+      </Group>
 
       {/* Quick explanation */}
       <Card bg="dark.7" p="md">
@@ -140,11 +157,21 @@ export function ShufflePage() {
             {/* Random Selection */}
             <Card bg="dark.7" p="xl">
               <Stack gap="md">
-                <Group>
-                  <IconRefresh size={24} color="white" />
-                  <Title order={3} c="white">
-                    Random Song Picker
-                  </Title>
+                <Group justify="space-between">
+                  <Group>
+                    <IconRefresh size={24} color="white" />
+                    <Title order={3} c="white">
+                      Random Song Picker
+                    </Title>
+                  </Group>
+                  <ActionIcon
+                    variant="outline"
+                    color="gray"
+                    size="lg"
+                    onClick={() => setCodeModalOpened(true)}
+                  >
+                    <IconCode size={18} />
+                  </ActionIcon>
                 </Group>
                 <Text size="sm" c="gray.3">
                   Get any random song in O(log n) time - no matter how many
@@ -316,69 +343,30 @@ export function ShufflePage() {
         </Grid.Col>
       </Grid>
 
-      {/* Full-Width Technical Explanation */}
-      <Card bg="dark.7" p="xl">
+      {/* Code Modal */}
+      <Modal
+        opened={codeModalOpened}
+        onClose={() => setCodeModalOpened(false)}
+        title="Random Song Picker Implementation"
+        size="lg"
+      >
         <Stack gap="md">
-          <Group justify="center">
-            <IconRocket size={32} color="white" />
-            <Title order={2} c="white">
-              🎲 The Magic: O(log n) Random Access
-            </Title>
-          </Group>
-
-          <Paper bg="dark.6" p="md">
-            <Text c="gray.3" mb="md">
-              <strong>Traditional random access (slow):</strong> To get a random
-              song from position 5000, scan through 5000 items to reach that
-              position. <Badge color="red">O(n)</Badge>
-            </Text>
-            <Code block c="red.3">
-              {`// Naive random access - gets slower as data grows
-const allSongs = await db.query("music").collect();
-const randomIndex = Math.floor(Math.random() * allSongs.length);
-return allSongs[randomIndex];  // ⚠️ Must load ALL songs into memory`}
-            </Code>
-          </Paper>
-
-          <Paper bg="dark.6" p="md">
-            <Text c="gray.3" mb="md">
-              <strong>Aggregate random access (fast):</strong> Jump directly to
-              any position in logarithmic time using the aggregate's internal
-              B-tree structure! <Badge color="green">O(log n)</Badge>
-            </Text>
-            <Code block c="green.3">
-              {`// Aggregate random access - always fast!
-const randomMusic = await randomize.random(ctx);  // ✅ Direct O(log n) access
-const doc = await ctx.db.get(randomMusic.id);
-return doc.title;
-
-// Or get item at specific position:
-const itemAtIndex = await randomize.at(ctx, 5000);  // ✅ O(log n) lookup`}
-            </Code>
-          </Paper>
-
-          <Alert color="cyan" title="Key Benefits" icon={<IconBolt />}>
-            <List>
-              <List.Item>
-                <strong>Random Access:</strong> Get any item by index in O(log
-                n) time
-              </List.Item>
-              <List.Item>
-                <strong>Deterministic Shuffles:</strong> Same seed = same
-                shuffle order every time
-              </List.Item>
-              <List.Item>
-                <strong>Scalable:</strong> Performance stays consistent with
-                millions of items
-              </List.Item>
-              <List.Item>
-                <strong>Memory Efficient:</strong> No need to load entire
-                dataset for random access
-              </List.Item>
-            </List>
-          </Alert>
+          <Text size="sm" c="dimmed">
+            This code snippet shows how to get a random song using the Convex
+            Aggregate:
+          </Text>
+          <Code block>
+            {`const randomMusic = await randomize.random(ctx);
+if (!randomMusic) return null;
+const doc = (await ctx.db.get(randomMusic.id))!;
+return doc.title;`}
+          </Code>
+          <Text size="xs" c="dimmed">
+            From: <Code>convex/shuffle.ts</Code> -{" "}
+            <Code>getRandomMusicTitle</Code> handler
+          </Text>
         </Stack>
-      </Card>
+      </Modal>
     </Stack>
   );
 }

@@ -12,8 +12,19 @@ import {
   Table,
   Badge,
   Alert,
+  Anchor,
+  ThemeIcon,
+  Code,
+  Paper,
+  List,
 } from "@mantine/core";
-import { IconTrophy } from "@tabler/icons-react";
+import {
+  IconTrophy,
+  IconCode,
+  IconBolt,
+  IconRocket,
+  IconInfoCircle,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
 
@@ -54,12 +65,68 @@ export function LeaderboardPage() {
         <Title order={1} ta="center" c="white">
           Leaderboard Demo
         </Title>
+        <Badge
+          size="lg"
+          variant="gradient"
+          gradient={{ from: "orange", to: "red" }}
+        >
+          O(log n) Rankings
+        </Badge>
       </Group>
 
-      <Text c="gray.3" ta="center">
-        Add scores and explore aggregation features like rankings, averages, and
-        statistics
+      <Text c="gray.3" ta="center" size="lg">
+        Lightning-fast leaderboards with instant rankings, statistics, and user
+        analytics using Convex Aggregate
       </Text>
+
+      <Group justify="center">
+        <Card bg="dark.6" p="md">
+          <Group gap="md">
+            <IconCode size={20} color="cyan" />
+            <Text size="sm" c="gray.3">
+              View the source:
+            </Text>
+            <Anchor
+              href="https://github.com/get-convex/aggregate/blob/main/example/convex/leaderboard.ts"
+              target="_blank"
+              c="cyan"
+              size="sm"
+            >
+              convex/leaderboard.ts
+            </Anchor>
+          </Group>
+        </Card>
+      </Group>
+
+      {/* Quick explanation */}
+      <Card bg="dark.7" p="md">
+        <Group justify="center" gap="xl">
+          <Group gap="xs">
+            <ThemeIcon color="red" variant="light" size="sm">
+              <IconBolt size={14} />
+            </ThemeIcon>
+            <Text size="sm" c="gray.3">
+              Traditional:{" "}
+              <Badge color="red" size="xs">
+                O(n)
+              </Badge>{" "}
+              - Scan all scores to find rankings
+            </Text>
+          </Group>
+          <Group gap="xs">
+            <ThemeIcon color="green" variant="light" size="sm">
+              <IconRocket size={14} />
+            </ThemeIcon>
+            <Text size="sm" c="gray.3">
+              Aggregate:{" "}
+              <Badge color="green" size="xs">
+                O(log n)
+              </Badge>{" "}
+              - Find any ranking instantly
+            </Text>
+          </Group>
+        </Group>
+      </Card>
 
       {/* Add Score Section */}
       <Card bg="dark.7" p="xl">
