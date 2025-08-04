@@ -9,11 +9,17 @@ import {
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { convexTest } from "convex-test";
+import { DataModelFromSchemaDefinition } from "convex/server";
 
 const schema = defineSchema({
   testItems: defineTable({
     name: v.string(),
     value: v.number(),
+  }),
+  photos: defineTable({
+    album: v.string(),
+    url: v.string(),
+    score: v.number(),
   }),
 });
 
@@ -24,24 +30,41 @@ function setupTest() {
 }
 
 type ConvexTest = ReturnType<typeof setupTest>;
+type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+
+// Helper function to create aggregates with fresh instances
+// if we dont do this we will get strange errors if we share instances between tests
+function createAggregates() {
+  const aggregate = new TableAggregate(components.aggregate, {
+    sortKey: (doc) => doc.value,
+  });
+
+  const aggregateWithNamespace = new TableAggregate<{
+    Namespace: string;
+    Key: number;
+    DataModel: DataModel;
+    TableName: "photos";
+  }>(components.aggregate, {
+    namespace: (doc) => doc.album,
+    sortKey: (doc) => doc.score, // Use score instead of _creationTime for predictable tests
+  });
+
+  return { aggregate, aggregateWithNamespace };
+}
 
 describe("TableAggregate", () => {
   describe("count", () => {
     let t: ConvexTest;
-    let aggregate = new TableAggregate(components.aggregate, {
-      sortKey: (doc) => doc.value,
-    });
+    let aggregate: ReturnType<typeof createAggregates>["aggregate"];
 
     beforeEach(() => {
       t = setupTest();
-      aggregate = new TableAggregate(components.aggregate, {
-        sortKey: (doc) => doc.value,
-      });
+      ({ aggregate } = createAggregates());
     });
 
-    const exec = async (_aggregate = aggregate) => {
+    const exec = async () => {
       return await t.run(async (ctx) => {
-        return await _aggregate.count(ctx);
+        return await aggregate.count(ctx);
       });
     };
 
@@ -76,16 +99,12 @@ describe("TableAggregate", () => {
 
   describe("clearAll", () => {
     let t: ConvexTest;
-    let aggregate = new TableAggregate(components.aggregate, {
-      sortKey: (doc) => doc.value,
-    });
+    let aggregate: ReturnType<typeof createAggregates>["aggregate"];
 
     beforeEach(() => {
       vi.useFakeTimers();
       t = setupTest();
-      aggregate = new TableAggregate(components.aggregate, {
-        sortKey: (doc) => doc.value,
-      });
+      ({ aggregate } = createAggregates());
     });
 
     afterEach(() => {
@@ -171,6 +190,295 @@ describe("TableAggregate", () => {
         return await aggregate.count(ctx);
       });
       expect(countAfterSecondClear).toBe(0);
+    });
+  });
+});
+
+describe("TableAggregate with namespace", () => {
+  let t: ConvexTest;
+  let aggregateWithNamespace: ReturnType<
+    typeof createAggregates
+  >["aggregateWithNamespace"];
+
+  beforeEach(() => {
+    t = setupTest();
+    ({ aggregateWithNamespace } = createAggregates());
+  });
+
+  describe("count", () => {
+    test("should allow count with namespace only (no bounds)", async () => {
+      // With the updated type system, bounds are now optional even with namespace
+      const result = await t.run(async (ctx) => {
+        // This should work - namespace only, no bounds required
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "album1",
+        });
+      });
+
+      expect(result).toBe(0);
+    });
+
+    test("should allow count with namespace and bounds", async () => {
+      // You can still provide bounds if you want to
+      const result = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "album1",
+          bounds: { lower: { key: 0, inclusive: true } },
+        });
+      });
+
+      expect(result).toBe(0);
+    });
+
+    test("should demonstrate namespace requirement with actual data", async () => {
+      // Insert some test photos in different albums
+      await t.run(async (ctx) => {
+        const id1 = await ctx.db.insert("photos", {
+          album: "vacation",
+          url: "photo1.jpg",
+          score: 10,
+        });
+        const doc1 = await ctx.db.get(id1);
+        await aggregateWithNamespace.insert(ctx, doc1!);
+
+        const id2 = await ctx.db.insert("photos", {
+          album: "vacation",
+          url: "photo2.jpg",
+          score: 20,
+        });
+        const doc2 = await ctx.db.get(id2);
+        await aggregateWithNamespace.insert(ctx, doc2!);
+
+        const id3 = await ctx.db.insert("photos", {
+          album: "family",
+          url: "photo3.jpg",
+          score: 30,
+        });
+        const doc3 = await ctx.db.get(id3);
+        await aggregateWithNamespace.insert(ctx, doc3!);
+      });
+
+      // Count photos in "vacation" album - bounds no longer required
+      const vacationCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+        });
+      });
+
+      expect(vacationCount).toBe(2);
+
+      // Count photos in "family" album
+      const familyCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "family",
+        });
+      });
+
+      expect(familyCount).toBe(1);
+
+      // You can still use bounds if you want to limit the range within a namespace
+      const vacationCountWithBounds = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {},
+        });
+      });
+
+      expect(vacationCountWithBounds).toBe(2);
+    });
+
+    test("should respect bounds when provided with namespace", async () => {
+      // Insert photos with explicit scores for predictable bounds testing
+      await t.run(async (ctx) => {
+        const doc1 = { album: "vacation", url: "photo1.jpg", score: 10 };
+        const doc2 = { album: "vacation", url: "photo2.jpg", score: 20 };
+        const doc3 = { album: "vacation", url: "photo3.jpg", score: 30 };
+
+        const id1 = await ctx.db.insert("photos", doc1);
+        const id2 = await ctx.db.insert("photos", doc2);
+        const id3 = await ctx.db.insert("photos", doc3);
+
+        const insertedDoc1 = await ctx.db.get(id1);
+        const insertedDoc2 = await ctx.db.get(id2);
+        const insertedDoc3 = await ctx.db.get(id3);
+
+        await aggregateWithNamespace.insert(ctx, insertedDoc1!);
+        await aggregateWithNamespace.insert(ctx, insertedDoc2!);
+        await aggregateWithNamespace.insert(ctx, insertedDoc3!);
+      });
+
+      // Count all photos in vacation album (no bounds)
+      const totalCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+        });
+      });
+      expect(totalCount).toBe(3);
+
+      // Count with lower bound - should exclude first photo (score 10)
+      const countFromSecond = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            lower: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countFromSecond).toBe(2); // photos with score 20 and 30
+
+      // Count with upper bound - should exclude third photo (score 30)
+      const countUpToSecond = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            upper: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countUpToSecond).toBe(2); // photos with score 10 and 20
+
+      // Count with both bounds - should only include middle photo
+      const countMiddleOnly = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            lower: { key: 20, inclusive: true },
+            upper: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countMiddleOnly).toBe(1); // only photo with score 20
+
+      // Test simple lower bound
+      const countWithLowerBound = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            lower: { key: 25, inclusive: true }, // Should only include photo with score 30
+          },
+        });
+      });
+      expect(countWithLowerBound).toBe(1); // Only photo with score 30
+
+      // Test upper bound
+      const countWithUpperBound = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            upper: { key: 15, inclusive: true }, // Should only include photo with score 10
+          },
+        });
+      });
+      expect(countWithUpperBound).toBe(1); // Only photo with score 10
+    });
+
+    test("comprehensive bounds and namespace test", async () => {
+      // Insert test data across multiple namespaces
+      await t.run(async (ctx) => {
+        // Vacation album photos
+        const vacation1 = { album: "vacation", url: "v1.jpg", score: 5 };
+        const vacation2 = { album: "vacation", url: "v2.jpg", score: 15 };
+        const vacation3 = { album: "vacation", url: "v3.jpg", score: 25 };
+
+        // Family album photos
+        const family1 = { album: "family", url: "f1.jpg", score: 10 };
+        const family2 = { album: "family", url: "f2.jpg", score: 20 };
+
+        for (const doc of [vacation1, vacation2, vacation3, family1, family2]) {
+          const id = await ctx.db.insert("photos", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregateWithNamespace.insert(ctx, insertedDoc!);
+        }
+      });
+
+      // Test: Count all vacation photos (no bounds required!)
+      const allVacationCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+        });
+      });
+      expect(allVacationCount).toBe(3);
+
+      // Test: Count all family photos (no bounds required!)
+      const allFamilyCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "family",
+        });
+      });
+      expect(allFamilyCount).toBe(2);
+
+      // Test: Count vacation photos with bounds - only high scores
+      const highScoreVacationCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            lower: { key: 20, inclusive: true }, // score >= 20
+          },
+        });
+      });
+      expect(highScoreVacationCount).toBe(1); // Only score 25
+
+      // Test: Count family photos with bounds - only low scores
+      const lowScoreFamilyCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "family",
+          bounds: {
+            upper: { key: 15, inclusive: true }, // score <= 15
+          },
+        });
+      });
+      expect(lowScoreFamilyCount).toBe(1); // Only score 10
+    });
+
+    test("should isolate bounds within different namespaces", async () => {
+      await t.run(async (ctx) => {
+        // Insert photo in vacation album with score 15
+        const vacationDoc = {
+          album: "vacation",
+          url: "vacation1.jpg",
+          score: 15,
+        };
+        const vacationId = await ctx.db.insert("photos", vacationDoc);
+        const insertedVacationDoc = await ctx.db.get(vacationId);
+        await aggregateWithNamespace.insert(ctx, insertedVacationDoc!);
+
+        // Insert photo in family album with score 25
+        const familyDoc = { album: "family", url: "family1.jpg", score: 25 };
+        const familyId = await ctx.db.insert("photos", familyDoc);
+        const insertedFamilyDoc = await ctx.db.get(familyId);
+        await aggregateWithNamespace.insert(ctx, insertedFamilyDoc!);
+      });
+
+      // Using bounds that would exclude family photo shouldn't affect family namespace count
+      const familyCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "family",
+          bounds: {
+            upper: { key: 20, inclusive: true }, // Family photo has score 25, so this excludes it
+          },
+        });
+      });
+      expect(familyCount).toBe(0);
+
+      // Count family photos without bounds should still work
+      const familyCountNoBounds = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "family",
+        });
+      });
+      expect(familyCountNoBounds).toBe(1);
+
+      // Count vacation photos with bounds that would include family photo score
+      const vacationCount = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "vacation",
+          bounds: {
+            upper: { key: 30, inclusive: true }, // Would include family score, but family is different namespace
+          },
+        });
+      });
+      // Should be 1 - only the vacation photo, not affected by family photo
+      expect(vacationCount).toBe(1);
     });
   });
 });
