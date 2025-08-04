@@ -39,59 +39,82 @@ export const dump = query({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const structured = await dumpTreeStructured(ctx.db, args.namespace);
-    if (args.format === "structured") return structured;
+    if (args.format === "structured")
+      return await dumpTreeStructured(ctx.db, args.namespace);
+
     // Default to string format for backwards compatibility
-    return structured ? structuredToString(structured) : "empty";
+    const structured = await dumpTreeStructured(ctx.db, args.namespace);
+    if (structured?.status === "active" && structured.rootNode)
+      return structuredToString(structured.rootNode);
+
+    return "empty";
   },
 });
 
 export async function dumpTree(db: DatabaseReader, namespace: Namespace) {
-  const t = await getTree(db, namespace);
-  if (!t) return "empty";
-  const structured = await dumpNodeStructured(db, t.root);
-  return structuredToString(structured);
+  const structured = await dumpTreeStructured(db, namespace);
+  if (structured?.status === "active" && structured.rootNode) {
+    return structuredToString(structured.rootNode);
+  }
+  return "empty";
 }
 
 export async function dumpTreeStructured(
   db: DatabaseReader,
   namespace: Namespace
-) {
-  const t = await getTree(db, namespace);
-  if (!t) return null;
-  return await dumpNodeStructured(db, t.root);
+): Promise<
+  | { status: "empty"; message: string }
+  | {
+      status: "active";
+      treeMetadata: {
+        _id: string;
+        root: string;
+        namespace: ConvexValue;
+        maxNodeSize: number;
+        isRootLazy: boolean;
+        _creationTime: number;
+      };
+      rootNode: StructuredNode;
+    }
+> {
+  const tree = await getTree(db, namespace);
+  if (!tree) {
+    return {
+      status: "empty",
+      message: "No B-tree exists yet",
+    };
+  }
+
+  const rootNode = await db.get(tree.root);
+  const isRootLazy = rootNode!.aggregate === undefined;
+
+  const structuredRoot = await dumpNodeStructuredImpl(db, tree.root);
+
+  return {
+    status: "active",
+    treeMetadata: {
+      _id: tree._id,
+      root: tree.root,
+      namespace: tree.namespace,
+      maxNodeSize: tree.maxNodeSize,
+      isRootLazy,
+      _creationTime: tree._creationTime,
+    },
+    rootNode: structuredRoot,
+  };
 }
 
 type StructuredNode = {
+  _id: string;
   keys: ConvexValue[];
+  isLeaf: boolean;
+  aggregate?: {
+    count: number;
+    sum: number;
+  };
   children: StructuredNode[];
+  _creationTime: number;
 };
-
-/// Returns structured representation of B-tree node
-async function dumpNodeStructured(
-  db: DatabaseReader,
-  node: Id<"btreeNode">
-): Promise<StructuredNode> {
-  const n = (await db.get(node))!;
-  const keys = n.items.map((i) => i.k);
-
-  if (n.subtrees.length === 0) {
-    // Leaf node
-    return {
-      keys,
-      children: [],
-    };
-  } else {
-    // Internal node
-    const children = await Promise.all(
-      n.subtrees.map((subtree) => dumpNodeStructured(db, subtree))
-    );
-    return {
-      keys,
-      children,
-    };
-  }
-}
 
 /// Converts structured representation back to string format for backwards compatibility
 function structuredToString(node: StructuredNode): string {
@@ -108,6 +131,32 @@ function structuredToString(node: StructuredNode): string {
     s += "]";
     return s;
   }
+}
+
+/// Returns structured representation of B-tree node with all metadata
+async function dumpNodeStructuredImpl(
+  db: DatabaseReader,
+  node: Id<"btreeNode">
+): Promise<StructuredNode> {
+  const n = (await db.get(node))!;
+  const keys = n.items.map((i) => i.k);
+  const isLeaf = n.subtrees.length === 0;
+
+  let children: StructuredNode[] = [];
+  if (!isLeaf) {
+    children = await Promise.all(
+      n.subtrees.map((subtree) => dumpNodeStructuredImpl(db, subtree))
+    );
+  }
+
+  return {
+    _id: node,
+    keys,
+    isLeaf,
+    aggregate: n.aggregate,
+    children,
+    _creationTime: n._creationTime,
+  };
 }
 
 export const inspectNode = query({

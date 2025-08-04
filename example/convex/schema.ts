@@ -13,8 +13,4 @@ export default defineSchema({
     album: v.string(),
     url: v.string(),
   }).index("by_album_creation_time", ["album"]),
-  btreeDemo: defineTable({
-    name: v.string(),
-    score: v.number(),
-  }),
 });
