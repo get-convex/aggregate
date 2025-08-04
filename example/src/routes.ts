@@ -6,4 +6,5 @@ export const { RouteProvider, useRoute, routes } = createRouter({
   photos: defineRoute("/photos"),
   shuffle: defineRoute("/shuffle"),
   stats: defineRoute("/stats"),
+  btree: defineRoute("/btree"),
 });

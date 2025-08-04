@@ -98,7 +98,12 @@ export type Mounts = {
   };
   inspect: {
     display: FunctionReference<"query", "public", { namespace?: any }, any>;
-    dump: FunctionReference<"query", "public", { namespace?: any }, string>;
+    dump: FunctionReference<
+      "query",
+      "public",
+      { format?: "string" | "structured"; namespace?: any },
+      any
+    >;
     inspectNode: FunctionReference<
       "query",
       "public",

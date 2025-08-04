@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, Namespace, p } from "./btree.js";
+import { Value as ConvexValue } from "convex/values";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
@@ -32,41 +33,81 @@ async function displayNode(
 }
 
 export const dump = query({
-  args: { namespace: v.optional(v.any()) },
-  returns: v.string(),
+  args: {
+    namespace: v.optional(v.any()),
+    format: v.optional(v.union(v.literal("string"), v.literal("structured"))),
+  },
+  returns: v.any(),
   handler: async (ctx, args) => {
-    return await dumpTree(ctx.db, args.namespace);
+    const structured = await dumpTreeStructured(ctx.db, args.namespace);
+    if (args.format === "structured") return structured;
+    // Default to string format for backwards compatibility
+    return structured ? structuredToString(structured) : "empty";
   },
 });
 
 export async function dumpTree(db: DatabaseReader, namespace: Namespace) {
-  const t = (await getTree(db, namespace))!;
-  return dumpNode(db, t.root);
+  const t = await getTree(db, namespace);
+  if (!t) return "empty";
+  const structured = await dumpNodeStructured(db, t.root);
+  return structuredToString(structured);
 }
 
-/// Prints keys in-order, with brackets for each node.
-async function dumpNode(
+export async function dumpTreeStructured(
+  db: DatabaseReader,
+  namespace: Namespace
+) {
+  const t = await getTree(db, namespace);
+  if (!t) return null;
+  return await dumpNodeStructured(db, t.root);
+}
+
+type StructuredNode = {
+  keys: ConvexValue[];
+  children: StructuredNode[];
+};
+
+/// Returns structured representation of B-tree node
+async function dumpNodeStructured(
   db: DatabaseReader,
   node: Id<"btreeNode">
-): Promise<string> {
+): Promise<StructuredNode> {
   const n = (await db.get(node))!;
-  let s = "[";
+  const keys = n.items.map((i) => i.k);
+
   if (n.subtrees.length === 0) {
-    s += n.items
-      .map((i) => i.k)
-      .map(p)
-      .join(", ");
+    // Leaf node
+    return {
+      keys,
+      children: [],
+    };
   } else {
-    const subtrees = await Promise.all(
-      n.subtrees.map((subtree) => dumpNode(db, subtree))
+    // Internal node
+    const children = await Promise.all(
+      n.subtrees.map((subtree) => dumpNodeStructured(db, subtree))
     );
-    for (let i = 0; i < n.items.length; i++) {
-      s += `${subtrees[i]}, ${p(n.items[i].k)}, `;
-    }
-    s += subtrees[n.items.length];
+    return {
+      keys,
+      children,
+    };
   }
-  s += "]";
-  return s;
+}
+
+/// Converts structured representation back to string format for backwards compatibility
+function structuredToString(node: StructuredNode): string {
+  if (node.children.length === 0) {
+    // Leaf node
+    return `[${node.keys.map(p).join(", ")}]`;
+  } else {
+    // Internal node
+    let s = "[";
+    for (let i = 0; i < node.keys.length; i++) {
+      s += `${structuredToString(node.children[i])}, ${p(node.keys[i])}, `;
+    }
+    s += structuredToString(node.children[node.children.length - 1]);
+    s += "]";
+    return s;
+  }
 }
 
 export const inspectNode = query({

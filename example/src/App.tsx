@@ -13,6 +13,7 @@ import {
   IconPhoto,
   IconArrowsShuffle,
   IconChartPie,
+  IconBinaryTree,
   IconBrandGithub,
   IconExternalLink,
 } from "@tabler/icons-react";
@@ -21,6 +22,7 @@ import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PhotosPage } from "./pages/PhotosPage";
 import { ShufflePage } from "./pages/ShufflePage";
 import { StatsPage } from "./pages/StatsPage";
+import { BTreePage } from "./pages/BTreePage";
 import { routes, useRoute } from "./routes";
 import { exhaustiveCheck } from "./utils/utils";
 
@@ -89,6 +91,13 @@ export default function App() {
             onClick={() => routes.stats().push()}
             c="white"
           />
+          <NavLink
+            label="B-Tree"
+            leftSection={<IconBinaryTree size={20} />}
+            active={route.name === "btree"}
+            onClick={() => routes.btree().push()}
+            c="white"
+          />
         </Stack>
       </AppShell.Navbar>
 
@@ -113,6 +122,7 @@ function Routes() {
   if (route.name === "photos") return <PhotosPage />;
   if (route.name === "shuffle") return <ShufflePage />;
   if (route.name === "stats") return <StatsPage />;
+  if (route.name === "btree") return <BTreePage />;
 
   if (route.name == false) return <HomePage />;
 

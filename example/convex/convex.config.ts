@@ -8,6 +8,7 @@ app.use(aggregate, { name: "aggregateScoreByUser" });
 app.use(aggregate, { name: "music" });
 app.use(aggregate, { name: "photos" });
 app.use(aggregate, { name: "stats" });
+app.use(aggregate, { name: "btreeAggregate" });
 
 app.use(migrations);
 

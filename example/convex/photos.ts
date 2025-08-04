@@ -22,6 +22,7 @@ import {
 } from "convex-helpers/server/customFunctions";
 import { Triggers } from "convex-helpers/server/triggers";
 
+
 const photos = new TableAggregate<{
   Namespace: string;
   Key: number;

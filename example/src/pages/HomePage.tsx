@@ -5,6 +5,7 @@ import {
   IconPhoto,
   IconArrowsShuffle,
   IconChartPie,
+  IconBinaryTree,
 } from "@tabler/icons-react";
 import { routes } from "../routes";
 
@@ -100,6 +101,26 @@ export function HomePage() {
             </Group>
             <Text size="sm" c="gray.4">
               Direct aggregation without table dependencies
+            </Text>
+          </Stack>
+        </Card>
+
+        <Card
+          bg="dark.7"
+          p="lg"
+          style={{ minWidth: 200, cursor: "pointer" }}
+          onClick={() => routes.btree().push()}
+          className="hover-card"
+        >
+          <Stack gap="md">
+            <Group gap="sm">
+              <IconBinaryTree size={24} color="green" />
+              <Title order={3} c="white">
+                B-Tree
+              </Title>
+            </Group>
+            <Text size="sm" c="gray.4">
+              Visualize the B-tree structure as it evolves
             </Text>
           </Stack>
         </Card>
