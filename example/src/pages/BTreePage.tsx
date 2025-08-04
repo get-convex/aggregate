@@ -16,8 +16,6 @@ import {
   Code,
   Paper,
   Badge,
-  Tree,
-  TreeNodeData,
 } from "@mantine/core";
 import {
   IconBinaryTree,
@@ -25,9 +23,6 @@ import {
   IconBolt,
   IconRocket,
   IconInfoCircle,
-  IconFolder,
-  IconFolderOpen,
-  IconFileText,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
@@ -40,85 +35,10 @@ export function BTreePage() {
 
   const scores = useQuery(api.btree.getAllScores);
   const totalCount = useQuery(api.btree.countScores);
-  const btreeVisualization = useQuery(api.btree.getBTreeVisualization);
   const btreeStructured = useQuery(api.btree.getBTreeStructured);
 
   const addScore = useMutation(api.btree.addScore);
   const removeScore = useMutation(api.btree.removeScore);
-
-  // Convert structured B-tree data to Mantine Tree format
-  const convertStructuredToTreeData = (structuredData: any): TreeNodeData[] => {
-    if (!structuredData) {
-      return [];
-    }
-
-    let nodeCounter = 0;
-    const getNextNodeId = () => `node-${nodeCounter++}`;
-
-    const convertNode = (node: any): TreeNodeData => {
-      const isLeaf = node.children.length === 0;
-      const label =
-        node.keys.length > 0
-          ? node.keys.join(" | ")
-          : isLeaf
-            ? "Empty Leaf"
-            : "Internal Node";
-
-      return {
-        value: getNextNodeId(),
-        label,
-        children: node.children.map((child: any) => convertNode(child)),
-      };
-    };
-
-    return [convertNode(structuredData)];
-  };
-
-  const treeData = btreeStructured
-    ? convertStructuredToTreeData(btreeStructured)
-    : [];
-
-  // Custom render function for B-tree nodes
-  const renderBTreeNode = ({
-    node,
-    expanded,
-    hasChildren,
-    elementProps,
-  }: any) => {
-    return (
-      <Group gap={8} {...elementProps}>
-        {hasChildren ? (
-          expanded ? (
-            <IconFolderOpen
-              color="var(--mantine-color-blue-5)"
-              size={16}
-              stroke={2.5}
-            />
-          ) : (
-            <IconFolder
-              color="var(--mantine-color-blue-5)"
-              size={16}
-              stroke={2.5}
-            />
-          )
-        ) : (
-          <IconFileText
-            color="var(--mantine-color-green-5)"
-            size={16}
-            stroke={2.5}
-          />
-        )}
-        <Text
-          size="sm"
-          c={hasChildren ? "blue.3" : "green.3"}
-          ff="monospace"
-          fw={hasChildren ? 600 : 500}
-        >
-          {hasChildren ? `Internal: ${node.label}` : `Leaf: ${node.label}`}
-        </Text>
-      </Group>
-    );
-  };
 
   return (
     <Stack gap="xl">
@@ -240,57 +160,34 @@ export function BTreePage() {
             </Badge>
           </Group>
 
-          <Alert color="blue" title="How to read this visualization">
+          <Alert color="blue" title="B-Tree Structure (JSON)">
             <Text size="sm">
-              <Group gap="xs" mb="xs">
-                <IconFolder color="var(--mantine-color-blue-5)" size={14} />
-                <Text size="sm" span>
-                  Internal nodes - contain routing keys and child pointers
-                </Text>
-              </Group>
-              <Group gap="xs">
-                <IconFileText color="var(--mantine-color-green-5)" size={14} />
-                <Text size="sm" span>
-                  Leaf nodes - contain the actual data values
-                </Text>
-              </Group>
-              Click folder icons to expand/collapse and explore the tree
-              structure!
+              Below is the raw structured representation of the B-tree. Each
+              node shows its keys and children arrays. Leaf nodes have empty
+              children arrays.
             </Text>
           </Alert>
 
-          {treeData.length > 0 ? (
+          {btreeStructured ? (
             <Paper bg="dark.8" p="md">
-              <Tree
-                data={treeData}
-                levelOffset={24}
-                selectOnClick
-                clearSelectionOnOutsideClick
-                renderNode={renderBTreeNode}
-              />
+              <Code
+                block
+                c="white"
+                bg="dark.8"
+                style={{
+                  fontSize: "14px",
+                  fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {JSON.stringify(btreeStructured, null, 2)}
+              </Code>
             </Paper>
           ) : (
             <Paper bg="dark.8" p="md">
               <Text c="gray.5" ta="center" style={{ fontFamily: "monospace" }}>
                 Empty tree - add some scores to see the structure!
               </Text>
-            </Paper>
-          )}
-
-          {/* Show raw bracket notation for reference */}
-          {btreeVisualization && btreeVisualization !== "empty" && (
-            <Paper bg="dark.9" p="sm" mt="md">
-              <Text size="xs" c="gray.6" mb="xs">
-                Raw B-tree structure:
-              </Text>
-              <Code
-                block
-                c="gray.4"
-                bg="dark.9"
-                style={{ fontSize: "12px", fontFamily: "monospace" }}
-              >
-                {btreeVisualization}
-              </Code>
             </Paper>
           )}
         </Stack>

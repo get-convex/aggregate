@@ -80,21 +80,7 @@ export const countScores = query({
 });
 
 /**
- * Get the B-tree structure visualization using the dump function
- */
-export const getBTreeVisualization = query({
-  returns: v.string(),
-  handler: async (ctx) => {
-    // Use the inspect component to dump the B-tree structure
-    // The namespace should be undefined since we're not using namespaces in this aggregate
-    return await ctx.runQuery(components.btreeAggregate.inspect.dump, {
-      namespace: undefined,
-    });
-  },
-});
-
-/**
- * Get the B-tree structure as structured data for easier frontend consumption
+ * Get the B-tree structure as structured data
  */
 export const getBTreeStructured = query({
   returns: v.any(),
