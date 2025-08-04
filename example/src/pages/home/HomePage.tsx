@@ -7,7 +7,7 @@ import {
   IconChartPie,
   IconBinaryTree,
 } from "@tabler/icons-react";
-import { routes } from "../routes";
+import { routes } from "../../routes";
 
 export function HomePage() {
   return (

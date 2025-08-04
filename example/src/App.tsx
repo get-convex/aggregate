@@ -17,12 +17,12 @@ import {
   IconBrandGithub,
   IconExternalLink,
 } from "@tabler/icons-react";
-import { HomePage } from "./pages/HomePage";
-import { LeaderboardPage } from "./pages/LeaderboardPage";
-import { PhotosPage } from "./pages/PhotosPage";
-import { ShufflePage } from "./pages/ShufflePage";
-import { StatsPage } from "./pages/StatsPage";
-import { BTreePage } from "./pages/BTreePage";
+import { HomePage } from "./pages/home/HomePage";
+import { LeaderboardPage } from "./pages/leaderboard/LeaderboardPage";
+import { PhotosPage } from "./pages/photos/PhotosPage";
+import { ShufflePage } from "./pages/shuffle/ShufflePage";
+import { StatsPage } from "./pages/stats/StatsPage";
+import { BTreePage } from "./pages/btree/BTreePage";
 import { routes, useRoute } from "./routes";
 import { exhaustiveCheck } from "./utils/utils";
 

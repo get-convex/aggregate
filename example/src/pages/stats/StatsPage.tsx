@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import {
   Title,
   Text,
@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { IconChartPie, IconCode } from "@tabler/icons-react";
 import { useState } from "react";
+import { StatsGrid } from "../../common/StatsGrid";
 
 export function StatsPage() {
   const [latency, setLatency] = useState<number | "">("");
@@ -101,68 +102,7 @@ export function StatsPage() {
           </Title>
 
           {stats ? (
-            <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 6 }} spacing="md">
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    Mean
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.mean.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    Median
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.median.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    75th Percentile
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.p75.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    95th Percentile
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.p95.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    Min
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.min.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-              <Card bg="dark.6" p="md">
-                <Stack gap="xs">
-                  <Text size="sm" c="gray.4">
-                    Max
-                  </Text>
-                  <Title order={3} c="white">
-                    {stats.max.toFixed(2)} ms
-                  </Title>
-                </Stack>
-              </Card>
-            </SimpleGrid>
+            <StatsGrid stats={stats} size="large" />
           ) : (
             <Alert color="blue" title="No stats yet">
               Report some latency values to see the statistics!

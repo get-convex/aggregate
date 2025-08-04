@@ -119,18 +119,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<
@@ -267,18 +264,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<
@@ -415,18 +409,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<
@@ -563,18 +554,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<
@@ -711,18 +699,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<
@@ -859,18 +844,15 @@ export declare const components: {
     };
     inspect: {
       display: FunctionReference<"query", "internal", { namespace?: any }, any>;
-      dump: FunctionReference<
-        "query",
-        "internal",
-        { format?: "string" | "structured"; namespace?: any },
-        any
-      >;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
       inspectNode: FunctionReference<
         "query",
         "internal",
         { namespace?: any; node?: string },
         null
       >;
+      listTreeNodes: FunctionReference<"query", "internal", {}, any>;
+      listTrees: FunctionReference<"query", "internal", {}, any>;
     };
     public: {
       clear: FunctionReference<

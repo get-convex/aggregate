@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import {
   Title,
   Text,
@@ -33,7 +33,10 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
-import { useStableQuery, useRicherStableQuery } from "../utils/useStableQuery";
+import {
+  useStableQuery,
+  useRicherStableQuery,
+} from "../../utils/useStableQuery";
 
 export function ShufflePage() {
   const onApiError = useApiErrorHandler();

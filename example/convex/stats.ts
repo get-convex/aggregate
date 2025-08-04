@@ -43,6 +43,7 @@ export const getStats = query({
     const min = (await stats.min(ctx))!.key;
     const max = (await stats.max(ctx))!.key;
     return {
+      count,
       mean,
       median,
       p75,
