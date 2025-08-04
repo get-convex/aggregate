@@ -66,7 +66,7 @@ export class Aggregate<
    */
   async count(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<number> {
     const { count } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
@@ -82,7 +82,7 @@ export class Aggregate<
    */
   async sum(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<number> {
     const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
       ...boundsToPositions(opts[0]?.bounds),
@@ -181,7 +181,7 @@ export class Aggregate<
    */
   async min(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
@@ -196,7 +196,7 @@ export class Aggregate<
    */
   async max(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
@@ -211,7 +211,7 @@ export class Aggregate<
    */
   async random(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ bounds: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID> | null> {
     const count = await this.count(ctx, ...opts);
     if (count === 0) {
@@ -873,7 +873,7 @@ export type NamespacedArgs<Args, Namespace> =
   | (Args & { namespace: Namespace })
   | (Namespace extends undefined ? Args : never);
 export type NamespacedOpts<Opts, Namespace> =
-  | [{ namespace: Namespace } & Opts]
+  | [{ namespace: Namespace } & Partial<Opts>]
   | (undefined extends Namespace ? [Opts?] : never);
 
 function namespaceFromArg<Args extends object, Namespace>(

@@ -198,10 +198,21 @@ describe("TableAggregate with namespace", () => {
   });
 
   describe("count", () => {
-    test("should require bounds when namespace is used", async () => {
-      // This demonstrates that bounds is now required
+    test("should allow count with namespace only (no bounds)", async () => {
+      // With the updated type system, bounds are now optional even with namespace
       const result = await t.run(async (ctx) => {
-        // With namespace, we must provide bounds - this should compile
+        // This should work - namespace only, no bounds required
+        return await aggregateWithNamespace.count(ctx, {
+          namespace: "album1",
+        });
+      });
+
+      expect(result).toBe(0);
+    });
+
+    test("should allow count with namespace and bounds", async () => {
+      // You can still provide bounds if you want to
+      const result = await t.run(async (ctx) => {
         return await aggregateWithNamespace.count(ctx, {
           namespace: "album1",
           bounds: { lower: { key: 0, inclusive: true } },
@@ -209,12 +220,6 @@ describe("TableAggregate with namespace", () => {
       });
 
       expect(result).toBe(0);
-
-      // Note: The following line would cause a TypeScript compilation error:
-      // await aggregateWithNamespace.count(ctx); // ❌ Error: bounds required when namespace is used
-
-      // The error would be something like:
-      // Expected 2 arguments, but got 1. An argument for 'opts' was not provided.
     });
 
     test("should demonstrate namespace requirement with actual data", async () => {
@@ -257,11 +262,10 @@ describe("TableAggregate with namespace", () => {
         await photosAggregate.insert(ctx, doc3!);
       });
 
-      // Count photos in "vacation" album - bounds required due to namespace
+      // Count photos in "vacation" album - bounds no longer required
       const vacationCount = await t.run(async (ctx) => {
         return await photosAggregate.count(ctx, {
-          namespace: "vacation",
-          bounds: {}, // Empty bounds means all items in the namespace
+          namespace: "vacation", // No bounds needed!
         });
       });
 
@@ -270,12 +274,21 @@ describe("TableAggregate with namespace", () => {
       // Count photos in "family" album
       const familyCount = await t.run(async (ctx) => {
         return await photosAggregate.count(ctx, {
-          namespace: "family",
-          bounds: {},
+          namespace: "family", // No bounds needed!
         });
       });
 
       expect(familyCount).toBe(1);
+
+      // You can still use bounds if you want to limit the range within a namespace
+      const vacationCountWithBounds = await t.run(async (ctx) => {
+        return await photosAggregate.count(ctx, {
+          namespace: "vacation",
+          bounds: {}, // Empty bounds means all items in the namespace
+        });
+      });
+
+      expect(vacationCountWithBounds).toBe(2);
     });
   });
 });
