@@ -16,6 +16,8 @@ import {
   Code,
   Paper,
   Badge,
+  Tree,
+  TreeNodeData,
 } from "@mantine/core";
 import {
   IconBinaryTree,
@@ -23,6 +25,9 @@ import {
   IconBolt,
   IconRocket,
   IconInfoCircle,
+  IconFolder,
+  IconFolderOpen,
+  IconFileText,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
@@ -44,6 +49,137 @@ export function BTreePage() {
 
   const [nextAction, setNextAction] = useState<string>("");
   const [showSettings, setShowSettings] = useState(false);
+
+  // Convert structured B-tree data to simplified Mantine Tree format
+  const convertToSimpleTreeData = (structuredData: any): TreeNodeData[] => {
+    if (!structuredData || structuredData.status === "empty") {
+      return [];
+    }
+
+    let nodeCounter = 0;
+    const getNextNodeId = () => `node-${nodeCounter++}`;
+
+    const convertNode = (node: any, nodeType = "root"): TreeNodeData => {
+      const aggregate = node.aggregate || { count: 0, sum: 0 };
+      const label = node.isLeaf
+        ? `leaf ${nodeCounter} | count: ${aggregate.count} | sum: ${aggregate.sum}`
+        : nodeType === "root"
+          ? "rootNode"
+          : `internal ${nodeCounter} | count: ${aggregate.count} | sum: ${aggregate.sum}`;
+
+      const children: TreeNodeData[] = [];
+
+      if (node.isLeaf) {
+        // For leaf nodes, show the actual data entries
+        if (node.keys && node.keys.length > 0) {
+          const dataEntries = node.keys.map((key: number, index: number) => {
+            // Try to find the corresponding entry from scores data
+            const entry = scores?.find((s) => s.score === key);
+            const entryLabel = entry
+              ? `{ "${entry.id}": ${key} }`
+              : `{ "unknown": ${key} }`;
+            return {
+              value: `data-${nodeCounter}-${index}`,
+              label: entryLabel,
+            };
+          });
+          children.push({
+            value: `entries-${nodeCounter}`,
+            label: `[ ${dataEntries.map((d: { label: string }) => d.label).join(", ")} ]`,
+          });
+        }
+      } else {
+        // For internal nodes, recurse through children
+        node.children.forEach((child: any, index: number) => {
+          children.push(convertNode(child, `child-${index}`));
+        });
+      }
+
+      return {
+        value: getNextNodeId(),
+        label,
+        children,
+      };
+    };
+
+    return [convertNode(structuredData.rootNode)];
+  };
+
+  const treeData = btreeStructured
+    ? convertToSimpleTreeData(btreeStructured)
+    : [];
+
+  // Custom render function for B-tree nodes
+  const renderBTreeNode = ({
+    node,
+    expanded,
+    hasChildren,
+    elementProps,
+  }: any) => {
+    const isLeaf = node.label.includes("leaf");
+    const isRoot = node.label === "rootNode";
+    const isData = node.label.startsWith("[");
+
+    return (
+      <Group gap={8} {...elementProps}>
+        {isData ? (
+          <IconFileText
+            color="var(--mantine-color-cyan-4)"
+            size={14}
+            stroke={2}
+          />
+        ) : hasChildren ? (
+          expanded ? (
+            <IconFolderOpen
+              color={
+                isRoot
+                  ? "var(--mantine-color-yellow-4)"
+                  : isLeaf
+                    ? "var(--mantine-color-green-4)"
+                    : "var(--mantine-color-blue-4)"
+              }
+              size={16}
+              stroke={2.5}
+            />
+          ) : (
+            <IconFolder
+              color={
+                isRoot
+                  ? "var(--mantine-color-yellow-4)"
+                  : isLeaf
+                    ? "var(--mantine-color-green-4)"
+                    : "var(--mantine-color-blue-4)"
+              }
+              size={16}
+              stroke={2.5}
+            />
+          )
+        ) : (
+          <IconFileText
+            color="var(--mantine-color-gray-5)"
+            size={14}
+            stroke={2}
+          />
+        )}
+        <Text
+          size="sm"
+          c={
+            isRoot
+              ? "yellow.3"
+              : isLeaf
+                ? "green.3"
+                : isData
+                  ? "cyan.3"
+                  : "blue.3"
+          }
+          ff="monospace"
+          fw={hasChildren ? 600 : 400}
+        >
+          {node.label}
+        </Text>
+      </Group>
+    );
+  };
 
   return (
     <Stack gap="xl">
@@ -303,20 +439,50 @@ export function BTreePage() {
                 </Badge>
               </Group>
 
-              {/* Full Structure */}
+              {/* Tree Visualization */}
+              <Alert color="blue" title="How to read this B-tree:">
+                <Stack gap="xs">
+                  <Group gap="xs">
+                    <IconFolder
+                      color="var(--mantine-color-yellow-4)"
+                      size={14}
+                    />
+                    <Text size="sm">rootNode - The root of the B-tree</Text>
+                  </Group>
+                  <Group gap="xs">
+                    <IconFolder color="var(--mantine-color-blue-4)" size={14} />
+                    <Text size="sm">internal nodes - Route to child nodes</Text>
+                  </Group>
+                  <Group gap="xs">
+                    <IconFolder
+                      color="var(--mantine-color-green-4)"
+                      size={14}
+                    />
+                    <Text size="sm">
+                      leaf nodes - Contain actual data with count & sum
+                      aggregates
+                    </Text>
+                  </Group>
+                  <Group gap="xs">
+                    <IconFileText
+                      color="var(--mantine-color-cyan-4)"
+                      size={14}
+                    />
+                    <Text size="sm">
+                      data entries - The actual key-value pairs stored
+                    </Text>
+                  </Group>
+                </Stack>
+              </Alert>
+
               <Paper bg="dark.8" p="md">
-                <Code
-                  block
-                  c="white"
-                  bg="dark.8"
-                  style={{
-                    fontSize: "12px",
-                    fontFamily: "monospace",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {JSON.stringify(btreeStructured, null, 2)}
-                </Code>
+                <Tree
+                  data={treeData}
+                  levelOffset={24}
+                  selectOnClick
+                  clearSelectionOnOutsideClick
+                  renderNode={renderBTreeNode}
+                />
               </Paper>
             </Stack>
           ) : (
