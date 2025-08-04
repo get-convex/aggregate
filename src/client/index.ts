@@ -872,8 +872,9 @@ export function btreeItemToAggregateItem<K extends Key, ID extends string>({
 export type NamespacedArgs<Args, Namespace> =
   | (Args & { namespace: Namespace })
   | (Namespace extends undefined ? Args : never);
+
 export type NamespacedOpts<Opts, Namespace> =
-  | [{ namespace: Namespace } & Partial<Opts>]
+  | [{ namespace: Namespace } & Opts]
   | (undefined extends Namespace ? [Opts?] : never);
 
 function namespaceFromArg<Args extends object, Namespace>(
