@@ -59,6 +59,18 @@ export const getRandomMusicTitle = query({
 });
 
 /**
+ * Get the total count of music items - demonstrates O(log(n)) count operation
+ */
+export const getTotalMusicCount = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    // @ts-ignore - aggregate count should work without bounds
+    return await randomize.count(ctx);
+  },
+});
+
+/**
  * Shuffles indexes in the music table and returns this shuffled table, paginated.
  * For the first page use {offset: 0, numItems:10} then use
  * {offset:10, numItems:10}, then {offset:20, numItems:10}, etc.
