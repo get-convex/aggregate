@@ -69,4 +69,46 @@ describe("TableAggregate", () => {
 
     expect(result).toBe(2);
   });
+
+  describe("clearAll", () => {
+    test("should clear all data when called on empty aggregate", async () => {
+      const t = setupTest();
+
+      const aggregate = new TableAggregate(components.aggregate, {
+        sortKey: (doc) => doc.value,
+      });
+
+      await t.run(async (ctx) => {
+        await aggregate.clearAll(ctx);
+      });
+
+      const result = await t.run(async (ctx) => {
+        return await aggregate.count(ctx);
+      });
+
+      expect(result).toBe(0);
+    });
+
+    test("should clear twice all data when called on empty aggregate", async () => {
+      const t = setupTest();
+
+      const aggregate = new TableAggregate(components.aggregate, {
+        sortKey: (doc) => doc.value,
+      });
+
+      await t.run(async (ctx) => {
+        await aggregate.clearAll(ctx);
+      });
+
+      await t.run(async (ctx) => {
+        await aggregate.clearAll(ctx);
+      });
+
+      const result = await t.run(async (ctx) => {
+        return await aggregate.count(ctx);
+      });
+
+      expect(result).toBe(0);
+    });
+  });
 });
