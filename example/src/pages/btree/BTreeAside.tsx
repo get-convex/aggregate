@@ -64,18 +64,12 @@ export function BTreeAside() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={async () => {
-              if (!name.trim() || score === "" || score === null) {
-                return;
-              }
+              if (!name.trim() || score === "" || score === null) return;
 
               setIsSubmitting(true);
               await addScore({ name: name.trim(), score: Number(score) })
                 .catch(onApiError)
                 .finally(() => setIsSubmitting(false));
-
-              // Clear form after successful submission
-              setName("");
-              setScore("");
             }}
             loading={isSubmitting}
             disabled={!name.trim() || score === "" || score === null}

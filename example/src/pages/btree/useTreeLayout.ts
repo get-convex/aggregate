@@ -20,33 +20,75 @@ export function useTreeLayout(
     const tree = listTrees[0];
     const nodeMap = new Map(listNodes.map((node) => [node._id, node]));
 
-    // First, count nodes at each level for better spacing
+    // First pass: find the maximum depth and count nodes at each level
     const levelCounts = new Map<number, number>();
-    const visited = new Set<string>();
+    const nodeDepths = new Map<string, number>();
+    let maxDepth = 0;
+    let visited = new Set<string>();
 
-    function countNodesAtLevel(nodeId: string, level: number): void {
+    function calculateDepthsAndCounts(nodeId: string, level: number): void {
       if (visited.has(nodeId)) return;
       visited.add(nodeId);
 
+      nodeDepths.set(nodeId, level);
       levelCounts.set(level, (levelCounts.get(level) || 0) + 1);
+      maxDepth = Math.max(maxDepth, level);
 
       const node = nodeMap.get(nodeId);
       if (node?.subtrees) {
         node.subtrees.forEach((subtreeId) =>
-          countNodesAtLevel(subtreeId, level + 1)
+          calculateDepthsAndCounts(subtreeId, level + 1)
         );
       }
     }
 
-    countNodesAtLevel(tree.root, 0);
+    calculateDepthsAndCounts(tree.root, 0);
     visited.clear();
+
+    // Second pass: assign visual depths - all leaves should be at the same level
+    const visualDepths = new Map<string, number>();
+
+    function assignVisualDepths(nodeId: string): number {
+      if (visualDepths.has(nodeId)) {
+        return visualDepths.get(nodeId)!;
+      }
+
+      const node = nodeMap.get(nodeId);
+      if (!node) return 0;
+
+      const isLeaf = !node.subtrees || node.subtrees.length === 0;
+
+      if (isLeaf) {
+        // All leaves should be at the maximum depth level
+        visualDepths.set(nodeId, maxDepth);
+        return maxDepth;
+      } else {
+        // Internal nodes: find the minimum depth of their children minus 1
+        const childDepths = node.subtrees!.map((subtreeId) =>
+          assignVisualDepths(subtreeId)
+        );
+        const minChildDepth = Math.min(...childDepths);
+        const visualDepth = Math.max(0, minChildDepth - 1);
+        visualDepths.set(nodeId, visualDepth);
+        return visualDepth;
+      }
+    }
+
+    // Calculate visual depths starting from root
+    assignVisualDepths(tree.root);
 
     // Build the tree structure and calculate positions
     const nodes: Node[] = [];
     const edges: Edge[] = [];
-    const levelIndexes = new Map<number, number>();
+    const visualLevelIndexes = new Map<number, number>();
 
-    function buildSubtree(nodeId: string, level: number): void {
+    // Count nodes at each visual level for spacing
+    const visualLevelCounts = new Map<number, number>();
+    visualDepths.forEach((depth) => {
+      visualLevelCounts.set(depth, (visualLevelCounts.get(depth) || 0) + 1);
+    });
+
+    function buildSubtree(nodeId: string): void {
       if (visited.has(nodeId)) return;
       visited.add(nodeId);
 
@@ -55,25 +97,26 @@ export function useTreeLayout(
 
       const isRoot = nodeId === tree.root;
       const isLeaf = !node.subtrees || node.subtrees.length === 0;
+      const visualLevel = visualDepths.get(nodeId) || 0;
 
-      // Calculate position with better spacing
-      const nodesAtLevel = levelCounts.get(level) || 1;
-      const currentIndex = levelIndexes.get(level) || 0;
-      levelIndexes.set(level, currentIndex + 1);
+      // Calculate position with consistent level spacing
+      const nodesAtVisualLevel = visualLevelCounts.get(visualLevel) || 1;
+      const currentIndex = visualLevelIndexes.get(visualLevel) || 0;
+      visualLevelIndexes.set(visualLevel, currentIndex + 1);
 
-      const levelWidth = Math.max(800, nodesAtLevel * 250); // Dynamic width based on node count
-      const levelHeight = 400;
-      const nodeSpacing = levelWidth / Math.max(nodesAtLevel, 1);
+      const levelWidth = Math.max(800, nodesAtVisualLevel * 250);
+      const levelHeight = 350; // Reduced height for better visual density
+      const nodeSpacing = levelWidth / Math.max(nodesAtVisualLevel, 1);
 
-      const x = (currentIndex - (nodesAtLevel - 1) / 2) * nodeSpacing;
-      const y = level * levelHeight;
+      const x = (currentIndex - (nodesAtVisualLevel - 1) / 2) * nodeSpacing;
+      const y = visualLevel * levelHeight;
 
       // Create React Flow node (draggable)
       nodes.push({
         id: nodeId,
         type: "btreeNode",
         position: { x, y },
-        draggable: true, // Make nodes draggable
+        draggable: true,
         data: {
           node,
           isRoot,
@@ -96,13 +139,13 @@ export function useTreeLayout(
           });
 
           // Recursively build subtree
-          buildSubtree(subtreeId, level + 1);
+          buildSubtree(subtreeId);
         });
       }
     }
 
     // Start building from root
-    buildSubtree(tree.root, 0);
+    buildSubtree(tree.root);
 
     return { nodes, edges };
   }, [listTrees, listNodes, onDeleteItem]);
