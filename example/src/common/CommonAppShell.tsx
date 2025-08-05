@@ -14,7 +14,7 @@ export function CommonAppShell(props: CommonAppShellProps) {
     <AppShell
       header={{ height: 60 }}
       navbar={{ width: 200, breakpoint: 0 }}
-      padding="md"
+      padding={props.fullScreen ? 0 : "md"}
       bg="dark.8"
       {...props.appShellProps}
     >
