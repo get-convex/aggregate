@@ -1142,7 +1142,7 @@ export async function paginateNamespacesHandler(
   };
 }
 
-export const batchAggregateBetween = query({
+export const aggregateBetweenBatch = query({
   args: {
     queries: v.array(v.object({
       k1: v.optional(v.any()),
@@ -1151,10 +1151,10 @@ export const batchAggregateBetween = query({
     })),
   },
   returns: v.array(aggregate),
-  handler: batchAggregateBetweenHandler,
+  handler: aggregateBetweenBatchHandler,
 });
 
-export async function batchAggregateBetweenHandler(
+export async function aggregateBetweenBatchHandler(
   ctx: { db: DatabaseReader },
   args: { queries: Array<{ k1?: Key; k2?: Key; namespace?: Namespace }> }
 ) {
@@ -1163,7 +1163,7 @@ export async function batchAggregateBetweenHandler(
   );
 }
 
-export const batchAtOffset = query({
+export const atOffsetBatch = query({
   args: {
     queries: v.array(v.object({
       offset: v.number(),
@@ -1173,10 +1173,10 @@ export const batchAtOffset = query({
     })),
   },
   returns: v.array(itemValidator),
-  handler: batchAtOffsetHandler,
+  handler: atOffsetBatchHandler,
 });
 
-export async function batchAtOffsetHandler(
+export async function atOffsetBatchHandler(
   ctx: { db: DatabaseReader },
   args: { queries: Array<{ offset: number; k1?: Key; k2?: Key; namespace?: Namespace }> }
 ) {
@@ -1185,7 +1185,7 @@ export async function batchAtOffsetHandler(
   );
 }
 
-export const batchAtNegativeOffset = query({
+export const atNegativeOffsetBatch = query({
   args: {
     queries: v.array(v.object({
       offset: v.number(),
@@ -1195,10 +1195,10 @@ export const batchAtNegativeOffset = query({
     })),
   },
   returns: v.array(itemValidator),
-  handler: batchAtNegativeOffsetHandler,
+  handler: atNegativeOffsetBatchHandler,
 });
 
-export async function batchAtNegativeOffsetHandler(
+export async function atNegativeOffsetBatchHandler(
   ctx: { db: DatabaseReader },
   args: { queries: Array<{ offset: number; k1?: Key; k2?: Key; namespace?: Namespace }> }
 ) {

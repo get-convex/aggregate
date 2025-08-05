@@ -500,6 +500,43 @@ of truth to the aggregate table. You can use `db.query("mytable").paginate()`
 on your Convex table and `aggregate.paginate()` on the aggregate. Update the
 aggregates based on the diff of these two paginated data streams.
 
+## Performance Optimizations
+
+### Batch Operations
+
+For improved performance when making multiple similar queries, the Aggregate component provides batch versions of common operations:
+
+- `batchCount()` - Count items for multiple bounds in a single call
+- `batchAt()` - Return items at multiple offsets in a single call
+
+These batch functions are significantly more efficient than making individual calls because they:
+
+1. **Reduce function call overhead**: Instead of multiple separate function invocations, batch operations make a single call that processes multiple queries internally.
+
+2. **Optimize database access**: Batch operations can leverage internal optimizations and reduce the number of database round trips.
+
+3. **Improve transaction efficiency**: When used in mutations, batch operations reduce the transaction scope and potential for conflicts.
+
+```ts
+// Instead of multiple individual calls:
+const counts = await Promise.all([
+  aggregate.count(ctx, { bounds: bounds1 }),
+  aggregate.count(ctx, { bounds: bounds2 }),
+  aggregate.count(ctx, { bounds: bounds3 }),
+]);
+
+// Use the batch equivalent for better performance:
+const counts = await aggregate.batchCount(ctx, {
+  queries: [
+    { bounds: bounds1 },
+    { bounds: bounds2 },
+    { bounds: bounds3 },
+  ],
+});
+```
+
+The batch functions accept arrays of query parameters and return arrays of results in the same order, making them drop-in replacements for multiple individual calls while providing better performance characteristics.
+
 ## Reactivity and Atomicity
 
 Like all Convex queries, aggregates are
