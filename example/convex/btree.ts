@@ -31,7 +31,21 @@ export const addScore = mutation({
       id: id,
       sumValue: args.score,
     });
+
     return id;
+  },
+});
+
+export const deleteItem = mutation({
+  args: {
+    id: v.string(),
+    score: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await btreeAggregate.delete(ctx, {
+      key: args.score,
+      id: args.id,
+    });
   },
 });
 
@@ -50,7 +64,9 @@ export const listNodes = query({
 });
 
 export type BTreeDoc = FunctionReturnType<typeof api.btree.listTrees>[number];
-export type BTreeNodeDoc = FunctionReturnType<typeof api.btree.listNodes>[number];
+export type BTreeNodeDoc = FunctionReturnType<
+  typeof api.btree.listNodes
+>[number];
 
 export const getStats = query({
   args: {},

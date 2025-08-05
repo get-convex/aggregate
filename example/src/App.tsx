@@ -23,98 +23,12 @@ import { PhotosPage } from "./pages/photos/PhotosPage";
 import { ShufflePage } from "./pages/shuffle/ShufflePage";
 import { StatsPage } from "./pages/stats/StatsPage";
 import { BTreePage } from "./pages/btree/BTreePage";
+import { BTreeAside } from "./pages/btree/BTreeAside";
 import { routes, useRoute } from "./routes";
 import { exhaustiveCheck } from "./utils/utils";
+import { Navbar } from "./common/Navbar";
 
 export default function App() {
-  const route = useRoute();
-
-  return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 200, breakpoint: 0 }}
-      padding="md"
-      bg="dark.8"
-    >
-      <AppShell.Header bg="dark.7">
-        <Group justify="space-between" p="md">
-          <Text size="lg" fw={500} c="white">
-            Convex Aggregate Demo
-          </Text>
-          <Button
-            component="a"
-            href="https://github.com/get-convex/aggregate"
-            target="_blank"
-            color="cyan"
-            leftSection={<IconBrandGithub size={18} />}
-            rightSection={<IconExternalLink size={18} />}
-          >
-            View Source
-          </Button>
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Navbar bg="dark.7" p="md">
-        <Stack gap="xs">
-          <NavLink
-            label="Home"
-            leftSection={<IconHome size={20} />}
-            active={route.name === "home"}
-            onClick={() => routes.home().push()}
-            c="white"
-          />
-          <NavLink
-            label="Leaderboard"
-            leftSection={<IconTrophy size={20} />}
-            active={route.name === "leaderboard"}
-            onClick={() => routes.leaderboard().push()}
-            c="white"
-          />
-          <NavLink
-            label="Photos"
-            leftSection={<IconPhoto size={20} />}
-            active={route.name === "photos"}
-            onClick={() => routes.photos().push()}
-            c="white"
-          />
-          <NavLink
-            label="Shuffle"
-            leftSection={<IconArrowsShuffle size={20} />}
-            active={route.name === "shuffle"}
-            onClick={() => routes.shuffle().push()}
-            c="white"
-          />
-          <NavLink
-            label="Stats"
-            leftSection={<IconChartPie size={20} />}
-            active={route.name === "stats"}
-            onClick={() => routes.stats().push()}
-            c="white"
-          />
-          <NavLink
-            label="B-Tree"
-            leftSection={<IconBinaryTree size={20} />}
-            active={route.name === "btree"}
-            onClick={() => routes.btree().push()}
-            c="white"
-          />
-        </Stack>
-      </AppShell.Navbar>
-
-      <AppShell.Main bg="dark.8">
-        <Container
-          size="xl"
-          py={{ base: "md", sm: "xl" }}
-          px={{ base: "sm", sm: "md" }}
-        >
-          <Routes />
-        </Container>
-      </AppShell.Main>
-    </AppShell>
-  );
-}
-
-function Routes() {
   const route = useRoute();
 
   if (route.name === "home") return <HomePage />;
