@@ -1,15 +1,5 @@
-import {
-  AppShell,
-  Container,
-  Text,
-  Group,
-  Button,
-  AppShellProps,
-} from "@mantine/core";
-import { IconBrandGithub, IconExternalLink } from "@tabler/icons-react";
-import { BTreeAside } from "../pages/btree/BTreeAside";
+import { AppShell, Container, AppShellProps } from "@mantine/core";
 import { Navbar } from "./Navbar";
-import { useRoute } from "../routes";
 import { AppShellHeader } from "./AppShellHeader";
 
 export type CommonAppShellProps = {

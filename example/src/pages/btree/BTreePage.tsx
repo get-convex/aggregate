@@ -3,6 +3,7 @@ import { api } from "../../../convex/_generated/api";
 import { useApiErrorHandler } from "@/utils/errors";
 import { BTreeAside, BTreeVisualizer } from "./index";
 import { CommonAppShell } from "@/common/CommonAppShell";
+import { AppShell } from "@mantine/core";
 
 export function BTreePage() {
   const onApiError = useApiErrorHandler();
@@ -13,7 +14,11 @@ export function BTreePage() {
 
   return (
     <CommonAppShell
-      appShellChildren={<BTreeAside />}
+      appShellChildren={
+        <AppShell.Aside bg="dark.6" p="md">
+          <BTreeAside />
+        </AppShell.Aside>
+      }
       appShellProps={{
         aside: {
           width: 300,

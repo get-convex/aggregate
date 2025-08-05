@@ -33,10 +33,11 @@ export const REACT_FLOW_PROPS = {
 };
 
 export const CONTAINER_STYLES = {
-  height: "calc(100vh - 180px)", // Account for header and container padding
+  height: "calc(100vh - 220px)", // Account for header and container padding
   backgroundColor: "var(--mantine-color-dark-7)",
   borderRadius: 8,
   overflow: "hidden" as const,
+  width: "100%",
 };
 
 export const REACT_FLOW_STYLES = {
