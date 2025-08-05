@@ -9,8 +9,9 @@ import {
   query,
   internalMutation,
 } from "../../example/convex/_generated/server";
-import { components } from "../../example/convex/_generated/api";
+import { api, components } from "../../example/convex/_generated/api";
 import { v } from "convex/values";
+import { FunctionReturnType } from "convex/server";
 
 const btreeAggregate = new DirectAggregate<{
   Key: number;
@@ -47,6 +48,9 @@ export const listNodes = query({
     return await ctx.runQuery(components.btreeAggregate.inspect.listTreeNodes);
   },
 });
+
+export type BTreeDoc = FunctionReturnType<typeof api.btree.listTrees>[number];
+export type BTreeNodeDoc = FunctionReturnType<typeof api.btree.listNodes>[number];
 
 export const getStats = query({
   args: {},

@@ -16,6 +16,7 @@ import { IconBinaryTree, IconPlus } from "@tabler/icons-react";
 import { useApiErrorHandler } from "@/utils/errors";
 import { useState } from "react";
 import { StatsGrid } from "../../common/StatsGrid";
+import { BTreeVisualizer } from "./BTreeVisualizer";
 
 export function BTreePage() {
   const onApiError = useApiErrorHandler();
@@ -39,16 +40,7 @@ export function BTreePage() {
 
       <Grid>
         <Grid.Col span={8}>
-          <Stack gap="md">
-            <Text size="lg" fw={500} c="white">
-              Tree Structure
-            </Text>
-            <Code block>{JSON.stringify(listTrees, null, 2)}</Code>
-            <Text size="lg" fw={500} c="white">
-              Node Details
-            </Text>
-            <Code block>{JSON.stringify(listNodes, null, 2)}</Code>
-          </Stack>
+          <BTreeVisualizer listTrees={listTrees ?? []} listNodes={listNodes ?? []} />
         </Grid.Col>
 
         <Grid.Col span={4}>
