@@ -16,6 +16,9 @@ import {
   offsetUntilHandler,
   atNegativeOffsetHandler,
   paginateHandler,
+  batchAggregateBetweenHandler,
+  batchAtOffsetHandler,
+  batchAtNegativeOffsetHandler,
 } from "./btree.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
@@ -209,6 +212,137 @@ describe("btree", () => {
       await del(4);
     });
   });
+
+  test("batchAggregateBetween", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      async function insert(key: number, value: string, summand: number) {
+        await insertHandler(ctx, { key, value, summand });
+        await validateTree(ctx, {});
+      }
+      
+      await insert(0, "a", 1);
+      await insert(1, "b", 2);
+      await insert(2, "c", 3);
+      await insert(3, "d", 4);
+      await insert(4, "e", 5);
+      await insert(5, "f", 6);
+      await insert(6, "g", 7);
+      await insert(7, "h", 8);
+      await insert(8, "i", 9);
+      await insert(9, "j", 10);
+
+      const queries = [
+        { k1: undefined, k2: undefined },
+        { k1: 2, k2: 7 },
+        { k1: 0, k2: 3 },
+        { k1: 5, k2: undefined },
+        { k1: undefined, k2: 4 },
+      ];
+
+      const batchResults = await batchAggregateBetweenHandler(ctx, { queries });
+      
+      expect(batchResults).toHaveLength(5);
+      
+      for (let i = 0; i < queries.length; i++) {
+        const individualResult = await aggregateBetweenHandler(ctx, queries[i]);
+        expect(batchResults[i]).toEqual(individualResult);
+      }
+
+      expect(batchResults[0].count).toEqual(10);
+      expect(batchResults[1].count).toEqual(4);
+      expect(batchResults[2].count).toEqual(2);
+      expect(batchResults[3].count).toEqual(4);
+      expect(batchResults[4].count).toEqual(4);
+    });
+  });
+
+  test("batchAtOffset", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      async function insert(key: number, value: string) {
+        await insertHandler(ctx, { key, value });
+        await validateTree(ctx, {});
+      }
+      
+      await insert(0, "a");
+      await insert(1, "b");
+      await insert(2, "c");
+      await insert(3, "d");
+      await insert(4, "e");
+      await insert(5, "f");
+      await insert(6, "g");
+      await insert(7, "h");
+
+      const queries = [
+        { offset: 0 },
+        { offset: 3 },
+        { offset: 7 },
+        { offset: 2, k1: 1, k2: 6 },
+        { offset: 0, k1: 3, k2: undefined },
+      ];
+
+      const batchResults = await batchAtOffsetHandler(ctx, { queries });
+      
+      expect(batchResults).toHaveLength(5);
+      
+      for (let i = 0; i < queries.length; i++) {
+        const individualResult = await atOffsetHandler(ctx, queries[i]);
+        expect(batchResults[i]).toEqual(individualResult);
+      }
+
+      expect(batchResults[0].k).toEqual(0);
+      expect(batchResults[1].k).toEqual(3);
+      expect(batchResults[2].k).toEqual(7);
+      expect(batchResults[3].k).toEqual(4);
+      expect(batchResults[4].k).toEqual(4);
+    });
+  });
+
+  test("batchAtNegativeOffset", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      async function insert(key: number, value: string) {
+        await insertHandler(ctx, { key, value });
+        await validateTree(ctx, {});
+      }
+      
+      await insert(0, "a");
+      await insert(1, "b");
+      await insert(2, "c");
+      await insert(3, "d");
+      await insert(4, "e");
+      await insert(5, "f");
+      await insert(6, "g");
+      await insert(7, "h");
+
+      const queries = [
+        { offset: 0 },
+        { offset: 3 },
+        { offset: 7 },
+        { offset: 1, k1: 2, k2: 6 },
+        { offset: 0, k1: undefined, k2: 5 },
+      ];
+
+      const batchResults = await batchAtNegativeOffsetHandler(ctx, { queries });
+      
+      expect(batchResults).toHaveLength(5);
+      
+      for (let i = 0; i < queries.length; i++) {
+        const individualResult = await atNegativeOffsetHandler(ctx, queries[i]);
+        expect(batchResults[i]).toEqual(individualResult);
+      }
+
+      expect(batchResults[0].k).toEqual(7);
+      expect(batchResults[1].k).toEqual(4);
+      expect(batchResults[2].k).toEqual(0);
+      expect(batchResults[3].k).toEqual(4);
+      expect(batchResults[4].k).toEqual(4);
+    });
+  });
 });
 
 describe("namespaced btree", () => {
@@ -239,6 +373,78 @@ describe("namespaced btree", () => {
       await insert("b", 0, "e");
       await count("a", 5);
       await count("b", 4);
+    });
+  });
+
+  test("batch functions with namespaces", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, "ns1", 4, false);
+      await getOrCreateTree(ctx.db, "ns2", 4, false);
+      
+      async function insert(namespace: string, key: number, value: string, summand: number = 0) {
+        await insertHandler(ctx, { key, value, namespace, summand });
+        await validateTree(ctx, { namespace });
+      }
+      
+      await insert("ns1", 1, "a", 10);
+      await insert("ns1", 2, "b", 20);
+      await insert("ns1", 3, "c", 30);
+      await insert("ns2", 1, "x", 100);
+      await insert("ns2", 2, "y", 200);
+      await insert("ns2", 3, "z", 300);
+
+      const batchCountQueries = [
+        { namespace: "ns1" },
+        { namespace: "ns2" },
+        { namespace: "ns1", k1: 1, k2: 3 },
+        { namespace: "ns2", k1: 2, k2: undefined },
+      ];
+
+      const batchCountResults = await batchAggregateBetweenHandler(ctx, { 
+        queries: batchCountQueries 
+      });
+      
+      expect(batchCountResults).toHaveLength(4);
+      expect(batchCountResults[0].count).toEqual(3);
+      expect(batchCountResults[0].sum).toEqual(60);
+      expect(batchCountResults[1].count).toEqual(3);
+      expect(batchCountResults[1].sum).toEqual(600);
+      expect(batchCountResults[2].count).toEqual(1);
+      expect(batchCountResults[3].count).toEqual(1);
+
+      const batchAtQueries = [
+        { offset: 0, namespace: "ns1" },
+        { offset: 1, namespace: "ns2" },
+        { offset: 0, namespace: "ns1", k1: 2, k2: undefined },
+      ];
+
+      const batchAtResults = await batchAtOffsetHandler(ctx, { 
+        queries: batchAtQueries 
+      });
+      
+      expect(batchAtResults).toHaveLength(3);
+      expect(batchAtResults[0].k).toEqual(1);
+      expect(batchAtResults[0].v).toEqual("a");
+      expect(batchAtResults[1].k).toEqual(2);
+      expect(batchAtResults[1].v).toEqual("y");
+      expect(batchAtResults[2].k).toEqual(3);
+      expect(batchAtResults[2].v).toEqual("c");
+
+      const batchNegativeAtQueries = [
+        { offset: 0, namespace: "ns1" },
+        { offset: 1, namespace: "ns2" },
+      ];
+
+      const batchNegativeAtResults = await batchAtNegativeOffsetHandler(ctx, { 
+        queries: batchNegativeAtQueries 
+      });
+      
+      expect(batchNegativeAtResults).toHaveLength(2);
+      expect(batchNegativeAtResults[0].k).toEqual(3);
+      expect(batchNegativeAtResults[0].v).toEqual("c");
+      expect(batchNegativeAtResults[1].k).toEqual(2);
+      expect(batchNegativeAtResults[1].v).toEqual("y");
     });
   });
 });
