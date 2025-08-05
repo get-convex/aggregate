@@ -309,7 +309,7 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(this.component.btree.batchAggregateBetween, {
+    const results = await ctx.runQuery(this.component.btree.aggregateBetweenBatch, {
       queries: queryArgs,
     });
     return results.map((result: { count: number }) => result.count);
@@ -343,10 +343,10 @@ export class Aggregate<
 
     const [positiveResults, negativeResults] = await Promise.all([
       positiveQueries.length > 0 
-        ? ctx.runQuery(this.component.btree.batchAtOffset, { queries: positiveQueries })
+        ? ctx.runQuery(this.component.btree.atOffsetBatch, { queries: positiveQueries })
         : [],
       negativeQueries.length > 0
-        ? ctx.runQuery(this.component.btree.batchAtNegativeOffset, { queries: negativeQueries })
+        ? ctx.runQuery(this.component.btree.atNegativeOffsetBatch, { queries: negativeQueries })
         : []
     ]);
 
