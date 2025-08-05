@@ -17,7 +17,13 @@ jobs:
             package-lock.json
           node-version: "18.x"
           cache: "npm"
-      - run: npm i
-      - run: npm ci
-      - run: cd example && npm i && cd ..
-      - run: npm test
+      - name: Install & Build
+        run: |
+          npm i
+          npm ci
+          cd example && npm i && cd ..
+          npm run build
+      - name: pkg-pr-new
+        run: npx pkg-pr-new publish ./
+      - name: Test
+        run: npm run test

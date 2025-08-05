@@ -1136,7 +1136,9 @@ export async function paginateNamespacesHandler(
   }
   const isDone = trees.length < args.limit;
   return {
-    page: trees.map((t) => t.namespace ?? null),
+    page: trees
+      .filter((t) => t.namespace !== undefined)
+      .map((t) => t.namespace),
     cursor: isDone ? "endcursor" : trees[trees.length - 1]._id,
     isDone,
   };
