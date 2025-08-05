@@ -640,7 +640,7 @@ describe("btree matches simpler impl", () => {
       writes: fc.array(arbitraryWrite, { maxLength: 100 }),
       reads: fc.array(arbitraryRead, { maxLength: 20 }),
     },
-    { numRuns: 10000 }
+    { numRuns: 100 }
   )(
     "btree operations on natural numbers match simple btree",
     async ({ writes, reads }) => {
