@@ -19,7 +19,7 @@
     "build:esm": "tsc --project ./esm.json && echo '{\\n  \"type\": \"module\"\\n}' > dist/esm/package.json",
     "build:cjs": "tsc --project ./commonjs.json && echo '{\\n  \"type\": \"commonjs\"\\n}' > dist/commonjs/package.json",
     "typecheck": "tsc --noEmit",
-    "dev:ts": "tsc --watch --noEmit",
+    "typecheck:watch": "tsc --watch --noEmit",
     "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",

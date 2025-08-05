@@ -462,7 +462,7 @@ export class Aggregate<
         isDone: newIsDone,
       } = await this.paginateNamespaces(ctx, cursor, pageSize);
       for (const item of page) {
-        yield item;
+        yield item ?? (undefined as Namespace);
       }
       isDone = newIsDone;
       cursor = newCursor;
@@ -474,12 +474,7 @@ export class Aggregate<
     opts?: { maxNodeSize?: number; rootLazy?: boolean }
   ): Promise<void> {
     for await (const namespace of this.iterNamespaces(ctx)) {
-      // Convert null back to undefined for the default namespace
-      const actualNamespace = namespace === null ? undefined : namespace;
-      await this.clear(ctx, {
-        ...opts,
-        namespace: actualNamespace as Namespace,
-      });
+      await this.clear(ctx, { ...opts, namespace });
     }
     // In case there are no namespaces, make sure we create at least one tree,
     // at namespace=undefined. This is where the default settings are stored.
@@ -488,9 +483,7 @@ export class Aggregate<
 
   async makeAllRootsLazy(ctx: RunMutationCtx & RunQueryCtx): Promise<void> {
     for await (const namespace of this.iterNamespaces(ctx)) {
-      // Convert null back to undefined for the default namespace
-      const actualNamespace = namespace === null ? undefined : namespace;
-      await this.makeRootLazy(ctx, actualNamespace as Namespace);
+      await this.makeRootLazy(ctx, namespace);
     }
   }
 }
