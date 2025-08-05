@@ -301,17 +301,23 @@ export class Aggregate<
    */
   async batchCount(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ queries: Array<{ bounds?: Bounds<K, ID> }> }, Namespace>
+    ...opts: NamespacedOpts<
+      { queries: Array<{ bounds?: Bounds<K, ID> }> },
+      Namespace
+    >
   ): Promise<number[]> {
     const namespace = namespaceFromOpts(opts);
     const queries = opts[0]?.queries || [];
-    const queryArgs = queries.map(query => {
+    const queryArgs = queries.map((query) => {
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(this.component.btree.aggregateBetweenBatch, {
-      queries: queryArgs,
-    });
+    const results = await ctx.runQuery(
+      this.component.btree.aggregateBetweenBatch,
+      {
+        queries: queryArgs,
+      }
+    );
     return results.map((result: { count: number }) => result.count);
   }
 
@@ -320,42 +326,50 @@ export class Aggregate<
    */
   async batchAt(
     ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<{ queries: Array<{ offset: number; bounds?: Bounds<K, ID> }> }, Namespace>
+    ...opts: NamespacedOpts<
+      { queries: Array<{ offset: number; bounds?: Bounds<K, ID> }> },
+      Namespace
+    >
   ): Promise<Item<K, ID>[]> {
     const namespace = namespaceFromOpts(opts);
     const queries = opts[0]?.queries || [];
-    
+
     const positiveQueries = queries
-      .filter(q => q.offset >= 0)
-      .map(q => ({
+      .filter((q) => q.offset >= 0)
+      .map((q) => ({
         offset: q.offset,
         ...boundsToPositions(q.bounds),
         namespace,
       }));
-    
+
     const negativeQueries = queries
-      .filter(q => q.offset < 0)
-      .map(q => ({
+      .filter((q) => q.offset < 0)
+      .map((q) => ({
         offset: -q.offset - 1,
         ...boundsToPositions(q.bounds),
         namespace,
       }));
 
     const [positiveResults, negativeResults] = await Promise.all([
-      positiveQueries.length > 0 
-        ? ctx.runQuery(this.component.btree.atOffsetBatch, { queries: positiveQueries })
+      positiveQueries.length > 0
+        ? ctx.runQuery(this.component.btree.atOffsetBatch, {
+            queries: positiveQueries,
+          })
         : [],
       negativeQueries.length > 0
-        ? ctx.runQuery(this.component.btree.atNegativeOffsetBatch, { queries: negativeQueries })
-        : []
+        ? ctx.runQuery(this.component.btree.atNegativeOffsetBatch, {
+            queries: negativeQueries,
+          })
+        : [],
     ]);
 
     let positiveIndex = 0;
     let negativeIndex = 0;
-    return queries.map(query => {
-      const result = query.offset < 0 
-        ? negativeResults[negativeIndex++]
-        : positiveResults[positiveIndex++];
+    return queries.map((query) => {
+      const result =
+        query.offset < 0
+          ? negativeResults[negativeIndex++]
+          : positiveResults[positiveIndex++];
       return btreeItemToAggregateItem(result);
     });
   }

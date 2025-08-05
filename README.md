@@ -527,11 +527,7 @@ const counts = await Promise.all([
 
 // Use the batch equivalent for better performance:
 const counts = await aggregate.batchCount(ctx, {
-  queries: [
-    { bounds: bounds1 },
-    { bounds: bounds2 },
-    { bounds: bounds3 },
-  ],
+  queries: [{ bounds: bounds1 }, { bounds: bounds2 }, { bounds: bounds3 }],
 });
 ```
 

@@ -230,26 +230,28 @@ describe("btree", () => {
       await t.run(async (ctx) => {
         await getOrCreateTree(ctx.db, undefined, 4, false);
         const simple = new SimpleBTree();
-        
+
         for (const write of writes) {
-          try {
-            if (write.type === "insert") {
-              await insertHandler(ctx, write);
-              simple.insert({ k: write.key, v: write.value, s: write.summand });
-            } else if (write.type === "delete") {
-              await deleteHandler(ctx, write);
-              simple.delete(write.key);
-            }
-          } catch (e) {
+          if (write.type === "insert") {
+            await insertHandler(ctx, write);
+            simple.insert({ k: write.key, v: write.value, s: write.summand });
+          } else if (write.type === "delete") {
+            await deleteHandler(ctx, write);
+            simple.delete(write.key);
           }
         }
 
         if (aggregateQueries.length > 0) {
-          const batchResults = await aggregateBetweenBatchHandler(ctx, { queries: aggregateQueries });
+          const batchResults = await aggregateBetweenBatchHandler(ctx, {
+            queries: aggregateQueries,
+          });
           expect(batchResults).toHaveLength(aggregateQueries.length);
-          
+
           for (let i = 0; i < aggregateQueries.length; i++) {
-            const individualResult = await aggregateBetweenHandler(ctx, aggregateQueries[i]);
+            const individualResult = await aggregateBetweenHandler(
+              ctx,
+              aggregateQueries[i]
+            );
             expect(batchResults[i]).toEqual(individualResult);
           }
         }
@@ -258,15 +260,25 @@ describe("btree", () => {
         if (totalCount > 0) {
           const offsetQueries = [
             { offset: 0, k1: undefined, k2: undefined, namespace: undefined },
-            { offset: Math.floor(totalCount / 2), k1: undefined, k2: undefined, namespace: undefined },
-          ].filter(q => q.offset < totalCount);
+            {
+              offset: Math.floor(totalCount / 2),
+              k1: undefined,
+              k2: undefined,
+              namespace: undefined,
+            },
+          ].filter((q) => q.offset < totalCount);
 
           if (offsetQueries.length > 0) {
-            const batchResults = await atOffsetBatchHandler(ctx, { queries: offsetQueries });
+            const batchResults = await atOffsetBatchHandler(ctx, {
+              queries: offsetQueries,
+            });
             expect(batchResults).toHaveLength(offsetQueries.length);
-            
+
             for (let i = 0; i < offsetQueries.length; i++) {
-              const individualResult = await atOffsetHandler(ctx, offsetQueries[i]);
+              const individualResult = await atOffsetHandler(
+                ctx,
+                offsetQueries[i]
+              );
               expect(batchResults[i]).toEqual(individualResult);
             }
           }
@@ -275,11 +287,16 @@ describe("btree", () => {
             { offset: 0, k1: undefined, k2: undefined, namespace: undefined },
           ];
 
-          const batchNegResults = await atNegativeOffsetBatchHandler(ctx, { queries: negativeOffsetQueries });
+          const batchNegResults = await atNegativeOffsetBatchHandler(ctx, {
+            queries: negativeOffsetQueries,
+          });
           expect(batchNegResults).toHaveLength(negativeOffsetQueries.length);
-          
+
           for (let i = 0; i < negativeOffsetQueries.length; i++) {
-            const individualResult = await atNegativeOffsetHandler(ctx, negativeOffsetQueries[i]);
+            const individualResult = await atNegativeOffsetHandler(
+              ctx,
+              negativeOffsetQueries[i]
+            );
             expect(batchNegResults[i]).toEqual(individualResult);
           }
         }
@@ -318,7 +335,6 @@ describe("namespaced btree", () => {
       await count("b", 4);
     });
   });
-
 });
 
 class SimpleBTree {
