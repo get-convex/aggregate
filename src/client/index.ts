@@ -296,6 +296,70 @@ export class Aggregate<
     }
   }
 
+  /**
+   * Batch version of count() - counts items for multiple bounds in a single call.
+   */
+  async batchCount(
+    ctx: RunQueryCtx,
+    ...opts: NamespacedOpts<{ queries: Array<{ bounds?: Bounds<K, ID> }> }, Namespace>
+  ): Promise<number[]> {
+    const namespace = namespaceFromOpts(opts);
+    const queries = opts[0]?.queries || [];
+    const queryArgs = queries.map(query => {
+      const { k1, k2 } = boundsToPositions(query.bounds);
+      return { k1, k2, namespace };
+    });
+    const results = await ctx.runQuery(this.component.btree.batchAggregateBetween, {
+      queries: queryArgs,
+    });
+    return results.map((result: { count: number }) => result.count);
+  }
+
+  /**
+   * Batch version of at() - returns items at multiple offsets in a single call.
+   */
+  async batchAt(
+    ctx: RunQueryCtx,
+    ...opts: NamespacedOpts<{ queries: Array<{ offset: number; bounds?: Bounds<K, ID> }> }, Namespace>
+  ): Promise<Item<K, ID>[]> {
+    const namespace = namespaceFromOpts(opts);
+    const queries = opts[0]?.queries || [];
+    
+    const positiveQueries = queries
+      .filter(q => q.offset >= 0)
+      .map(q => ({
+        offset: q.offset,
+        ...boundsToPositions(q.bounds),
+        namespace,
+      }));
+    
+    const negativeQueries = queries
+      .filter(q => q.offset < 0)
+      .map(q => ({
+        offset: -q.offset - 1,
+        ...boundsToPositions(q.bounds),
+        namespace,
+      }));
+
+    const [positiveResults, negativeResults] = await Promise.all([
+      positiveQueries.length > 0 
+        ? ctx.runQuery(this.component.btree.batchAtOffset, { queries: positiveQueries })
+        : [],
+      negativeQueries.length > 0
+        ? ctx.runQuery(this.component.btree.batchAtNegativeOffset, { queries: negativeQueries })
+        : []
+    ]);
+
+    let positiveIndex = 0;
+    let negativeIndex = 0;
+    return queries.map(query => {
+      const result = query.offset < 0 
+        ? negativeResults[negativeIndex++]
+        : positiveResults[positiveIndex++];
+      return btreeItemToAggregateItem(result);
+    });
+  }
+
   /** Write operations. See {@link DirectAggregate} for docstrings. */
   async _insert(
     ctx: RunMutationCtx,

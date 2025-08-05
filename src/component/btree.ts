@@ -1141,3 +1141,68 @@ export async function paginateNamespacesHandler(
     isDone,
   };
 }
+
+export const batchAggregateBetween = query({
+  args: {
+    queries: v.array(v.object({
+      k1: v.optional(v.any()),
+      k2: v.optional(v.any()),
+      namespace: v.optional(v.any()),
+    })),
+  },
+  returns: v.array(aggregate),
+  handler: batchAggregateBetweenHandler,
+});
+
+export async function batchAggregateBetweenHandler(
+  ctx: { db: DatabaseReader },
+  args: { queries: Array<{ k1?: Key; k2?: Key; namespace?: Namespace }> }
+) {
+  return await Promise.all(
+    args.queries.map(query => aggregateBetweenHandler(ctx, query))
+  );
+}
+
+export const batchAtOffset = query({
+  args: {
+    queries: v.array(v.object({
+      offset: v.number(),
+      k1: v.optional(v.any()),
+      k2: v.optional(v.any()),
+      namespace: v.optional(v.any()),
+    })),
+  },
+  returns: v.array(itemValidator),
+  handler: batchAtOffsetHandler,
+});
+
+export async function batchAtOffsetHandler(
+  ctx: { db: DatabaseReader },
+  args: { queries: Array<{ offset: number; k1?: Key; k2?: Key; namespace?: Namespace }> }
+) {
+  return await Promise.all(
+    args.queries.map(query => atOffsetHandler(ctx, query))
+  );
+}
+
+export const batchAtNegativeOffset = query({
+  args: {
+    queries: v.array(v.object({
+      offset: v.number(),
+      k1: v.optional(v.any()),
+      k2: v.optional(v.any()),
+      namespace: v.optional(v.any()),
+    })),
+  },
+  returns: v.array(itemValidator),
+  handler: batchAtNegativeOffsetHandler,
+});
+
+export async function batchAtNegativeOffsetHandler(
+  ctx: { db: DatabaseReader },
+  args: { queries: Array<{ offset: number; k1?: Key; k2?: Key; namespace?: Namespace }> }
+) {
+  return await Promise.all(
+    args.queries.map(query => atNegativeOffsetHandler(ctx, query))
+  );
+}
