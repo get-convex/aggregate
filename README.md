@@ -504,13 +504,13 @@ For improved performance when making multiple similar queries, the Aggregate com
 - `batchCount()` - Count items for multiple bounds in a single call
 - `batchAt()` - Return items at multiple offsets in a single call
 
+If you want more batched functions, file a [GitHub issue](https://github.com/get-convex/aggregate/issues)
+
 These batch functions are significantly more efficient than making individual calls because they:
 
-1. **Reduce function call overhead**: Instead of multiple separate function invocations, batch operations make a single call that processes multiple queries internally.
-
-2. **Optimize database access**: Batch operations can leverage internal optimizations and reduce the number of database round trips.
-
-3. **Improve transaction efficiency**: When used in mutations, batch operations reduce the transaction scope and potential for conflicts.
+1. Reduce function call overhead: Instead of multiple separate function invocations, batch operations make a single call that processes multiple queries internally.
+2. Optimize database access: Batch operations can leverage internal optimizations and reduce the number of database round trips.
+3. Improve transaction efficiency: When used in mutations, batch operations reduce the transaction scope and potential for conflicts.
 
 ```ts
 // Instead of multiple individual calls:
