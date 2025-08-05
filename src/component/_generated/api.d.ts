@@ -1,4 +1,5 @@
 /* eslint-disable */
+/* eslint-disable */
 /**
  * Generated `api` utility.
  *
@@ -11,14 +12,13 @@
 import type * as btree from "../btree.js";
 import type * as compare from "../compare.js";
 import type * as inspect from "../inspect.js";
-import type * as public_ from "../public.js";
+import type * as public from "../public.js";
 
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
-
 /**
  * A utility for referencing Convex functions in your app's API.
  *
@@ -31,7 +31,7 @@ declare const fullApi: ApiFromModules<{
   btree: typeof btree;
   compare: typeof compare;
   inspect: typeof inspect;
-  public: typeof public_;
+  public: typeof public;
 }>;
 export type Mounts = {
   btree: {
@@ -52,6 +52,28 @@ export type Mounts = {
       "public",
       { k1?: any; k2?: any; namespace?: any; offset: number },
       { k: any; s: number; v: any }
+    >;
+    batchAggregateBetween: FunctionReference<
+      "query",
+      "public",
+      { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+      Array<{ count: number; sum: number }>
+    >;
+    batchAtNegativeOffset: FunctionReference<
+      "query",
+      "public",
+      {
+        queries: Array<{ k1?: any; k2?: any; namespace?: any; offset: number }>;
+      },
+      Array<{ k: any; s: number; v: any }>
+    >;
+    batchAtOffset: FunctionReference<
+      "query",
+      "public",
+      {
+        queries: Array<{ k1?: any; k2?: any; namespace?: any; offset: number }>;
+      },
+      Array<{ k: any; s: number; v: any }>
     >;
     get: FunctionReference<
       "query",
