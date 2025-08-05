@@ -14,6 +14,7 @@ export function BTreePage() {
 
   return (
     <CommonAppShell
+      fullScreen={true}
       appShellChildren={
         <AppShell.Aside bg="dark.6" p="md">
           <BTreeAside />

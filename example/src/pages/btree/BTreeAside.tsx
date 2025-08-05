@@ -23,7 +23,14 @@ export function BTreeAside() {
   const addScore = useMutation(api.btree.addScore);
 
   return (
-    <Stack gap="xl" h="100%">
+    <Stack
+      gap="xl"
+      h="100%"
+      style={{
+        overflowY: "auto",
+        paddingBottom: "1rem", // Ensure some space at bottom when scrolling
+      }}
+    >
       {/* Add Score Section */}
       <Paper p="md" radius="md" bg="dark.5">
         <Stack gap="md">

@@ -6,6 +6,7 @@ export type CommonAppShellProps = {
   children: React.ReactNode;
   appShellChildren?: React.ReactNode;
   appShellProps?: AppShellProps;
+  fullScreen?: boolean; // Bypass container for full-screen components
 };
 
 export function CommonAppShell(props: CommonAppShellProps) {
@@ -26,13 +27,17 @@ export function CommonAppShell(props: CommonAppShellProps) {
       </AppShell.Navbar>
 
       <AppShell.Main bg="dark.8">
-        <Container
-          size="xl"
-          py={{ base: "md", sm: "xl" }}
-          px={{ base: "sm", sm: "md" }}
-        >
-          {props.children}
-        </Container>
+        {props.fullScreen ? (
+          props.children
+        ) : (
+          <Container
+            size="xl"
+            py={{ base: "md", sm: "xl" }}
+            px={{ base: "sm", sm: "md" }}
+          >
+            {props.children}
+          </Container>
+        )}
       </AppShell.Main>
 
       {props.appShellChildren}
