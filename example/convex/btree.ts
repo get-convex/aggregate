@@ -74,20 +74,24 @@ export const getStats = query({
     const count = await btreeAggregate.count(ctx);
     if (count === 0) return null;
 
-    const mean = (await btreeAggregate.sum(ctx)) / count;
-    const median = (await btreeAggregate.at(ctx, Math.floor(count / 2))).key;
-    const p75 = (await btreeAggregate.at(ctx, Math.floor(count * 0.75))).key;
-    const p95 = (await btreeAggregate.at(ctx, Math.floor(count * 0.95))).key;
-    const min = (await btreeAggregate.min(ctx))!.key;
-    const max = (await btreeAggregate.max(ctx))!.key;
+    const [sum, medianItem, p75Item, p95Item, minItem, maxItem] =
+      await Promise.all([
+        btreeAggregate.sum(ctx),
+        btreeAggregate.at(ctx, Math.floor(count / 2)),
+        btreeAggregate.at(ctx, Math.floor(count * 0.75)),
+        btreeAggregate.at(ctx, Math.floor(count * 0.95)),
+        btreeAggregate.min(ctx),
+        btreeAggregate.max(ctx),
+      ]);
+
     return {
       count,
-      mean,
-      median,
-      p75,
-      p95,
-      max,
-      min,
+      mean: sum / count,
+      median: medianItem.key,
+      p75: p75Item.key,
+      p95: p95Item.key,
+      max: maxItem && maxItem.key,
+      min: minItem && minItem.key,
     };
   },
 });
