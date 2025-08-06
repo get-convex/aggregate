@@ -129,7 +129,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -141,7 +141,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -296,7 +296,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -308,7 +308,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -463,7 +463,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -475,7 +475,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -630,7 +630,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -642,7 +642,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -797,7 +797,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -809,7 +809,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -964,7 +964,7 @@ export declare const components: {
       listTreeNodes: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;
@@ -976,7 +976,7 @@ export declare const components: {
       listTrees: FunctionReference<
         "query",
         "internal",
-        {},
+        { take?: number },
         Array<{
           _creationTime: number;
           _id: string;

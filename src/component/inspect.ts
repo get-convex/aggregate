@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, Namespace, p } from "./btree.js";
-import { aggregate } from "./schema.js";
+import { aggregate, itemValidator } from "./schema.js";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
@@ -102,7 +102,9 @@ export const inspectNode = query({
 });
 
 export const listTrees = query({
-  args: {},
+  args: {
+    take: v.optional(v.number()),
+  },
   returns: v.array(
     v.object({
       root: v.id("btreeNode"),
@@ -112,34 +114,27 @@ export const listTrees = query({
       _creationTime: v.number(),
     })
   ),
-  handler: async (ctx) => {
-    const values = await ctx.db.query("btree").collect();
+  handler: async (ctx, args) => {
+    const values = await ctx.db.query("btree").take(args.take ?? 100);
     return values;
   },
 });
 
 export const listTreeNodes = query({
-  args: {},
+  args: {
+    take: v.optional(v.number()),
+  },
   returns: v.array(
     v.object({
-      items: v.array(
-        v.object({
-          // key, usually an index key.
-          k: v.any(),
-          // value, usually an id.
-          v: v.any(),
-          // summand, to be aggregated by summing.
-          s: v.number(),
-        })
-      ),
+      items: v.array(itemValidator),
       subtrees: v.array(v.id("btreeNode")),
       aggregate: v.optional(aggregate),
       _id: v.id("btreeNode"),
       _creationTime: v.number(),
     })
   ),
-  handler: async (ctx) => {
-    const values = await ctx.db.query("btreeNode").collect();
+  handler: async (ctx, args) => {
+    const values = await ctx.db.query("btreeNode").take(args.take ?? 100);
     return values;
   },
 });

@@ -108,7 +108,7 @@ export type Mounts = {
     listTreeNodes: FunctionReference<
       "query",
       "public",
-      {},
+      { take?: number },
       Array<{
         _creationTime: number;
         _id: string;
@@ -120,7 +120,7 @@ export type Mounts = {
     listTrees: FunctionReference<
       "query",
       "public",
-      {},
+      { take?: number },
       Array<{
         _creationTime: number;
         _id: string;

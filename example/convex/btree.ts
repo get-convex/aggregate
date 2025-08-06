@@ -52,14 +52,18 @@ export const deleteItem = mutation({
 export const listTrees = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.runQuery(components.btreeAggregate.inspect.listTrees);
+    return await ctx.runQuery(components.btreeAggregate.inspect.listTrees, {
+      take: 100,
+    });
   },
 });
 
 export const listNodes = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.runQuery(components.btreeAggregate.inspect.listTreeNodes);
+    return await ctx.runQuery(components.btreeAggregate.inspect.listTreeNodes, {
+      take: 100,
+    });
   },
 });
 
@@ -74,24 +78,74 @@ export const getStats = query({
     const count = await btreeAggregate.count(ctx);
     if (count === 0) return null;
 
-    const [sum, medianItem, p75Item, p95Item, minItem, maxItem] =
-      await Promise.all([
-        btreeAggregate.sum(ctx),
-        btreeAggregate.at(ctx, Math.floor(count / 2)),
-        btreeAggregate.at(ctx, Math.floor(count * 0.75)),
-        btreeAggregate.at(ctx, Math.floor(count * 0.95)),
-        btreeAggregate.min(ctx),
-        btreeAggregate.max(ctx),
-      ]);
+    const mean = (await btreeAggregate.sum(ctx)) / count;
+    const median = (await btreeAggregate.at(ctx, Math.floor(count / 2))).key;
+    const p75 = (await btreeAggregate.at(ctx, Math.floor(count * 0.75))).key;
+    const p95 = (await btreeAggregate.at(ctx, Math.floor(count * 0.95))).key;
+    const min = (await btreeAggregate.min(ctx))!.key;
+    const max = (await btreeAggregate.max(ctx))!.key;
 
     return {
       count,
-      mean: sum / count,
-      median: medianItem.key,
-      p75: p75Item.key,
-      p95: p95Item.key,
-      max: maxItem && maxItem.key,
-      min: minItem && minItem.key,
+      mean,
+      median,
+      p75,
+      p95,
+      max,
+      min,
     };
+  },
+});
+
+// ---- internal ----
+
+export const resetAll = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await btreeAggregate.clearAll(ctx);
+  },
+});
+
+export const addSampleData = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    console.log("Adding sample data to btree...");
+
+    // Add sample scores with different names to demonstrate the B-tree structure
+    const sampleData = [
+      { name: "Alice", score: 95 },
+      { name: "Bob", score: 87 },
+      { name: "Charlie", score: 92 },
+      { name: "Diana", score: 78 },
+      { name: "Eve", score: 88 },
+      { name: "Frank", score: 94 },
+      { name: "Grace", score: 82 },
+      { name: "Henry", score: 90 },
+      { name: "Iris", score: 85 },
+      { name: "Jack", score: 93 },
+      { name: "Kate", score: 89 },
+      { name: "Liam", score: 91 },
+      { name: "Mia", score: 86 },
+      { name: "Noah", score: 96 },
+      { name: "Olivia", score: 84 },
+      { name: "Paul", score: 97 },
+      { name: "Quinn", score: 83 },
+      { name: "Ruby", score: 98 },
+      { name: "Sam", score: 81 },
+      { name: "Tina", score: 99 },
+    ];
+
+    for (const { name, score } of sampleData) {
+      const id = `${name}-${Date.now()}-${Math.random()}`;
+      await btreeAggregate.insert(ctx, {
+        key: score,
+        id: id,
+        sumValue: score,
+      });
+    }
+
+    console.log(`Added ${sampleData.length} sample entries to btree`);
+    return null;
   },
 });

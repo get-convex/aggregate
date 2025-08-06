@@ -15,6 +15,7 @@ export const resetAndSeed = internalMutation({
       ctx.runMutation(internal.photos.resetAll),
       ctx.runMutation(internal.shuffle.resetAll),
       ctx.runMutation(internal.stats.resetAll),
+      ctx.runMutation(internal.btree.resetAll),
     ]);
 
     await ctx.runMutation(api.leaderboard.add100MockScores);
@@ -88,13 +89,16 @@ export const resetAndSeed = internalMutation({
 
     await ctx.runMutation(api.stats.addLatencies, {
       latencies: (() => {
-        const latencies = new Set<number>()
+        const latencies = new Set<number>();
         while (latencies.size < 55) {
-          latencies.add(Math.floor(Math.random() * 1000) + 50)
+          latencies.add(Math.floor(Math.random() * 1000) + 50);
         }
-        return Array.from(latencies)
+        return Array.from(latencies);
       })(),
     });
+
+    // Add sample data to btree
+    await ctx.runMutation(internal.btree.addSampleData);
 
     console.log("Daily data reset completed successfully!");
     return null;
