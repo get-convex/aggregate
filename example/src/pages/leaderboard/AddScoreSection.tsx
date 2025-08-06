@@ -8,6 +8,7 @@ import {
   TextInput,
   NumberInput,
   Button,
+  Paper,
 } from "@mantine/core";
 import { useState } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
@@ -22,18 +23,18 @@ export function AddScoreSection() {
   const addMockScores = useMutation(api.leaderboard.add100MockScores);
 
   return (
-    <Card bg="dark.7" p="xl">
+    <Paper bg="dark.7" p="md">
       <Stack gap="md">
-        <Title order={2} c="white">
+        <Title order={3} c="white">
           Add New Score
         </Title>
-        <Group gap="md">
+        <Stack gap="sm">
           <TextInput
             label="Player Name"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
             placeholder="Enter player name"
-            style={{ flex: 1 }}
+            size="sm"
           />
           <NumberInput
             label="Score"
@@ -43,7 +44,7 @@ export function AddScoreSection() {
             }
             placeholder="Enter score"
             min={0}
-            style={{ flex: 1 }}
+            size="sm"
           />
           <Button
             onClick={() => {
@@ -57,7 +58,7 @@ export function AddScoreSection() {
                 .catch(onApiError);
             }}
             disabled={!playerName || score === ""}
-            style={{ alignSelf: "end" }}
+            size="sm"
           >
             Add Score
           </Button>
@@ -71,13 +72,13 @@ export function AddScoreSection() {
             disabled={isAddingMockScores}
             color="blue"
             variant="outline"
-            style={{ alignSelf: "end" }}
             loading={isAddingMockScores}
+            size="sm"
           >
             Add 100 Mock Scores
           </Button>
-        </Group>
+        </Stack>
       </Stack>
-    </Card>
+    </Paper>
   );
 }

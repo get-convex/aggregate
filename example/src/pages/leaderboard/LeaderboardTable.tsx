@@ -67,7 +67,7 @@ export function LeaderboardTable() {
                 { value: "50", label: "50 per page" },
               ]}
               size="sm"
-              w={120}
+              w={150}
             />
           </Group>
 
@@ -78,9 +78,6 @@ export function LeaderboardTable() {
               </Text>
               <Text size="sm" c="gray.3">
                 Page {currentPage} of {totalPages}{" "}
-                <Badge variant="light" color="green">
-                  O(log n)
-                </Badge>
               </Text>
             </Group>
           )}

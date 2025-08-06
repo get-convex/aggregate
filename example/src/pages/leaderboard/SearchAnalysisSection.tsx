@@ -41,8 +41,8 @@ export function SearchAnalysisSection() {
           Search & Analysis
         </Title>
 
-        <Group gap="md">
-          <Stack gap="md" style={{ flex: 1 }}>
+        <Group gap="lg" align="flex-start">
+          <Stack gap="xs" style={{ flex: 1 }}>
             <Text size="sm" c="gray.4">
               Find Rank of Score
             </Text>
@@ -56,13 +56,13 @@ export function SearchAnalysisSection() {
                 min={0}
                 style={{ flex: 1 }}
               />
-              <Badge size="lg" color="blue">
+              <Badge size="md" color="blue">
                 Rank: {rankOfScore !== undefined ? rankOfScore + 1 : "N/A"}
               </Badge>
             </Group>
           </Stack>
 
-          <Stack gap="md" style={{ flex: 1 }}>
+          <Stack gap="xs" style={{ flex: 1 }}>
             <Text size="sm" c="gray.4">
               Player Statistics
             </Text>
@@ -73,14 +73,14 @@ export function SearchAnalysisSection() {
                 placeholder="Enter player name"
                 style={{ flex: 1 }}
               />
-              <Group gap="xs">
+              <Stack gap="xs">
                 <Badge size="sm" color="green">
                   Avg: {userAverage ? userAverage.toFixed(2) : "N/A"}
                 </Badge>
                 <Badge size="sm" color="orange">
                   High: {userHighScore ?? "N/A"}
                 </Badge>
-              </Group>
+              </Stack>
             </Group>
           </Stack>
         </Group>
