@@ -85,22 +85,6 @@ export const pageOfScores = query({
     numItems: v.number(),
   },
   handler: async (ctx, { offset, numItems }) => {
-    const scores = await ctx.db
-      .query("leaderboard")
-      .orderBy("score", "desc")
-      .skip(offset)
-      .take(numItems);
-
-    return scores;
-  },
-});
-
-export const pageOfScores = query({
-  args: {
-    offset: v.number(),
-    numItems: v.number(),
-  },
-  handler: async (ctx, { offset, numItems }) => {
     const scores = [];
     let count = 0;
     let skipped = 0;

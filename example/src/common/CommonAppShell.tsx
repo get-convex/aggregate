@@ -32,6 +32,7 @@ export function CommonAppShell(props: CommonAppShellProps) {
         ) : (
           <Container
             size="xl"
+            pos={"relative"}
             py={{ base: "md", sm: "xl" }}
             px={{ base: "sm", sm: "md" }}
           >

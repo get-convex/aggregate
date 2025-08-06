@@ -1,22 +1,7 @@
-import {
-  Title,
-  Text,
-  Card,
-  Stack,
-  Group,
-  Badge,
-  Anchor,
-  ThemeIcon,
-  AppShell,
-  Container,
-} from "@mantine/core";
-import {
-  IconTrophy,
-  IconCode,
-  IconBolt,
-  IconRocket,
-} from "@tabler/icons-react";
+import { Stack, AppShell, Container } from "@mantine/core";
+import { IconTrophy } from "@tabler/icons-react";
 import { CommonAppShell } from "../../common/CommonAppShell";
+import { PageHeader } from "../../common/PageHeader";
 import { AddScoreSection } from "./AddScoreSection";
 import { StatisticsSection } from "./StatisticsSection";
 import { SearchAnalysisSection } from "./SearchAnalysisSection";
@@ -44,38 +29,14 @@ export function LeaderboardPage() {
         },
       }}
     >
-      <Container size="sm" p="md">
-        <Stack gap="xl">
-          <Group justify="center" gap="md">
-            <IconTrophy size={32} color="orange" />
-            <Title order={1} ta="center" c="white">
-              Leaderboard Demo
-            </Title>
-          </Group>
-
-          <Text c="gray.3" ta="center" size="lg">
-            Lightning-fast leaderboards with instant rankings, statistics, and
-            user analytics using Convex Aggregate
-          </Text>
-
-          <Group justify="center">
-            <Card bg="dark.6" p="md">
-              <Group gap="md">
-                <IconCode size={20} color="cyan" />
-                <Text size="sm" c="gray.3">
-                  View the source:
-                </Text>
-                <Anchor
-                  href="https://github.com/get-convex/aggregate/blob/main/example/convex/leaderboard.ts"
-                  target="_blank"
-                  c="cyan"
-                  size="sm"
-                >
-                  convex/leaderboard.ts
-                </Anchor>
-              </Group>
-            </Card>
-          </Group>
+      <Container size="sm" p="md" style={{ position: "relative" }}>
+        <Stack gap="md">
+          <PageHeader
+            title="Leaderboard Demo"
+            description="Lightning-fast leaderboards with instant rankings and statistics"
+            icon={<IconTrophy size={32} color="orange" />}
+            filename="leaderboard.ts"
+          />
 
           <SearchAnalysisSection />
 

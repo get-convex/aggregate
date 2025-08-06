@@ -16,7 +16,6 @@ import {
   Select,
   ThemeIcon,
   Grid,
-  Anchor,
   ActionIcon,
   Loader,
 } from "@mantine/core";
@@ -27,7 +26,6 @@ import {
   IconChartBar,
   IconBolt,
   IconInfoCircle,
-  IconCode,
   IconDice,
   IconEdit,
 } from "@tabler/icons-react";
@@ -35,6 +33,7 @@ import { useState, useEffect } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
 import { CommonAppShell } from "@/common/CommonAppShell";
 import { useRicherStableQuery } from "../../utils/useStableQuery";
+import { PageHeader } from "../../common/PageHeader";
 
 export function PhotosPage() {
   const onApiError = useApiErrorHandler();
@@ -104,37 +103,12 @@ export function PhotosPage() {
   return (
     <CommonAppShell>
       <Stack gap="xl">
-        {/* Header */}
-        <Group justify="center" gap="md">
-          <IconPhoto size={32} color="white" />
-          <Title order={1} ta="center" c="white">
-            Offset-Based Pagination Demo
-          </Title>
-        </Group>
-
-        <Text c="gray.3" ta="center" size="lg">
-          Shows now you can use Namespaces to efficiently segment your
-          aggregates
-        </Text>
-
-        <Group justify="center">
-          <Card bg="dark.6" p="md">
-            <Group gap="md">
-              <IconCode size={20} color="cyan" />
-              <Text size="sm" c="gray.3">
-                View the source:
-              </Text>
-              <Anchor
-                href="https://github.com/get-convex/aggregate/blob/main/example/convex/photos.ts"
-                target="_blank"
-                c="cyan"
-                size="sm"
-              >
-                convex/photos.ts
-              </Anchor>
-            </Group>
-          </Card>
-        </Group>
+        <PageHeader
+          title="Offset-Based Pagination Demo"
+          description="Shows how you can use Namespaces to efficiently segment your aggregates"
+          icon={<IconPhoto size={32} color="white" />}
+          filename="photos.ts"
+        />
 
         <Grid>
           {/* Left Column - Photo Gallery */}

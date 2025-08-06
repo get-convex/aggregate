@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
   Title,
-  Text,
   Card,
   Stack,
   Group,
@@ -10,12 +9,12 @@ import {
   Button,
   Alert,
   SimpleGrid,
-  Anchor,
 } from "@mantine/core";
-import { IconChartPie, IconCode } from "@tabler/icons-react";
+import { IconChartPie } from "@tabler/icons-react";
 import { useState } from "react";
 import { StatsGrid } from "../../common/StatsGrid";
 import { CommonAppShell } from "@/common/CommonAppShell";
+import { PageHeader } from "../../common/PageHeader";
 
 export function StatsPage() {
   const [latency, setLatency] = useState<number | "">("");
@@ -27,36 +26,12 @@ export function StatsPage() {
   return (
     <CommonAppShell>
       <Stack gap="xl">
-        <Group justify="center" gap="md">
-          <IconChartPie size={32} color="yellow" />
-          <Title order={1} ta="center" c="white">
-            Stats Demo
-          </Title>
-        </Group>
-
-        <Text c="gray.3" ta="center">
-          Direct aggregation without table dependencies - perfect for analytics
-          and metrics
-        </Text>
-
-        <Group justify="center">
-          <Card bg="dark.6" p="md">
-            <Group gap="md">
-              <IconCode size={20} color="cyan" />
-              <Text size="sm" c="gray.3">
-                View the source:
-              </Text>
-              <Anchor
-                href="https://github.com/get-convex/aggregate/blob/main/example/convex/stats.ts"
-                target="_blank"
-                c="cyan"
-                size="sm"
-              >
-                convex/stats.ts
-              </Anchor>
-            </Group>
-          </Card>
-        </Group>
+        <PageHeader
+          title="Stats Demo"
+          description="Direct aggregation without table dependencies - perfect for analytics and metrics"
+          icon={<IconChartPie size={32} color="yellow" />}
+          filename="stats.ts"
+        />
 
         {/* Add Latency Section */}
         <Card bg="dark.7" p="xl">
