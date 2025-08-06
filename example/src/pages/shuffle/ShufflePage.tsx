@@ -109,7 +109,7 @@ export function ShufflePage() {
               <ThemeIcon color="red" variant="light" size="sm">
                 <IconBolt size={14} />
               </ThemeIcon>
-              <Text size="sm" c="gray.3">
+              <Text size="sm" c="gray.3" component="span">
                 Traditional:{" "}
                 <Badge color="red" size="xs">
                   O(n)
@@ -121,7 +121,7 @@ export function ShufflePage() {
               <ThemeIcon color="green" variant="light" size="sm">
                 <IconRocket size={14} />
               </ThemeIcon>
-              <Text size="sm" c="gray.3">
+              <Text size="sm" c="gray.3" component="span">
                 Aggregate:{" "}
                 <Badge color="green" size="xs">
                   O(log n)
@@ -143,7 +143,7 @@ export function ShufflePage() {
                     <ThemeIcon color="blue" variant="light" size="sm">
                       <IconChartBar size={14} />
                     </ThemeIcon>
-                    <Text size="sm" c="gray.3">
+                    <Text size="sm" c="gray.3" component="span">
                       Total songs in library:{" "}
                       <Badge variant="light">{totalMusic ?? 0}</Badge>
                     </Text>
@@ -152,7 +152,7 @@ export function ShufflePage() {
                     <ThemeIcon color="purple" variant="light" size="sm">
                       <IconBolt size={14} />
                     </ThemeIcon>
-                    <Text size="sm" c="gray.3">
+                    <Text size="sm" c="gray.3" component="span">
                       Random access: <Badge variant="light">O(log n)</Badge>
                     </Text>
                   </Group>
