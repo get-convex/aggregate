@@ -79,33 +79,37 @@ export const scoreAtRank = query({
   },
 });
 
-export const scoresInOrder = query({
-  returns: v.array(
-    v.union(
-      v.object({
-        _id: v.id("leaderboard"),
-        name: v.string(),
-        score: v.number(),
-        _creationTime: v.number(),
-      }),
-      v.string()
-    )
-  ),
-  handler: async (ctx) => {
-    let count = 0;
+export const pageOfScores = query({
+  args: {
+    offset: v.number(),
+    numItems: v.number(),
+  },
+  handler: async (ctx, { offset, numItems }) => {
     const scores = [];
+    let count = 0;
+    let skipped = 0;
+
     for await (const { id, key: _key } of aggregateByScore.iter(ctx, {
       bounds: undefined,
       order: "desc",
     })) {
-      if (count >= 200) {
-        scores.push("...");
+      // Skip items until we reach the offset
+      if (skipped < offset) {
+        skipped += 1;
+        continue;
+      }
+
+      // Stop when we have enough items
+      if (count >= numItems) {
         break;
       }
-      const doc = (await ctx.db.get(id))!;
+
+      const doc = await ctx.db.get(id);
+      if (!doc) continue;
       scores.push(doc);
       count += 1;
     }
+
     return scores;
   },
 });

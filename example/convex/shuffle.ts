@@ -25,7 +25,8 @@ const randomize = new TableAggregate<{
 
 const _addMusic = async (ctx: MutationCtx, { title }: { title: string }) => {
   const id = await ctx.db.insert("music", { title });
-  const doc = (await ctx.db.get(id))!;
+  const doc = await ctx.db.get(id);
+  if (!doc) throw new Error("Failed to insert music");
   await randomize.insert(ctx, doc);
   return id;
 };
@@ -40,7 +41,8 @@ export const removeMusic = mutation({
     id: v.id("music"),
   },
   handler: async (ctx, { id }) => {
-    const doc = (await ctx.db.get(id))!;
+    const doc = await ctx.db.get(id);
+    if (!doc) return;
     await ctx.db.delete(id);
     await randomize.delete(ctx, doc);
   },
@@ -53,7 +55,8 @@ export const getRandomMusicTitle = query({
   handler: async (ctx) => {
     const randomMusic = await randomize.random(ctx);
     if (!randomMusic) return null;
-    const doc = (await ctx.db.get(randomMusic.id))!;
+    const doc = await ctx.db.get(randomMusic.id);
+    if (!doc) return null;
     return doc.title;
   },
 });
@@ -123,7 +126,8 @@ export const shufflePaginated = query({
 
     const items = await Promise.all(
       atIndexes.map(async (atIndex) => {
-        const doc = (await ctx.db.get(atIndex.id))!;
+        const doc = await ctx.db.get(atIndex.id);
+        if (!doc) throw new Error("Failed to get music");
         return doc.title;
       })
     );
