@@ -89,9 +89,7 @@ export const pageOfScores = query({
     let count = 0;
     let skipped = 0;
 
-    for await (const { id, key: _key } of aggregateByScore.iter(ctx, {
-      order: "desc",
-    })) {
+    for await (const item of aggregateByScore.iter(ctx, { order: "desc" })) {
       // Skip items until we reach the offset
       if (skipped < offset) {
         skipped += 1;
@@ -99,11 +97,9 @@ export const pageOfScores = query({
       }
 
       // Stop when we have enough items
-      if (count >= numItems) {
-        break;
-      }
+      if (count >= numItems) break;
 
-      const doc = await ctx.db.get(id);
+      const doc = await ctx.db.get(item.id);
       if (!doc) continue;
       scores.push(doc);
       count += 1;
