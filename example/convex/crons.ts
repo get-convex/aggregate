@@ -32,6 +32,26 @@ export const resetAndSeed = internalMutation({
           url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
         },
         {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
+        },
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05",
+        },
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1518837695005-2083093ee35b",
+        },
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1501436513145-30f24e19fcc4",
+        },
+        {
+          album: "Nature",
+          url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e",
+        },
+        {
           album: "Cities",
           url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000",
         },

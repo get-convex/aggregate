@@ -17,6 +17,8 @@ import {
   ThemeIcon,
   Grid,
   Anchor,
+  ActionIcon,
+  Loader,
 } from "@mantine/core";
 import {
   IconPhoto,
@@ -26,10 +28,13 @@ import {
   IconBolt,
   IconInfoCircle,
   IconCode,
+  IconDice,
+  IconEdit,
 } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import { useApiErrorHandler } from "@/utils/errors";
 import { CommonAppShell } from "@/common/CommonAppShell";
+import { useRicherStableQuery } from "../../utils/useStableQuery";
 
 export function PhotosPage() {
   const onApiError = useApiErrorHandler();
@@ -39,16 +44,20 @@ export function PhotosPage() {
   const [url, setUrl] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(6);
+  const [isRandomMode, setIsRandomMode] = useState(true);
 
   // Get available albums with counts
   const albums = useQuery(api.photos.availableAlbums);
 
   // Get photos for current page
-  const photos = useQuery(api.photos.pageOfPhotos, {
-    album: selectedAlbum,
-    offset: (currentPage - 1) * pageSize,
-    numItems: pageSize,
-  });
+  const { data: photos, isLoading } = useRicherStableQuery(
+    api.photos.pageOfPhotos,
+    {
+      album: selectedAlbum,
+      offset: (currentPage - 1) * pageSize,
+      numItems: pageSize,
+    }
+  );
 
   // Get total count for pagination
   const totalPhotos = useQuery(api.photos.photoCount, { album: selectedAlbum });
@@ -61,6 +70,36 @@ export function PhotosPage() {
   }, [selectedAlbum]);
 
   const totalPages = totalPhotos ? Math.ceil(totalPhotos / pageSize) : 0;
+
+  // Array of known valid Unsplash photo URLs
+  const validPhotoUrls = [
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
+    "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+    "https://images.unsplash.com/photo-1449824913935-59a10b8d2000",
+    "https://images.unsplash.com/photo-1444723121867-7a241cacace9",
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
+    "https://images.unsplash.com/photo-1518837695005-2083093ee35b",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e",
+    "https://images.unsplash.com/photo-1472214103451-9374bd1c798e",
+    "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
+    "https://images.unsplash.com/photo-1426604966848-d7adac402bff",
+    "https://images.unsplash.com/photo-1501594907352-04cda38ebc29",
+    "https://images.unsplash.com/photo-1493246507139-91e8fad9978e",
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
+    "https://images.unsplash.com/photo-1519904981063-b0cf448d479e",
+    "https://images.unsplash.com/photo-1511593358241-7eea1f3c84e5",
+    "https://images.unsplash.com/photo-1418065460487-3956ef138493",
+    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05",
+    "https://images.unsplash.com/photo-1551698618-1dfe5d97d256",
+    "https://images.unsplash.com/photo-1477346611705-65d1883cee1e",
+    "https://images.unsplash.com/photo-1540206395-68808572332f",
+  ];
+
+  // Function to pick a random photo from the valid URLs array
+  const generateRandomPhotoUrl = () => {
+    const randomIndex = Math.floor(Math.random() * validPhotoUrls.length);
+    return validPhotoUrls[randomIndex];
+  };
 
   return (
     <CommonAppShell>
@@ -177,9 +216,13 @@ export function PhotosPage() {
 
               {/* Photo Gallery */}
               <Card bg="dark.7" p="xl">
-                <Title order={3} c="white" mb="md">
-                  Photo Gallery
-                </Title>
+                <Group align="center">
+                  <Title order={3} c="white" mb="md">
+                    Photo Gallery
+                  </Title>
+                  {isLoading && <Loader size="sm" />}
+                </Group>
+
                 {photos && photos.length > 0 ? (
                   <Stack gap="md">
                     <SimpleGrid
@@ -258,26 +301,55 @@ export function PhotosPage() {
                     label="Photo URL"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
+                    placeholder={
+                      isRandomMode
+                        ? "Random photo will be generated"
+                        : "https://images.unsplash.com/..."
+                    }
+                    disabled={isRandomMode}
                     size="sm"
+                    rightSection={
+                      <ActionIcon
+                        variant="subtle"
+                        color={isRandomMode ? "cyan" : "gray"}
+                        onClick={() => setIsRandomMode(!isRandomMode)}
+                        title={
+                          isRandomMode
+                            ? "Switch to manual URL input"
+                            : "Switch to random photo"
+                        }
+                      >
+                        {isRandomMode ? (
+                          <IconDice size={16} />
+                        ) : (
+                          <IconEdit size={16} />
+                        )}
+                      </ActionIcon>
+                    }
+                    rightSectionPointerEvents="all"
                   />
                   <Button
                     onClick={() => {
-                      if (!newAlbum || !url) return;
-                      addPhoto({ album: newAlbum, url })
+                      if (!newAlbum) return;
+
+                      const photoUrl = isRandomMode
+                        ? generateRandomPhotoUrl()
+                        : url;
+                      if (!photoUrl) return;
+
+                      addPhoto({ album: newAlbum, url: photoUrl })
                         .then(() => {
-                          setNewAlbum("");
-                          setUrl("");
+                          if (!isRandomMode) setUrl("");
                           // Switch to the album we just added to
                           setSelectedAlbum(newAlbum);
                         })
                         .catch(onApiError);
                     }}
-                    disabled={!newAlbum || !url}
+                    disabled={!newAlbum || (!isRandomMode && !url)}
                     size="sm"
                     fullWidth
                   >
-                    Add Photo
+                    {isRandomMode ? "Add Random Photo" : "Add Photo"}
                   </Button>
 
                   <Alert
