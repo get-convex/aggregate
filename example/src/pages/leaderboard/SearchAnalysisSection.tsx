@@ -44,26 +44,6 @@ export function SearchAnalysisSection() {
         <Group gap="lg" align="flex-start">
           <Stack gap="xs" style={{ flex: 1 }}>
             <Text size="sm" c="gray.4">
-              Find Rank of Score
-            </Text>
-            <Group gap="md">
-              <NumberInput
-                value={searchScore}
-                onChange={(value) =>
-                  setSearchScore(value === "" ? "" : (value as number))
-                }
-                placeholder="Enter score"
-                min={0}
-                style={{ flex: 1 }}
-              />
-              <Badge size="md" color="blue">
-                Rank: {rankOfScore !== undefined ? rankOfScore + 1 : "N/A"}
-              </Badge>
-            </Group>
-          </Stack>
-
-          <Stack gap="xs" style={{ flex: 1 }}>
-            <Text size="sm" c="gray.4">
               Player Statistics
             </Text>
             <Group gap="md">
@@ -81,6 +61,26 @@ export function SearchAnalysisSection() {
                   High: {userHighScore ?? "N/A"}
                 </Badge>
               </Stack>
+            </Group>
+          </Stack>
+
+          <Stack gap="xs" style={{ flex: 1 }}>
+            <Text size="sm" c="gray.4">
+              Find Rank of Score
+            </Text>
+            <Group gap="md">
+              <NumberInput
+                value={searchScore}
+                onChange={(value) =>
+                  setSearchScore(value === "" ? "" : (value as number))
+                }
+                placeholder="Enter score"
+                min={0}
+                style={{ flex: 1 }}
+              />
+              <Badge size="md" color="blue">
+                Rank: {rankOfScore !== undefined ? rankOfScore + 1 : "N/A"}
+              </Badge>
             </Group>
           </Stack>
         </Group>

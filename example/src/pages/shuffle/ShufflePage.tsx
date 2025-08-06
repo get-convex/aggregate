@@ -102,36 +102,6 @@ export function ShufflePage() {
           </Card>
         </Group>
 
-        {/* Quick explanation */}
-        <Card bg="dark.7" p="md">
-          <Group justify="center" gap="xl">
-            <Group gap="xs">
-              <ThemeIcon color="red" variant="light" size="sm">
-                <IconBolt size={14} />
-              </ThemeIcon>
-              <Text size="sm" c="gray.3" component="span">
-                Traditional:{" "}
-                <Badge color="red" size="xs">
-                  O(n)
-                </Badge>{" "}
-                - Scan all items for random access
-              </Text>
-            </Group>
-            <Group gap="xs">
-              <ThemeIcon color="green" variant="light" size="sm">
-                <IconRocket size={14} />
-              </ThemeIcon>
-              <Text size="sm" c="gray.3" component="span">
-                Aggregate:{" "}
-                <Badge color="green" size="xs">
-                  O(log n)
-                </Badge>{" "}
-                - Jump directly to any random position
-              </Text>
-            </Group>
-          </Group>
-        </Card>
-
         <Grid>
           {/* Left Column - Music Demo */}
           <Grid.Col span={{ base: 12, md: 8 }}>

@@ -9,7 +9,7 @@ export function StatisticsSection() {
   return (
     <Stack gap="sm">
       <Card bg="dark.7" p="md">
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="xs" c="gray.4">
             Total Scores
           </Text>
@@ -19,7 +19,7 @@ export function StatisticsSection() {
         </Stack>
       </Card>
       <Card bg="dark.7" p="md">
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="xs" c="gray.4">
             Total Sum
           </Text>
@@ -29,7 +29,7 @@ export function StatisticsSection() {
         </Stack>
       </Card>
       <Card bg="dark.7" p="md">
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="xs" c="gray.4">
             Average Score
           </Text>

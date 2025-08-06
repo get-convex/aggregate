@@ -113,7 +113,8 @@ export function PhotosPage() {
         </Group>
 
         <Text c="gray.3" ta="center" size="lg">
-          Efficient photo gallery pagination using Convex Aggregate component
+          Shows now you can use Namespaces to efficiently segment your
+          aggregates
         </Text>
 
         <Group justify="center">
@@ -134,36 +135,6 @@ export function PhotosPage() {
             </Group>
           </Card>
         </Group>
-
-        {/* Quick explanation */}
-        <Card bg="dark.7" p="md">
-          <Group justify="center" gap="xl">
-            <Group gap="xs">
-              <ThemeIcon color="red" variant="light" size="sm">
-                <IconBolt size={14} />
-              </ThemeIcon>
-              <Text size="sm" c="gray.3">
-                Traditional:{" "}
-                <Badge color="red" size="xs">
-                  O(n)
-                </Badge>{" "}
-                - Scans all items to skip
-              </Text>
-            </Group>
-            <Group gap="xs">
-              <ThemeIcon color="green" variant="light" size="sm">
-                <IconRocket size={14} />
-              </ThemeIcon>
-              <Text size="sm" c="gray.3">
-                Aggregate:{" "}
-                <Badge color="green" size="xs">
-                  O(log n)
-                </Badge>{" "}
-                - Jumps directly to any page
-              </Text>
-            </Group>
-          </Group>
-        </Card>
 
         <Grid>
           {/* Left Column - Photo Gallery */}
@@ -206,7 +177,6 @@ export function PhotosPage() {
                         </ThemeIcon>
                         <Text size="sm" c="gray.3">
                           Page {currentPage} of {totalPages}{" "}
-                          <Badge variant="light">O(log n)</Badge>
                         </Text>
                       </Group>
                     </Group>
@@ -351,18 +321,6 @@ export function PhotosPage() {
                   >
                     {isRandomMode ? "Add Random Photo" : "Add Photo"}
                   </Button>
-
-                  <Alert
-                    color="blue"
-                    title="Try This!"
-                    icon={<IconInfoCircle />}
-                  >
-                    <Text size="sm">
-                      Add a photo to an existing album and watch the count
-                      update instantly! The aggregate component automatically
-                      maintains all the metadata needed for fast pagination.
-                    </Text>
-                  </Alert>
                 </Stack>
               </Card>
             </Stack>

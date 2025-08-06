@@ -85,6 +85,22 @@ export const pageOfScores = query({
     numItems: v.number(),
   },
   handler: async (ctx, { offset, numItems }) => {
+    const scores = await ctx.db
+      .query("leaderboard")
+      .orderBy("score", "desc")
+      .skip(offset)
+      .take(numItems);
+
+    return scores;
+  },
+});
+
+export const pageOfScores = query({
+  args: {
+    offset: v.number(),
+    numItems: v.number(),
+  },
+  handler: async (ctx, { offset, numItems }) => {
     const scores = [];
     let count = 0;
     let skipped = 0;
@@ -166,15 +182,24 @@ export const add100MockScores = mutation({
   returns: v.null(),
   handler: async (ctx) => {
     const playerNames = [
-      "Alex",
+      "Jamie",
+      "James",
+      "Indy",
+      "Gautam",
+      "Nipunn",
+      "Emma",
+      "Tom",
+      "Rebecca",
+      "Ian",
       "Jordan",
-      "Casey",
-      "Morgan",
-      "Riley",
-      "Avery",
-      "Quinn",
-      "Blake",
-      "Orion",
+      "Abhi",
+      "Wayne",
+      "Ari",
+      "Christina",
+      "Liz",
+      "Mike",
+      "Geoffry",
+      "Nicolas",
     ];
 
     const mockScores = [];

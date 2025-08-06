@@ -35,7 +35,7 @@ export function StatsGrid({
   return (
     <SimpleGrid cols={getGridCols()} spacing="md">
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             Count
           </Text>
@@ -45,7 +45,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             Mean
           </Text>
@@ -55,7 +55,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             Median
           </Text>
@@ -65,7 +65,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             75th Percentile
           </Text>
@@ -75,7 +75,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             95th Percentile
           </Text>
@@ -85,7 +85,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             Min
           </Text>
@@ -95,7 +95,7 @@ export function StatsGrid({
         </Stack>
       </Card>
       <Card bg="dark.6" p={getCardPadding()}>
-        <Stack gap="xs">
+        <Stack gap="0">
           <Text size="sm" c="gray.4">
             Max
           </Text>
