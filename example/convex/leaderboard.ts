@@ -90,7 +90,6 @@ export const pageOfScores = query({
     let skipped = 0;
 
     for await (const { id, key: _key } of aggregateByScore.iter(ctx, {
-      bounds: undefined,
       order: "desc",
     })) {
       // Skip items until we reach the offset
