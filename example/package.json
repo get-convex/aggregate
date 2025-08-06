@@ -22,6 +22,6 @@
     "convex-test": "^0.0.38",
     "eslint": "^9.9.1",
     "globals": "^15.11.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.9.2"
   }
 }
