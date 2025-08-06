@@ -3,7 +3,7 @@ import { IconBrandGithub, IconExternalLink } from "@tabler/icons-react";
 
 export function AppShellHeader() {
   return (
-    <Group justify="space-between" p="md">
+    <Group justify="space-between" align="center" h="100%" px="md">
       <Text size="lg" fw={500} c="white">
         Convex Aggregate Demo
       </Text>
