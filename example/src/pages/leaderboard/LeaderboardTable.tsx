@@ -4,7 +4,6 @@ import {
   Title,
   Card,
   Stack,
-  Button,
   Table,
   Alert,
   Group,
@@ -17,6 +16,8 @@ import {
 import { useApiErrorHandler } from "@/utils/errors";
 import { useState, useEffect } from "react";
 import { useRicherStableQuery } from "../../utils/useStableQuery";
+import { LeaderboardTableRow } from "./LeaderboardTableRow";
+import { Id } from "../../../convex/_generated/dataModel";
 
 export function LeaderboardTable() {
   const onApiError = useApiErrorHandler();
@@ -34,6 +35,10 @@ export function LeaderboardTable() {
 
   const totalScores = useQuery(api.leaderboard.countScores);
   const removeScore = useMutation(api.leaderboard.removeScore);
+
+  const handleRemove = (id: Id<"leaderboard">) => {
+    removeScore({ id }).catch(onApiError);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -96,24 +101,12 @@ export function LeaderboardTable() {
               </Table.Thead>
               <Table.Tbody>
                 {scores.map((score, index) => (
-                  <Table.Tr key={score._id}>
-                    <Table.Td c="white">
-                      {(currentPage - 1) * pageSize + index + 1}
-                    </Table.Td>
-                    <Table.Td c="white">{score.name}</Table.Td>
-                    <Table.Td c="white">{score.score}</Table.Td>
-                    <Table.Td>
-                      <Button
-                        size="xs"
-                        color="red"
-                        onClick={() =>
-                          removeScore({ id: score._id }).catch(onApiError)
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
+                  <LeaderboardTableRow
+                    key={score._id}
+                    score={score}
+                    rank={(currentPage - 1) * pageSize + index + 1}
+                    onRemove={handleRemove}
+                  />
                 ))}
               </Table.Tbody>
             </Table>

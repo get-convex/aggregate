@@ -61,6 +61,32 @@ export const removeScore = mutation({
   },
 });
 
+export const updateScore = mutation({
+  args: {
+    id: v.id("leaderboard"),
+    name: v.string(),
+    score: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const oldDoc = await ctx.db.get(args.id);
+    if (!oldDoc)
+      throw new Error(`Score with id '${args.id}' could not be found`);
+
+    await ctx.db.patch(args.id, {
+      name: args.name,
+      score: args.score,
+    });
+
+    const newDoc = await ctx.db.get(args.id);
+    if (!newDoc)
+      throw new Error(`Updated score with id '${args.id}' could not be found`);
+
+    // Update both aggregates with the old and new documents
+    await aggregateByScore.replace(ctx, oldDoc, newDoc);
+    await aggregateScoreByUser.replace(ctx, oldDoc, newDoc);
+  },
+});
+
 export const countScores = query({
   handler: async (ctx) => {
     return await aggregateByScore.count(ctx);
