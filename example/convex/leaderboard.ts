@@ -14,16 +14,14 @@ import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
 import { Migrations } from "@convex-dev/migrations";
 
-export const migrations = new Migrations<DataModel>(components.migrations);
-export const run = migrations.runner();
-
 const aggregateByScore = new TableAggregate<{
   Key: number;
   DataModel: DataModel;
   TableName: "leaderboard";
 }>(components.aggregateByScore, {
-  sortKey: (doc) => doc.score,
+  sortKey: (doc) => -doc.score,
 });
+
 const aggregateScoreByUser = new TableAggregate<{
   Key: [string, number];
   DataModel: DataModel;
@@ -85,27 +83,13 @@ export const pageOfScores = query({
     numItems: v.number(),
   },
   handler: async (ctx, { offset, numItems }) => {
-    const scores = [];
-    let count = 0;
-    let skipped = 0;
+    const firstInPage = await aggregateByScore.at(ctx, offset);
 
-    for await (const item of aggregateByScore.iter(ctx, { order: "desc" })) {
-      // Skip items until we reach the offset
-      if (skipped < offset) {
-        skipped += 1;
-        continue;
-      }
-
-      // Stop when we have enough items
-      if (count >= numItems) break;
-
-      const doc = await ctx.db.get(item.id);
-      if (!doc) continue;
-      scores.push(doc);
-      count += 1;
-    }
-
-    return scores;
+    return await ctx.db
+      .query("leaderboard")
+      .withIndex("by_score", (q) => q.lte("score", -firstInPage.key))
+      .order("desc")
+      .take(numItems);
   },
 });
 
@@ -117,7 +101,7 @@ export const rankOfScore = query({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    return await aggregateByScore.indexOf(ctx, args.score, { order: "desc" });
+    return await aggregateByScore.indexOf(ctx, -args.score);
   },
 });
 
@@ -156,10 +140,12 @@ export const sumNumbers = query({
   },
 });
 
-export const add100MockScores = mutation({
-  args: {},
+export const addMockScores = mutation({
+  args: {
+    count: v.number(),
+  },
   returns: v.null(),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const playerNames = [
       "Jamie",
       "James",
@@ -182,7 +168,7 @@ export const add100MockScores = mutation({
     ];
 
     const mockScores = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < args.count; i++) {
       const randomName =
         playerNames[Math.floor(Math.random() * playerNames.length)];
       // Generate scores with some variety - mostly between 100-1000, with some outliers
@@ -215,6 +201,9 @@ export const add100MockScores = mutation({
 });
 
 // ---- migrations ----
+
+export const migrations = new Migrations<DataModel>(components.migrations);
+export const run = migrations.runner();
 
 export const backfillAggregatesMigration = migrations.define({
   table: "leaderboard",

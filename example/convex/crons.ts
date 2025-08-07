@@ -18,7 +18,7 @@ export const resetAndSeed = internalMutation({
       ctx.runMutation(internal.btree.resetAll),
     ]);
 
-    await ctx.runMutation(api.leaderboard.add100MockScores);
+    await ctx.runMutation(api.leaderboard.addMockScores, { count: 500 });
 
     // Add some initial photos
     await ctx.runMutation(internal.photos.addPhotos, {

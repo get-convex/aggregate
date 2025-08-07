@@ -20,7 +20,7 @@ export function AddScoreSection() {
   const [isAddingMockScores, setIsAddingMockScores] = useState(false);
 
   const addScore = useMutation(api.leaderboard.addScore);
-  const addMockScores = useMutation(api.leaderboard.add100MockScores);
+  const addMockScores = useMutation(api.leaderboard.addMockScores);
 
   return (
     <Paper bg="dark.7" p="md">
@@ -65,7 +65,7 @@ export function AddScoreSection() {
           <Button
             onClick={() => {
               setIsAddingMockScores(true);
-              addMockScores({})
+              addMockScores({ count: 100 })
                 .catch(onApiError)
                 .finally(() => setIsAddingMockScores(false));
             }}

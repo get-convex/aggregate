@@ -5,7 +5,7 @@ export default defineSchema({
   leaderboard: defineTable({
     name: v.string(),
     score: v.number(),
-  }),
+  }).index("by_score", ["score"]),
   music: defineTable({
     title: v.string(),
   }),
