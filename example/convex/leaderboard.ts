@@ -13,6 +13,11 @@ import { components, internal } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
 import { Migrations } from "@convex-dev/migrations";
+import { Triggers } from "convex-helpers/server/triggers";
+import {
+  customCtx,
+  customMutation,
+} from "convex-helpers/server/customFunctions";
 
 const aggregateByScore = new TableAggregate<{
   Key: number;
@@ -31,7 +36,17 @@ const aggregateScoreByUser = new TableAggregate<{
   sumValue: (doc) => doc.score,
 });
 
-export const addScore = mutation({
+const triggers = new Triggers<DataModel>();
+
+triggers.register("leaderboard", aggregateByScore.trigger());
+triggers.register("leaderboard", aggregateScoreByUser.trigger());
+
+const mutationWithTriggers = customMutation(
+  mutation,
+  customCtx(triggers.wrapDB)
+);
+
+export const addScore = mutationWithTriggers({
   args: {
     name: v.string(),
     score: v.number(),
@@ -42,48 +57,30 @@ export const addScore = mutation({
       name: args.name,
       score: args.score,
     });
-    const doc = await ctx.db.get(id);
-    await aggregateByScore.insert(ctx, doc!);
-    await aggregateScoreByUser.insert(ctx, doc!);
     return id;
   },
 });
 
-export const removeScore = mutation({
+export const removeScore = mutationWithTriggers({
   args: {
     id: v.id("leaderboard"),
   },
   handler: async (ctx, { id }) => {
-    const doc = await ctx.db.get(id);
     await ctx.db.delete(id);
-    await aggregateByScore.delete(ctx, doc!);
-    await aggregateScoreByUser.delete(ctx, doc!);
   },
 });
 
-export const updateScore = mutation({
+export const updateScore = mutationWithTriggers({
   args: {
     id: v.id("leaderboard"),
     name: v.string(),
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    const oldDoc = await ctx.db.get(args.id);
-    if (!oldDoc)
-      throw new Error(`Score with id '${args.id}' could not be found`);
-
     await ctx.db.patch(args.id, {
       name: args.name,
       score: args.score,
     });
-
-    const newDoc = await ctx.db.get(args.id);
-    if (!newDoc)
-      throw new Error(`Updated score with id '${args.id}' could not be found`);
-
-    // Update both aggregates with the old and new documents
-    await aggregateByScore.replace(ctx, oldDoc, newDoc);
-    await aggregateScoreByUser.replace(ctx, oldDoc, newDoc);
   },
 });
 
@@ -111,11 +108,22 @@ export const pageOfScores = query({
   handler: async (ctx, { offset, numItems }) => {
     const firstInPage = await aggregateByScore.at(ctx, offset);
 
-    return await ctx.db
-      .query("leaderboard")
-      .withIndex("by_score", (q) => q.lte("score", -firstInPage.key))
-      .order("desc")
-      .take(numItems);
+    const page = await aggregateByScore.paginate(ctx, {
+      bounds: {
+        lower: {
+          key: firstInPage.key,
+          id: firstInPage.id,
+          inclusive: true,
+        },
+      },
+      pageSize: numItems,
+    });
+
+    const scores = await Promise.all(
+      page.page.map((doc) => ctx.db.get(doc.id))
+    );
+
+    return scores.filter((d) => d !== undefined);
   },
 });
 
@@ -166,7 +174,7 @@ export const sumNumbers = query({
   },
 });
 
-export const addMockScores = mutation({
+export const addMockScores = mutationWithTriggers({
   args: {
     count: v.number(),
   },
@@ -218,8 +226,6 @@ export const addMockScores = mutation({
     for (const mockScore of mockScores) {
       const id = await ctx.db.insert("leaderboard", mockScore);
       const doc = await ctx.db.get(id);
-      await aggregateByScore.insert(ctx, doc!);
-      await aggregateScoreByUser.insert(ctx, doc!);
     }
 
     return null;
