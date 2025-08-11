@@ -32,15 +32,21 @@ const aggregateScoreByUser = new TableAggregate<{
   DataModel: DataModel;
   TableName: "leaderboard";
 }>(components.aggregateScoreByUser, {
-  sortKey: (doc) => [doc.name, doc.score],
-  sumValue: (doc) => doc.score,
+  // We sort by name first, then by score, so that we can get the highest score for each user
+  // we could alternatively use a namespace for this
+  sortKey: (leaderboardTableDoc) => [
+    leaderboardTableDoc.name,
+    leaderboardTableDoc.score,
+  ],
+  sumValue: (leaderboardTableDoc) => leaderboardTableDoc.score,
 });
 
+// Using triggers to keep the aggregates up to date automatically for us in our mutations
 const triggers = new Triggers<DataModel>();
-
 triggers.register("leaderboard", aggregateByScore.trigger());
 triggers.register("leaderboard", aggregateScoreByUser.trigger());
 
+// Custom function used instead of our regular mutation function, to wrap the db with our triggers
 const mutationWithTriggers = customMutation(
   mutation,
   customCtx(triggers.wrapDB)
