@@ -24,7 +24,7 @@ const aggregateByScore = new TableAggregate<{
   DataModel: DataModel;
   TableName: "leaderboard";
 }>(components.aggregateByScore, {
-  sortKey: (doc) => -doc.score,
+  sortKey: (leaderboardTableDoc) => -leaderboardTableDoc.score,
 });
 
 const aggregateScoreByUser = new TableAggregate<{
