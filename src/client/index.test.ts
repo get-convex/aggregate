@@ -95,6 +95,22 @@ describe("TableAggregate", () => {
       const result = await exec();
       expect(result).toBe(2);
     });
+
+    test("should paginate a single undefined namespace", async () => {
+      await t.run(async (ctx) => {
+        await aggregate.insert(ctx, {
+          _id: "1",
+          name: "name",
+          value: 1,
+        });
+        let count = 0;
+        for await (const namespace of aggregate.iterNamespaces(ctx)) {
+          expect(namespace).toBe(undefined);
+          count++;
+        }
+        expect(count).toBe(1);
+      });
+    });
   });
 
   describe("clearAll", () => {
