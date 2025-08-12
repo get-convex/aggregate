@@ -3,7 +3,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import componentSchema from "../../src/component/schema";
-import migrationsSchema from "../../example/node_modules/@convex-dev/migrations/src/component/schema";
+import migrationsSchema from "../node_modules/@convex-dev/migrations/src/component/schema";
 import { api, components, internal } from "../../example/convex/_generated/api";
 import schema from "./schema";
 
@@ -13,17 +13,34 @@ const migrationsModules = import.meta.glob(
   "../node_modules/@convex-dev/migrations/src/component/**/*.ts"
 );
 
+// Types align because both imports resolve to the same Convex instance via example's node_modules
+
+// Helper casters to keep types clean without using `any`.
+type TestSchema = Parameters<typeof convexTest>[0];
+type RegisterComponentParams = Parameters<
+  ReturnType<typeof convexTest>["registerComponent"]
+>;
+const asTestSchema = (s: unknown) => s as TestSchema;
+const asComponentSchema = (s: unknown) => s as RegisterComponentParams[1];
+
 describe("leaderboard", () => {
   async function setupTest() {
-    // Use type assertion to handle schema compatibility with convex-test
-    const t = convexTest(schema, modules);
-    t.registerComponent("aggregateByScore", componentSchema, componentModules);
+    const t = convexTest(asTestSchema(schema), modules);
     t.registerComponent(
-      "aggregateScoreByUser",
-      componentSchema,
+      "aggregateByScore",
+      asComponentSchema(componentSchema),
       componentModules
     );
-    t.registerComponent("migrations", migrationsSchema, migrationsModules);
+    t.registerComponent(
+      "aggregateScoreByUser",
+      asComponentSchema(componentSchema),
+      componentModules
+    );
+    t.registerComponent(
+      "migrations",
+      asComponentSchema(migrationsSchema),
+      migrationsModules
+    );
     // Reduce maxNodeSize so we can test complex trees with fewer items.
     await t.mutation(components.aggregateByScore.public.clear, {
       maxNodeSize: 4,
@@ -100,7 +117,10 @@ describe("leaderboard", () => {
       await t.query(api.leaderboard.rankOfScore, { score: 33 })
     ).toStrictEqual(1);
 
-    const scoresInOrder = await t.query(api.leaderboard.scoresInOrder);
+    const scoresInOrder = await t.query(api.leaderboard.pageOfScores, {
+      offset: 0,
+      numItems: 100,
+    });
     // The function returns document objects, not formatted strings
     expect(scoresInOrder).toHaveLength(7);
     expect(scoresInOrder[0]).toMatchObject({ name: "Sarah", score: 35 });
@@ -151,8 +171,12 @@ describe("leaderboard", () => {
 
 describe("photos", () => {
   async function setupTest() {
-    const t = convexTest(schema, modules);
-    t.registerComponent("photos", componentSchema, componentModules);
+    const t = convexTest(asTestSchema(schema), modules);
+    t.registerComponent(
+      "photos",
+      asComponentSchema(componentSchema),
+      componentModules
+    );
     // Remove the non-existent init call - photos component doesn't need initialization
     return t;
   }
@@ -195,8 +219,12 @@ describe("photos", () => {
 
 describe("shuffle", () => {
   async function setupTest() {
-    const t = convexTest(schema, modules);
-    t.registerComponent("music", componentSchema, componentModules);
+    const t = convexTest(asTestSchema(schema), modules);
+    t.registerComponent(
+      "music",
+      asComponentSchema(componentSchema),
+      componentModules
+    );
     return t;
   }
 
@@ -261,8 +289,12 @@ describe("shuffle", () => {
 
 describe("stats", () => {
   async function setupTest() {
-    const t = convexTest(schema, modules);
-    t.registerComponent("stats", componentSchema, componentModules);
+    const t = convexTest(asTestSchema(schema), modules);
+    t.registerComponent(
+      "stats",
+      asComponentSchema(componentSchema),
+      componentModules
+    );
     await t.mutation(components.stats.public.clear, { maxNodeSize: 4 });
     return t;
   }

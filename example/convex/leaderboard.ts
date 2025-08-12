@@ -101,7 +101,7 @@ export const scoreAtRank = query({
     rank: v.number(),
   },
   handler: async (ctx, { rank }) => {
-    const score = await aggregateByScore.at(ctx, -rank - 1);
+    const score = await aggregateByScore.at(ctx, rank);
     return await ctx.db.get(score.id);
   },
 });
