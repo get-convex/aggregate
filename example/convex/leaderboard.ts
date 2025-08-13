@@ -129,7 +129,7 @@ export const pageOfScores = query({
       page.page.map((doc) => ctx.db.get(doc.id))
     );
 
-    return scores.filter((d) => d !== undefined);
+    return scores.filter((d) => d != null);
   },
 });
 

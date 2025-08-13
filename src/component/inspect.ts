@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, Namespace, p } from "./btree.js";
-import { aggregate, itemValidator } from "./schema.js";
+import schema, { aggregate, itemValidator } from "./schema.js";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
@@ -107,9 +107,7 @@ export const listTrees = query({
   },
   returns: v.array(
     v.object({
-      root: v.id("btreeNode"),
-      namespace: v.optional(v.any()),
-      maxNodeSize: v.number(),
+      ...schema.tables.btree.validator.fields,
       _id: v.id("btree"),
       _creationTime: v.number(),
     })
@@ -126,9 +124,7 @@ export const listTreeNodes = query({
   },
   returns: v.array(
     v.object({
-      items: v.array(itemValidator),
-      subtrees: v.array(v.id("btreeNode")),
-      aggregate: v.optional(aggregate),
+      ...schema.tables.btreeNode.validator.fields,
       _id: v.id("btreeNode"),
       _creationTime: v.number(),
     })
