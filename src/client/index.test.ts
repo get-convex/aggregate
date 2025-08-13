@@ -6,10 +6,11 @@ import {
   componentModules,
   modules,
 } from "./setup.test.js";
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable, GenericMutationCtx } from "convex/server";
+import { GenericId, v } from "convex/values";
 import { convexTest } from "convex-test";
 import { DataModelFromSchemaDefinition } from "convex/server";
+import { Id } from "../component/_generated/dataModel.js";
 
 const schema = defineSchema({
   testItems: defineTable({
@@ -35,8 +36,13 @@ type DataModel = DataModelFromSchemaDefinition<typeof schema>;
 // Helper function to create aggregates with fresh instances
 // if we dont do this we will get strange errors if we share instances between tests
 function createAggregates() {
-  const aggregate = new TableAggregate(components.aggregate, {
+  const aggregate = new TableAggregate<{
+    Key: number;
+    DataModel: DataModel;
+    TableName: "testItems";
+  }>(components.aggregate, {
     sortKey: (doc) => doc.value,
+    sumValue: (doc) => doc.value,
   });
 
   const aggregateWithNamespace = new TableAggregate<{
@@ -50,6 +56,29 @@ function createAggregates() {
   });
 
   return { aggregate, aggregateWithNamespace };
+}
+
+async function testItem(
+  ctx: GenericMutationCtx<DataModel>,
+  value: { name: string; value: number }
+) {
+  const id = await ctx.db.insert("testItems", {
+    name: value.name,
+    value: value.value,
+  });
+  return (await ctx.db.get(id))!;
+}
+
+async function photo(
+  ctx: GenericMutationCtx<DataModel>,
+  value: { album: string; url: string; score: number }
+) {
+  const id = await ctx.db.insert("photos", {
+    album: value.album,
+    url: value.url,
+    score: value.score,
+  });
+  return (await ctx.db.get(id))!;
 }
 
 describe("TableAggregate", () => {
@@ -76,20 +105,12 @@ describe("TableAggregate", () => {
     test("should count two items after inserting two documents", async () => {
       await t.run(async (ctx) => {
         // Insert first document
-        const id1 = await ctx.db.insert("testItems", {
-          name: "first",
-          value: 10,
-        });
-        const doc1 = await ctx.db.get(id1);
-        await aggregate.insert(ctx, doc1!);
+        const doc1 = await testItem(ctx, { name: "first", value: 10 });
+        await aggregate.insert(ctx, doc1);
 
         // Insert second document
-        const id2 = await ctx.db.insert("testItems", {
-          name: "second",
-          value: 20,
-        });
-        const doc2 = await ctx.db.get(id2);
-        await aggregate.insert(ctx, doc2!);
+        const doc2 = await testItem(ctx, { name: "second", value: 20 });
+        await aggregate.insert(ctx, doc2);
       });
 
       const result = await exec();
@@ -98,17 +119,90 @@ describe("TableAggregate", () => {
 
     test("should paginate a single undefined namespace", async () => {
       await t.run(async (ctx) => {
-        await aggregate.insert(ctx, {
-          _id: "1",
-          name: "name",
-          value: 1,
-        });
+        await aggregate.insert(
+          ctx,
+          await testItem(ctx, { name: "name", value: 1 })
+        );
         let count = 0;
         for await (const namespace of aggregate.iterNamespaces(ctx)) {
           expect(namespace).toBe(undefined);
           count++;
         }
         expect(count).toBe(1);
+      });
+    });
+  });
+
+  describe("countBatch", () => {
+    let t: ConvexTest;
+
+    const { aggregate } = createAggregates();
+
+    beforeEach(() => {
+      t = setupTest();
+    });
+
+    test("should count zero items in empty table", async () => {
+      await t.run(async (ctx) => {
+        const result = await aggregate.countBatch(ctx, [
+          { bounds: { lower: { key: 0, inclusive: true } } },
+          { bounds: { lower: { key: 0, inclusive: false } } },
+        ]);
+        expect(result.length).toBe(2);
+        expect(result[0]).toBe(0);
+        expect(result[1]).toBe(0);
+        const result2 = await aggregate.countBatch(ctx, [{}, {}]);
+        expect(result2.length).toBe(2);
+        expect(result2[0]).toBe(0);
+        expect(result2[1]).toBe(0);
+      });
+    });
+
+    test("should count two items after inserting two documents", async () => {
+      await t.run(async (ctx) => {
+        const item1 = await testItem(ctx, { name: "name", value: 1 });
+        await aggregate.insert(ctx, item1);
+        await aggregate.insert(
+          ctx,
+          await testItem(ctx, { name: "name", value: 2 })
+        );
+        const result = await aggregate.countBatch(ctx, [
+          { bounds: { lower: { key: 1, inclusive: true } } },
+        ]);
+        expect(result.length).toBe(1);
+        expect(result[0]).toBe(2);
+        const result2 = await aggregate.countBatch(ctx, [
+          {
+            bounds: {
+              lower: { key: 1, id: item1._id, inclusive: false },
+              upper: { key: 2, inclusive: true },
+            },
+          },
+        ]);
+        expect(result2.length).toBe(1);
+        expect(result2[0]).toBe(1);
+      });
+    });
+  });
+
+  describe("atBatch", () => {
+    const { aggregate } = createAggregates();
+
+    let t: ConvexTest;
+    beforeEach(() => {
+      t = setupTest();
+    });
+
+    test("should find the only item in a single item table", async () => {
+      await t.run(async (ctx) => {
+        await aggregate.insert(
+          ctx,
+          await testItem(ctx, { name: "name", value: 1 })
+        );
+        const result = await aggregate.atBatch(ctx, [{ offset: 0 }]);
+        expect(result.length).toBe(1);
+        expect(result[0].key).toBe(1);
+        expect(result[0].sumValue).toBe(1);
       });
     });
   });
