@@ -1,5 +1,7 @@
 # Example App
 
+You can try out the examples online at: https://aggregate-component-example.netlify.app/
+
 ## To run the examples
 
 Once you have cloned this repo, **from the root of the repo**:
