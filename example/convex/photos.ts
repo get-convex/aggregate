@@ -16,6 +16,7 @@ import {
 import { api, components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import {
   customCtx,
   customMutation,
@@ -129,18 +130,19 @@ export const pageOfPhotos = query({
 
 export const resetAll = internalMutation({
   args: {},
+  returns: resetStatusValidator,
   handler: async (ctx) => {
-    // Just delete table records - triggers will automatically keep aggregate in sync
-    const photosDocs = await ctx.db.query("photos").collect();
-    for (const doc of photosDocs) await ctx.db.delete(doc._id);
+    const batchSize = 1000;
+    const docs = await ctx.db.query("photos").take(batchSize);
+    for (const doc of docs) await ctx.db.delete(doc._id);
 
-    // rootLazy can be false because the table doesn't change much, and this
-    // makes aggregates faster (this is entirely optional).
-    // Also reducing node size uses less bandwidth, since nodes are smaller.
+    if (docs.length === batchSize) return "partial_reset";
+
     await photos.clearAll(ctx, {
       maxNodeSize: 4,
       rootLazy: false,
     });
+    return "all_reset";
   },
 });
 

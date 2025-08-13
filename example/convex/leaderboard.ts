@@ -12,6 +12,7 @@ import {
 import { components, internal } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import { Migrations } from "@convex-dev/migrations";
 import { Triggers } from "convex-helpers/server/triggers";
 import {
@@ -270,18 +271,21 @@ export const clearAggregates = internalMutation(_clearAggregates);
 
 export const resetAll = internalMutation({
   args: {},
-  returns: v.null(),
+  returns: resetStatusValidator,
   handler: async (ctx) => {
     console.log("Resetting leaderboard...");
 
-    // Clear docs
-    const leaderboardDocs = await ctx.db.query("leaderboard").collect();
-    for (const doc of leaderboardDocs) await ctx.db.delete(doc._id);
+    const batchSize = 1000;
+    const docs = await ctx.db.query("leaderboard").take(batchSize);
+    for (const doc of docs) await ctx.db.delete(doc._id);
 
-    // Reset aggregate
+    if (docs.length === batchSize) {
+      console.log("Leaderboard reset partially complete; more to delete");
+      return "partial_reset";
+    }
+
     await _clearAggregates(ctx);
-
     console.log("Leaderboard reset complete");
-    return null;
+    return "all_reset";
   },
 });

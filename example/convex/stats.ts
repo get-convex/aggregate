@@ -8,6 +8,7 @@ import {
   internalMutation,
 } from "../../example/convex/_generated/server";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "../../example/convex/_generated/api";
 
@@ -58,15 +59,12 @@ export const getStats = query({
 
 export const resetAll = internalMutation({
   args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
+  returns: resetStatusValidator,
+  handler: async (ctx): Promise<"all_reset" | "partial_reset"> => {
     console.log("Resetting stats...");
-
-    // Clear the direct aggregate
     await stats.clear(ctx);
-
     console.log("Stats reset complete");
-    return null;
+    return "all_reset";
   },
 });
 

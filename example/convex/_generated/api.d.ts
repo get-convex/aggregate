@@ -14,6 +14,7 @@ import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
 import type * as stats from "../stats.js";
+import type * as utils_resetStatus from "../utils/resetStatus.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   photos: typeof photos;
   shuffle: typeof shuffle;
   stats: typeof stats;
+  "utils/resetStatus": typeof utils_resetStatus;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

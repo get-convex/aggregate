@@ -11,6 +11,7 @@ import {
 } from "../../example/convex/_generated/server";
 import { api, components } from "../../example/convex/_generated/api";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import { FunctionReturnType } from "convex/server";
 
 const btreeAggregate = new DirectAggregate<{
@@ -101,8 +102,10 @@ export const getStats = query({
 
 export const resetAll = internalMutation({
   args: {},
-  handler: async (ctx) => {
+  returns: resetStatusValidator,
+  handler: async (ctx): Promise<"all_reset" | "partial_reset"> => {
     await btreeAggregate.clearAll(ctx);
+    return "all_reset";
   },
 });
 

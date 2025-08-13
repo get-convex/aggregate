@@ -1,22 +1,37 @@
 import { cronJobs } from "convex/server";
 import { api, internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
-import { v } from "convex/values";
 
 export const resetAndSeed = internalMutation({
   args: {},
-  returns: v.null(),
   handler: async (ctx) => {
     console.log("Starting daily data reset...");
 
-    // Reset all modules in parallel
-    await Promise.all([
-      ctx.runMutation(internal.leaderboard.resetAll),
-      ctx.runMutation(internal.photos.resetAll),
-      ctx.runMutation(internal.shuffle.resetAll),
-      ctx.runMutation(internal.stats.resetAll),
-      ctx.runMutation(internal.btree.resetAll),
-    ]);
+    // Reset each module sequentially; bail early and reschedule if any aren't done yet
+    if (
+      (await ctx.runMutation(internal.leaderboard.resetAll)) === "partial_reset"
+    ) {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
+    if ((await ctx.runMutation(internal.photos.resetAll)) === "partial_reset") {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
+    if (
+      (await ctx.runMutation(internal.shuffle.resetAll)) === "partial_reset"
+    ) {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
+    if ((await ctx.runMutation(internal.stats.resetAll)) === "partial_reset") {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
+    if ((await ctx.runMutation(internal.btree.resetAll)) === "partial_reset") {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
 
     await ctx.runMutation(api.leaderboard.addMockScores, { count: 500 });
 

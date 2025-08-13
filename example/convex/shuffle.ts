@@ -13,6 +13,7 @@ import {
 import { components } from "../../example/convex/_generated/api";
 import { DataModel } from "../../example/convex/_generated/dataModel";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -159,21 +160,22 @@ function shuffle<T>(array: T[], rand: Rand): T[] {
 
 export const resetAll = internalMutation({
   args: {},
-  returns: v.null(),
+  returns: resetStatusValidator,
   handler: async (ctx) => {
     console.log("Resetting shuffle/music...");
 
-    // Clear table first to avoid race conditions
-    const musicDocs = await ctx.db.query("music").collect();
-    for (const doc of musicDocs) {
-      await ctx.db.delete(doc._id);
+    const batchSize = 1000;
+    const docs = await ctx.db.query("music").take(batchSize);
+    for (const doc of docs) await ctx.db.delete(doc._id);
+
+    if (docs.length === batchSize) {
+      console.log("Shuffle/music reset partially complete; more to delete");
+      return "partial_reset";
     }
 
-    // Then clear the aggregate
     await randomize.clearAll(ctx);
-
     console.log("Shuffle/music reset complete");
-    return null;
+    return "all_reset";
   },
 });
 
