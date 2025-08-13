@@ -7,6 +7,8 @@
 This Convex component calculates count and sums of values for efficient
 aggregation.
 
+[![Efficient COUNT, SUM, MAX with the Aggregate Component](https://thumbs.video-to-markdown.com/9c06ce06.jpg)](https://youtu.be/YD3nW_PtHWA)
+
 Suppose you have a leaderboard of game scores. These are some operations
 that the Aggregate component makes easy and efficient:
 
@@ -307,9 +309,7 @@ const randomize = new TableAggregate<{
   Key: null;
   DataModel: DataModel;
   TableName: "mytable";
-}>(components.aggregate, {
-  sortKey: (doc) => null,
-});
+}>(components.aggregate, { sortKey: (doc) => null });
 ```
 
 Without sorting, all documents are ordered by their `_id` which is generally
@@ -331,10 +331,10 @@ For this example, imagine you have a table of photo albums.
 ```ts
 // convex/schema.ts
 defineSchema({
-  photos: defineTable({
-    album: v.string(),
-    url: v.string(),
-  }).index("by_album_creation_time", ["album"]),
+  photos: defineTable({ album: v.string(), url: v.string() }).index(
+    "by_album_creation_time",
+    ["album"]
+  ),
 });
 ```
 
@@ -390,10 +390,9 @@ import { DataModel } from "./_generated/dataModel";
 import { DirectAggregate } from "@convex-dev/aggregate";
 // Note the `id` should be unique to be a tie-breaker in case two data points
 // have the same key.
-const aggregate = new DirectAggregate<{
-  Key: number;
-  Id: string;
-}>(components.aggregate);
+const aggregate = new DirectAggregate<{ Key: number; Id: string }>(
+  components.aggregate
+);
 
 // within a mutation, add values to be aggregated
 await aggregate.insert(ctx, { key, id });

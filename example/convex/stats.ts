@@ -2,8 +2,9 @@
  * Example of collecting statistics on data not tied to a Convex table.
  */
 
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 
@@ -30,9 +31,8 @@ export const getStats = query({
   args: {},
   handler: async (ctx) => {
     const count = await stats.count(ctx);
-    if (count === 0) {
-      throw new Error("No data");
-    }
+    if (count === 0) return null;
+
     const mean = (await stats.sum(ctx)) / count;
     const median = (await stats.at(ctx, Math.floor(count / 2))).key;
     const p75 = (await stats.at(ctx, Math.floor(count * 0.75))).key;
@@ -40,6 +40,7 @@ export const getStats = query({
     const min = (await stats.min(ctx))!.key;
     const max = (await stats.max(ctx))!.key;
     return {
+      count,
       mean,
       median,
       p75,
@@ -47,5 +48,36 @@ export const getStats = query({
       max,
       min,
     };
+  },
+});
+
+// ----- internal -----
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: resetStatusValidator,
+  handler: async (ctx): Promise<"all_reset" | "partial_reset"> => {
+    console.log("Resetting stats...");
+    await stats.clear(ctx);
+    console.log("Stats reset complete");
+    return "all_reset";
+  },
+});
+
+export const addLatencies = mutation({
+  args: {
+    latencies: v.array(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { latencies }) => {
+    await Promise.all(
+      latencies.map((latency) =>
+        stats.insert(ctx, {
+          key: latency,
+          id: new Date().toISOString(),
+          sumValue: latency,
+        })
+      )
+    );
   },
 });

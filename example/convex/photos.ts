@@ -13,9 +13,10 @@ import {
   mutation as rawMutation,
   query,
 } from "./_generated/server";
-import { components } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import {
   customCtx,
   customMutation,
@@ -37,23 +38,11 @@ const triggers = new Triggers<DataModel>();
 triggers.register("photos", photos.trigger());
 
 const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
+
 const internalMutation = customMutation(
   rawInternalMutation,
   customCtx(triggers.wrapDB)
 );
-
-export const init = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // rootLazy can be false because the table doesn't change much, and this
-    // makes aggregates faster (this is entirely optional).
-    // Also reducing node size uses less bandwidth, since nodes are smaller.
-    await photos.clearAll(ctx, {
-      maxNodeSize: 4,
-      rootLazy: false,
-    });
-  },
-});
 
 export const addPhoto = mutation({
   args: {
@@ -67,8 +56,23 @@ export const addPhoto = mutation({
 });
 
 /**
+ * Get the total count of photos in an album - demonstrates O(log(n)) count operation
+ */
+export const photoCount = query({
+  args: { album: v.string() },
+  returns: v.number(),
+  handler: async (ctx, { album }) => {
+    return await photos.count(ctx, { namespace: album });
+  },
+});
+
+/**
  * Call this with {offset:0, numItems:10} to get the first page of photos,
  * then {offset:10, numItems:10} to get the second page, etc.
+ *
+ * This demonstrates the key feature: O(log(n)) offset-based pagination!
+ * Instead of scanning through all photos to find page N, we use the aggregate
+ * to jump directly to the right position.
  */
 export const pageOfPhotos = query({
   args: {
@@ -78,15 +82,81 @@ export const pageOfPhotos = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, { offset, numItems, album }) => {
+    // Check if the album has any photos first
+    const firstPhoto = await ctx.db
+      .query("photos")
+      .withIndex("by_album_creation_time", (q) => q.eq("album", album))
+      .first();
+    if (!firstPhoto) return [];
+
+    // This is the magic! photos.at() gives us O(log(n)) lookup to any position
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
       namespace: album,
     });
+
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>
         q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
       )
       .take(numItems);
+
     return photoDocs.map((doc) => doc.url);
+  },
+});
+
+/**
+ * Get all available albums - useful for the UI
+ */
+export const availableAlbums = query({
+  args: {},
+  returns: v.array(v.object({ name: v.string(), count: v.number() })),
+  handler: async (ctx) => {
+    // Get unique albums from the photos table
+    const allPhotos = await ctx.db.query("photos").collect();
+    const albumNames = [...new Set(allPhotos.map((photo) => photo.album))];
+
+    // Get count for each album using the aggregate
+    const albumsWithCounts = await Promise.all(
+      albumNames.map(async (album) => ({
+        name: album,
+        count: await photos.count(ctx, { namespace: album }),
+      }))
+    );
+
+    return albumsWithCounts.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+// ----- internal -----
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: resetStatusValidator,
+  handler: async (ctx) => {
+    const batchSize = 1000;
+    const docs = await ctx.db.query("photos").take(batchSize);
+    for (const doc of docs) await ctx.db.delete(doc._id);
+
+    if (docs.length === batchSize) return "partial_reset";
+
+    await photos.clearAll(ctx, {
+      maxNodeSize: 4,
+      rootLazy: false,
+    });
+    return "all_reset";
+  },
+});
+
+export const addPhotos = internalMutation({
+  args: {
+    photos: v.array(v.object({ album: v.string(), url: v.string() })),
+  },
+  handler: async (ctx, { photos }) => {
+    await Promise.all(
+      photos.map((photo) =>
+        ctx.db.insert("photos", { album: photo.album, url: photo.url })
+      )
+    );
   },
 });

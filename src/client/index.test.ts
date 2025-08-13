@@ -30,7 +30,6 @@ function setupTest() {
 }
 
 type ConvexTest = ReturnType<typeof setupTest>;
-
 type DataModel = DataModelFromSchemaDefinition<typeof schema>;
 
 // Helper function to create aggregates with fresh instances
@@ -56,7 +55,6 @@ function createAggregates() {
 describe("TableAggregate", () => {
   describe("count", () => {
     let t: ConvexTest;
-
     let aggregate: ReturnType<typeof createAggregates>["aggregate"];
 
     beforeEach(() => {
@@ -117,7 +115,6 @@ describe("TableAggregate", () => {
 
   describe("clearAll", () => {
     let t: ConvexTest;
-
     let aggregate: ReturnType<typeof createAggregates>["aggregate"];
 
     beforeEach(() => {

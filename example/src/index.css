@@ -1,0 +1,25 @@
+@import '@mantine/core/styles.css';
+@import '@mantine/notifications/styles.css';
+
+:root {
+  --color-light: #ffffff;
+  --color-dark: #171717;
+}
+
+body {
+  color: var(--color-light);
+  background: var(--color-dark);
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hover effects for clickable cards */
+.hover-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}

@@ -4,10 +4,16 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import { mutation, query } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  MutationCtx,
+} from "./_generated/server";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
+import { resetStatusValidator } from "./utils/resetStatus";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -19,24 +25,25 @@ const randomize = new TableAggregate<{
 });
 
 export const addMusic = mutation({
-  args: {
-    title: v.string(),
-  },
-  returns: v.id("music"),
-  handler: async (ctx, args) => {
-    const id = await ctx.db.insert("music", { title: args.title });
-    const doc = (await ctx.db.get(id))!;
-    await randomize.insert(ctx, doc);
-    return id;
-  },
+  args: { title: v.string() },
+  handler: addMusicHandler,
 });
+
+async function addMusicHandler(ctx: MutationCtx, { title }: { title: string }) {
+  const id = await ctx.db.insert("music", { title });
+  const doc = await ctx.db.get(id);
+  if (!doc) throw new Error("Failed to insert music");
+  await randomize.insert(ctx, doc);
+  return id;
+}
 
 export const removeMusic = mutation({
   args: {
     id: v.id("music"),
   },
   handler: async (ctx, { id }) => {
-    const doc = (await ctx.db.get(id))!;
+    const doc = await ctx.db.get(id);
+    if (!doc) return;
     await ctx.db.delete(id);
     await randomize.delete(ctx, doc);
   },
@@ -46,14 +53,23 @@ export const getRandomMusicTitle = query({
   args: {
     cacheBuster: v.optional(v.number()),
   },
-  returns: v.string(),
   handler: async (ctx) => {
     const randomMusic = await randomize.random(ctx);
-    if (!randomMusic) {
-      throw new ConvexError("no music");
-    }
-    const doc = (await ctx.db.get(randomMusic.id))!;
+    if (!randomMusic) return null;
+    const doc = await ctx.db.get(randomMusic.id);
+    if (!doc) return null;
     return doc.title;
+  },
+});
+
+/**
+ * Get the total count of music items - demonstrates O(log(n)) count operation
+ */
+export const getTotalMusicCount = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    return await randomize.count(ctx);
   },
 });
 
@@ -75,7 +91,14 @@ export const shufflePaginated = query({
     numItems: v.number(),
     seed: v.string(),
   },
-  returns: v.array(v.string()),
+  returns: v.object({
+    items: v.array(v.string()),
+    totalCount: v.number(),
+    totalPages: v.number(),
+    currentPage: v.number(),
+    hasNextPage: v.boolean(),
+    hasPrevPage: v.boolean(),
+  }),
   handler: async (ctx, { offset, numItems, seed }) => {
     const count = await randomize.count(ctx);
     // `rand` is a seeded pseudo-random number generator.
@@ -102,12 +125,25 @@ export const shufflePaginated = query({
       indexes.map((i) => randomize.at(ctx, i))
     );
 
-    return await Promise.all(
+    const items = await Promise.all(
       atIndexes.map(async (atIndex) => {
-        const doc = (await ctx.db.get(atIndex.id))!;
+        const doc = await ctx.db.get(atIndex.id);
+        if (!doc) throw new Error("Failed to get music");
         return doc.title;
       })
     );
+
+    const totalPages = Math.ceil(count / numItems);
+    const currentPage = Math.floor(offset / numItems) + 1;
+
+    return {
+      items,
+      totalCount: count,
+      totalPages,
+      currentPage,
+      hasNextPage: offset + numItems < count,
+      hasPrevPage: offset > 0,
+    };
   },
 });
 
@@ -119,3 +155,35 @@ function shuffle<T>(array: T[], rand: Rand): T[] {
   }
   return array;
 }
+
+// ----- internal -----
+
+export const resetAll = internalMutation({
+  args: {},
+  returns: resetStatusValidator,
+  handler: async (ctx) => {
+    console.log("Resetting shuffle/music...");
+
+    const batchSize = 1000;
+    const docs = await ctx.db.query("music").take(batchSize);
+    for (const doc of docs) await ctx.db.delete(doc._id);
+
+    if (docs.length === batchSize) {
+      console.log("Shuffle/music reset partially complete; more to delete");
+      return "partial_reset";
+    }
+
+    await randomize.clearAll(ctx);
+    console.log("Shuffle/music reset complete");
+    return "all_reset";
+  },
+});
+
+export const addAll = internalMutation({
+  args: {
+    titles: v.array(v.string()),
+  },
+  handler: async (ctx, { titles }) => {
+    await Promise.all(titles.map((title) => _addMusic(ctx, { title })));
+  },
+});

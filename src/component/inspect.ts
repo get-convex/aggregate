@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, Namespace, p } from "./btree.js";
+import schema, { aggregate, itemValidator } from "./schema.js";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
@@ -97,5 +98,39 @@ export const inspectNode = query({
     if (n.subtrees.length > 0) {
       console.log("subtree", n.subtrees[n.subtrees.length - 1]);
     }
+  },
+});
+
+export const listTrees = query({
+  args: {
+    take: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      ...schema.tables.btree.validator.fields,
+      _id: v.id("btree"),
+      _creationTime: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const values = await ctx.db.query("btree").take(args.take ?? 100);
+    return values;
+  },
+});
+
+export const listTreeNodes = query({
+  args: {
+    take: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      ...schema.tables.btreeNode.validator.fields,
+      _id: v.id("btreeNode"),
+      _creationTime: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const values = await ctx.db.query("btreeNode").take(args.take ?? 100);
+    return values;
   },
 });
