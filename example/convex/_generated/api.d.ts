@@ -21,6 +21,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+
 /**
  * A utility for referencing Convex functions in your app's API.
  *
@@ -58,6 +59,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -70,26 +77,7 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
       >;
-      batchAggregateBetween: FunctionReference<
-        "query",
-        "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
-        Array<{ count: number; sum: number }>
-      >;
-      batchAtNegativeOffset: FunctionReference<
-        "query",
-        "internal",
-        {
-          queries: Array<{
-            k1?: any;
-            k2?: any;
-            namespace?: any;
-            offset: number;
-          }>;
-        },
-        Array<{ k: any; s: number; v: any }>
-      >;
-      batchAtOffset: FunctionReference<
+      atOffsetBatch: FunctionReference<
         "query",
         "internal",
         {
@@ -257,6 +245,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -269,26 +263,7 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
       >;
-      batchAggregateBetween: FunctionReference<
-        "query",
-        "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
-        Array<{ count: number; sum: number }>
-      >;
-      batchAtNegativeOffset: FunctionReference<
-        "query",
-        "internal",
-        {
-          queries: Array<{
-            k1?: any;
-            k2?: any;
-            namespace?: any;
-            offset: number;
-          }>;
-        },
-        Array<{ k: any; s: number; v: any }>
-      >;
-      batchAtOffset: FunctionReference<
+      atOffsetBatch: FunctionReference<
         "query",
         "internal",
         {
@@ -456,6 +431,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -468,26 +449,7 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
       >;
-      batchAggregateBetween: FunctionReference<
-        "query",
-        "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
-        Array<{ count: number; sum: number }>
-      >;
-      batchAtNegativeOffset: FunctionReference<
-        "query",
-        "internal",
-        {
-          queries: Array<{
-            k1?: any;
-            k2?: any;
-            namespace?: any;
-            offset: number;
-          }>;
-        },
-        Array<{ k: any; s: number; v: any }>
-      >;
-      batchAtOffset: FunctionReference<
+      atOffsetBatch: FunctionReference<
         "query",
         "internal",
         {
@@ -655,6 +617,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -667,26 +635,7 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
       >;
-      batchAggregateBetween: FunctionReference<
-        "query",
-        "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
-        Array<{ count: number; sum: number }>
-      >;
-      batchAtNegativeOffset: FunctionReference<
-        "query",
-        "internal",
-        {
-          queries: Array<{
-            k1?: any;
-            k2?: any;
-            namespace?: any;
-            offset: number;
-          }>;
-        },
-        Array<{ k: any; s: number; v: any }>
-      >;
-      batchAtOffset: FunctionReference<
+      atOffsetBatch: FunctionReference<
         "query",
         "internal",
         {
@@ -854,6 +803,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -866,26 +821,7 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
       >;
-      batchAggregateBetween: FunctionReference<
-        "query",
-        "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
-        Array<{ count: number; sum: number }>
-      >;
-      batchAtNegativeOffset: FunctionReference<
-        "query",
-        "internal",
-        {
-          queries: Array<{
-            k1?: any;
-            k2?: any;
-            namespace?: any;
-            offset: number;
-          }>;
-        },
-        Array<{ k: any; s: number; v: any }>
-      >;
-      batchAtOffset: FunctionReference<
+      atOffsetBatch: FunctionReference<
         "query",
         "internal",
         {
@@ -1252,7 +1188,7 @@ export declare const components: {
         "mutation",
         "internal",
         { before?: number },
-        any
+        null
       >;
       getStatus: FunctionReference<
         "query",

@@ -1180,6 +1180,7 @@ export const atOffsetBatch = query({
   handler: atOffsetBatchHandler,
 });
 
+// Differs from atOffset in that it handles negative offsets.
 export async function atOffsetBatchHandler(
   ctx: { db: DatabaseReader },
   args: {
@@ -1192,37 +1193,13 @@ export async function atOffsetBatchHandler(
   }
 ) {
   return await Promise.all(
-    args.queries.map((query) => atOffsetHandler(ctx, query))
-  );
-}
-
-export const atNegativeOffsetBatch = query({
-  args: {
-    queries: v.array(
-      v.object({
-        offset: v.number(),
-        k1: v.optional(v.any()),
-        k2: v.optional(v.any()),
-        namespace: v.optional(v.any()),
-      })
-    ),
-  },
-  returns: v.array(itemValidator),
-  handler: atNegativeOffsetBatchHandler,
-});
-
-export async function atNegativeOffsetBatchHandler(
-  ctx: { db: DatabaseReader },
-  args: {
-    queries: Array<{
-      offset: number;
-      k1?: Key;
-      k2?: Key;
-      namespace?: Namespace;
-    }>;
-  }
-) {
-  return await Promise.all(
-    args.queries.map((query) => atNegativeOffsetHandler(ctx, query))
+    args.queries.map((query) =>
+      query.offset >= 0
+        ? atOffsetHandler(ctx, query)
+        : atNegativeOffsetHandler(ctx, {
+            ...query,
+            offset: -query.offset - 1,
+          })
+    )
   );
 }

@@ -119,6 +119,28 @@ export class Aggregate<
     return btreeItemToAggregateItem(item);
   }
   /**
+   * Batch version of at() - returns items at multiple offsets in a single call.
+   */
+  async atBatch(
+    ctx: RunQueryCtx,
+    queries: NamespacedOptsBatch<
+      { offset: number; bounds?: Bounds<K, ID> },
+      Namespace
+    >
+  ): Promise<Item<K, ID>[]> {
+    const queryArgs = queries.map((q) => ({
+      offset: q.offset,
+      ...boundsToPositions(q.bounds),
+      namespace: namespaceFromArg(q),
+    }));
+
+    const results = await ctx.runQuery(this.component.btree.atOffsetBatch, {
+      queries: queryArgs,
+    });
+
+    return results.map(btreeItemToAggregateItem<K, ID>);
+  }
+  /**
    * Returns the rank/offset/index of the given key, within the bounds.
    * Specifically, it returns the index of the first item with
    *
@@ -319,59 +341,6 @@ export class Aggregate<
       }
     );
     return results.map((result: { count: number }) => result.count);
-  }
-
-  /**
-   * Batch version of at() - returns items at multiple offsets in a single call.
-   */
-  async batchAt(
-    ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<
-      { queries: Array<{ offset: number; bounds?: Bounds<K, ID> }> },
-      Namespace
-    >
-  ): Promise<Item<K, ID>[]> {
-    const namespace = namespaceFromOpts(opts);
-    const queries = opts[0]?.queries || [];
-
-    const positiveQueries = queries
-      .filter((q) => q.offset >= 0)
-      .map((q) => ({
-        offset: q.offset,
-        ...boundsToPositions(q.bounds),
-        namespace,
-      }));
-
-    const negativeQueries = queries
-      .filter((q) => q.offset < 0)
-      .map((q) => ({
-        offset: -q.offset - 1,
-        ...boundsToPositions(q.bounds),
-        namespace,
-      }));
-
-    const [positiveResults, negativeResults] = await Promise.all([
-      positiveQueries.length > 0
-        ? ctx.runQuery(this.component.btree.atOffsetBatch, {
-            queries: positiveQueries,
-          })
-        : [],
-      negativeQueries.length > 0
-        ? ctx.runQuery(this.component.btree.atNegativeOffsetBatch, {
-            queries: negativeQueries,
-          })
-        : [],
-    ]);
-
-    let positiveIndex = 0;
-    let negativeIndex = 0;
-    return queries.map((query) => {
-      const result =
-        query.offset < 0
-          ? negativeResults[negativeIndex++]
-          : positiveResults[positiveIndex++];
-      return btreeItemToAggregateItem(result);
-    });
   }
 
   /** Write operations. See {@link DirectAggregate} for docstrings. */
@@ -948,11 +917,15 @@ export type NamespacedOpts<Opts, Namespace> =
   | [{ namespace: Namespace } & Opts]
   | (undefined extends Namespace ? [Opts?] : never);
 
-function namespaceFromArg<Args extends object, Namespace>(
-  args: NamespacedArgs<Args, Namespace>
+export type NamespacedOptsBatch<Opts, Namespace> = Array<
+  undefined extends Namespace ? Opts : { namespace: Namespace } & Opts
+>;
+
+function namespaceFromArg<Namespace>(
+  args: { namespace: Namespace } | object
 ): Namespace {
   if ("namespace" in args) {
-    return args["namespace"];
+    return args["namespace"]!;
   }
   return undefined as Namespace;
 }
