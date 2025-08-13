@@ -67,29 +67,6 @@ export const photoCount = query({
 });
 
 /**
- * Get all available albums - useful for the UI
- */
-export const availableAlbums = query({
-  args: {},
-  returns: v.array(v.object({ name: v.string(), count: v.number() })),
-  handler: async (ctx) => {
-    // Get unique albums from the photos table
-    const allPhotos = await ctx.db.query("photos").collect();
-    const albumNames = [...new Set(allPhotos.map((photo) => photo.album))];
-
-    // Get count for each album using the aggregate
-    const albumsWithCounts = await Promise.all(
-      albumNames.map(async (album) => ({
-        name: album,
-        count: await photos.count(ctx, { namespace: album }),
-      }))
-    );
-
-    return albumsWithCounts.sort((a, b) => a.name.localeCompare(b.name));
-  },
-});
-
-/**
  * Call this with {offset:0, numItems:10} to get the first page of photos,
  * then {offset:10, numItems:10} to get the second page, etc.
  *
@@ -123,6 +100,29 @@ export const pageOfPhotos = query({
       )
       .take(numItems);
     return photoDocs.map((doc) => doc.url);
+  },
+});
+
+/**
+ * Get all available albums - useful for the UI
+ */
+export const availableAlbums = query({
+  args: {},
+  returns: v.array(v.object({ name: v.string(), count: v.number() })),
+  handler: async (ctx) => {
+    // Get unique albums from the photos table
+    const allPhotos = await ctx.db.query("photos").collect();
+    const albumNames = [...new Set(allPhotos.map((photo) => photo.album))];
+
+    // Get count for each album using the aggregate
+    const albumsWithCounts = await Promise.all(
+      albumNames.map(async (album) => ({
+        name: album,
+        count: await photos.count(ctx, { namespace: album }),
+      }))
+    );
+
+    return albumsWithCounts.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
