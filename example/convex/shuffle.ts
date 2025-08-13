@@ -24,18 +24,18 @@ const randomize = new TableAggregate<{
   sortKey: () => null,
 });
 
-const _addMusic = async (ctx: MutationCtx, { title }: { title: string }) => {
+export const addMusic = mutation({
+  args: { title: v.string() },
+  handler: addMusicHandler,
+});
+
+async function addMusicHandler(ctx: MutationCtx, { title }: { title: string }) {
   const id = await ctx.db.insert("music", { title });
   const doc = await ctx.db.get(id);
   if (!doc) throw new Error("Failed to insert music");
   await randomize.insert(ctx, doc);
   return id;
-};
-
-export const addMusic = mutation({
-  args: { title: v.string() },
-  handler: _addMusic,
-});
+}
 
 export const removeMusic = mutation({
   args: {
