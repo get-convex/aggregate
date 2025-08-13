@@ -2,15 +2,11 @@
  * Example of collecting statistics on data not tied to a Convex table.
  */
 
-import {
-  mutation,
-  query,
-  internalMutation,
-} from "../../example/convex/_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
 import { DirectAggregate } from "@convex-dev/aggregate";
-import { components } from "../../example/convex/_generated/api";
+import { components } from "./_generated/api";
 
 const stats = new DirectAggregate<{
   Key: number;

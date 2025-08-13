@@ -4,7 +4,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import componentSchema from "../../src/component/schema";
 import migrationsSchema from "../node_modules/@convex-dev/migrations/src/component/schema";
-import { api, components, internal } from "../../example/convex/_generated/api";
+import { api, components, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");

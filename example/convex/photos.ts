@@ -12,9 +12,9 @@ import {
   internalMutation as rawInternalMutation,
   mutation as rawMutation,
   query,
-} from "../../example/convex/_generated/server";
-import { api, components } from "../../example/convex/_generated/api";
-import { DataModel } from "../../example/convex/_generated/dataModel";
+} from "./_generated/server";
+import { api, components } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
 import {
@@ -93,12 +93,14 @@ export const pageOfPhotos = query({
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
       namespace: album,
     });
+
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>
         q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
       )
       .take(numItems);
+
     return photoDocs.map((doc) => doc.url);
   },
 });

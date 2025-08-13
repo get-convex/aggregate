@@ -4,12 +4,8 @@
  */
 
 import { DirectAggregate } from "@convex-dev/aggregate";
-import {
-  mutation,
-  query,
-  internalMutation,
-} from "../../example/convex/_generated/server";
-import { api, components } from "../../example/convex/_generated/api";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { api, components } from "./_generated/api";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
 import { FunctionReturnType } from "convex/server";

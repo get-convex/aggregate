@@ -8,9 +8,9 @@ import {
   query,
   internalMutation,
   MutationCtx,
-} from "../../example/convex/_generated/server";
-import { components, internal } from "../../example/convex/_generated/api";
-import { DataModel } from "../../example/convex/_generated/dataModel";
+} from "./_generated/server";
+import { components, internal } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
 import { Migrations } from "@convex-dev/migrations";
