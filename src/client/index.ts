@@ -77,6 +77,31 @@ export class Aggregate<
     );
     return count;
   }
+
+  /**
+   * Batch version of count() - counts items for multiple bounds in a single call.
+   */
+  async countBatch(
+    ctx: RunQueryCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number[]> {
+    const queryArgs = queries.map((query) => {
+      if (!query) {
+        throw new Error("You must pass bounds and/or namespace");
+      }
+      const namespace = namespaceFromArg(query);
+      const { k1, k2 } = boundsToPositions(query.bounds);
+      return { k1, k2, namespace };
+    });
+    const results = await ctx.runQuery(
+      this.component.btree.aggregateBetweenBatch,
+      {
+        queries: queryArgs,
+      }
+    );
+    return results.map((result: { count: number }) => result.count);
+  }
+
   /**
    * Adds up the sumValue of items between the given bounds.
    */
@@ -316,31 +341,6 @@ export class Aggregate<
       isDone = newIsDone;
       cursor = newCursor;
     }
-  }
-
-  /**
-   * Batch version of count() - counts items for multiple bounds in a single call.
-   */
-  async batchCount(
-    ctx: RunQueryCtx,
-    ...opts: NamespacedOpts<
-      { queries: Array<{ bounds?: Bounds<K, ID> }> },
-      Namespace
-    >
-  ): Promise<number[]> {
-    const namespace = namespaceFromOpts(opts);
-    const queries = opts[0]?.queries || [];
-    const queryArgs = queries.map((query) => {
-      const { k1, k2 } = boundsToPositions(query.bounds);
-      return { k1, k2, namespace };
-    });
-    const results = await ctx.runQuery(
-      this.component.btree.aggregateBetweenBatch,
-      {
-        queries: queryArgs,
-      }
-    );
-    return results.map((result: { count: number }) => result.count);
   }
 
   /** Write operations. See {@link DirectAggregate} for docstrings. */
