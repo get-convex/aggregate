@@ -184,6 +184,6 @@ export const addAll = internalMutation({
     titles: v.array(v.string()),
   },
   handler: async (ctx, { titles }) => {
-    await Promise.all(titles.map((title) => _addMusic(ctx, { title })));
+    await Promise.all(titles.map((title) => addMusicHandler(ctx, { title })));
   },
 });
