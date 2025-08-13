@@ -49,6 +49,8 @@ const avgScoreForUser =
 The Aggregate component provides `O(log(n))`-time lookups, instead of the `O(n)`
 that would result from naive usage of `.collect()` in Convex or `COUNT(*)` in MySQL or Postgres.
 
+## Examples
+
 ## What are Aggregates for?
 
 With plain Convex indexes, you can insert new documents and you can paginate
@@ -148,6 +150,8 @@ The Aggregate component can efficiently calculate all of these:
 - [Offset-based pagination](#offset-based-pagination): view the 14th page of photos,
   where each page has 50 photos.
 - [Random access](#total-count-and-randomization): Look up a random song in a playlist, as the next song to play.
+
+Try it out: https://aggregate-component-example.netlify.app/
 
 ## Pre-requisite: Convex
 
@@ -298,6 +302,8 @@ To run the examples:
 3. `npm run dev` and create a new project
 4. The dashboard should open and you can run functions like
    `leaderboard:addScore` and `leaderboard:userAverageScore`.
+
+Or play with them online at: https://aggregate-component-example.netlify.app/
 
 ### Total Count and Randomization
 
