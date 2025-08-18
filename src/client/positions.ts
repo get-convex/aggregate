@@ -38,8 +38,7 @@ const AFTER_ALL_IDS: never[] = [];
 
 // First a key, which is exploded with explodeKey.
 // Then the ID, or BEFORE_ALL_IDS or AFTER_ALL_IDS.
-// Then a value to be inclusive or exclusive.
-export type Position = [Key, string | null | never[], "" | null | never[]];
+export type Position = [Key, string | null | never[]];
 
 function explodeKey<K extends Key>(key: K): Key {
   if (Array.isArray(key)) {
@@ -68,7 +67,7 @@ export function keyToPosition<K extends Key, ID extends string>(
   key: K,
   id: ID
 ): Position {
-  return [explodeKey(key), id, ""];
+  return [explodeKey(key), id];
 }
 
 export function positionToKey<K extends Key, ID extends string>(
@@ -91,8 +90,8 @@ export function boundsToPositions<K extends Key, ID extends string>(
       exploded.push(item);
     }
     return {
-      k1: [exploded.concat([BEFORE_ALL_IDS]), BEFORE_ALL_IDS, BEFORE_ALL_IDS],
-      k2: [exploded.concat([AFTER_ALL_IDS]), AFTER_ALL_IDS, AFTER_ALL_IDS],
+      k1: [exploded.concat([BEFORE_ALL_IDS]), BEFORE_ALL_IDS],
+      k2: [exploded.concat([AFTER_ALL_IDS]), AFTER_ALL_IDS],
     };
   }
   return {
@@ -120,14 +119,12 @@ export function boundToPosition<K extends Key, ID extends string>(
   if (direction === "lower") {
     return [
       explodeKey(bound.key),
-      bound.id ?? BEFORE_ALL_IDS,
-      bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS,
+      bound.id ?? (bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS),
     ];
   } else {
     return [
       explodeKey(bound.key),
-      bound.id ?? AFTER_ALL_IDS,
-      bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS,
+      bound.id ?? (bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS),
     ];
   }
 }
