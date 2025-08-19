@@ -24,6 +24,6 @@ jobs:
           cd example && npm i && cd ..
           npm run build
       - name: pkg-pr-new
-        run: npx pkg-pr-new publish ./
+        run: npx pkg-pr-new publish . || true
       - name: Test
         run: npm run test
