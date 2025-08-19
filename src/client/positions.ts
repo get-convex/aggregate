@@ -120,13 +120,13 @@ export function boundToPosition<K extends Key, ID extends string>(
   if (direction === "lower") {
     return [
       explodeKey(bound.key),
-      bound.id ?? BEFORE_ALL_IDS,
+      bound.id ?? (bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS),
       bound.inclusive ? BEFORE_ALL_IDS : AFTER_ALL_IDS,
     ];
   } else {
     return [
       explodeKey(bound.key),
-      bound.id ?? AFTER_ALL_IDS,
+      bound.id ?? (bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS),
       bound.inclusive ? AFTER_ALL_IDS : BEFORE_ALL_IDS,
     ];
   }
