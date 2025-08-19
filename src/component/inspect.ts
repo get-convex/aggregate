@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel.js";
 import { DatabaseReader, query } from "./_generated/server.js";
 import { getTree, Namespace, p } from "./btree.js";
-import schema, { aggregate, itemValidator } from "./schema.js";
+import schema from "./schema.js";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
