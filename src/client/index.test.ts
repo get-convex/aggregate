@@ -497,4 +497,231 @@ describe("TableAggregate with namespace", () => {
       expect(vacationCount).toBe(1);
     });
   });
+
+  describe("inclusive bounds behavior", () => {
+    let t: ConvexTest;
+    let aggregate: ReturnType<typeof createAggregates>["aggregate"];
+
+    beforeEach(() => {
+      t = setupTest();
+      ({ aggregate } = createAggregates());
+    });
+
+    test("should respect inclusive vs exclusive lower bounds", async () => {
+      await t.run(async (ctx) => {
+        const docs = [
+          { name: "item1", value: 10 },
+          { name: "item2", value: 20 },
+          { name: "item3", value: 30 },
+        ];
+
+        for (const doc of docs) {
+          const id = await ctx.db.insert("testItems", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregate.insert(ctx, insertedDoc!);
+        }
+      });
+
+      const countInclusiveLower = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countInclusiveLower).toBe(2);
+
+      const countExclusiveLower = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: false },
+          },
+        });
+      });
+      expect(countExclusiveLower).toBe(1);
+    });
+
+    test("should respect inclusive vs exclusive upper bounds", async () => {
+      await t.run(async (ctx) => {
+        const docs = [
+          { name: "item1", value: 10 },
+          { name: "item2", value: 20 },
+          { name: "item3", value: 30 },
+        ];
+
+        for (const doc of docs) {
+          const id = await ctx.db.insert("testItems", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregate.insert(ctx, insertedDoc!);
+        }
+      });
+
+      const countInclusiveUpper = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            upper: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countInclusiveUpper).toBe(2);
+
+      const countExclusiveUpper = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            upper: { key: 20, inclusive: false },
+          },
+        });
+      });
+      expect(countExclusiveUpper).toBe(1);
+    });
+
+    test("should respect inclusive vs exclusive bounds with both lower and upper", async () => {
+      await t.run(async (ctx) => {
+        const docs = [
+          { name: "item1", value: 10 },
+          { name: "item2", value: 20 },
+          { name: "item3", value: 30 },
+          { name: "item4", value: 40 },
+        ];
+
+        for (const doc of docs) {
+          const id = await ctx.db.insert("testItems", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregate.insert(ctx, insertedDoc!);
+        }
+      });
+
+      const countBothInclusive = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: true },
+            upper: { key: 30, inclusive: true },
+          },
+        });
+      });
+      expect(countBothInclusive).toBe(2);
+
+      const countBothExclusive = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: false },
+            upper: { key: 30, inclusive: false },
+          },
+        });
+      });
+      expect(countBothExclusive).toBe(0);
+
+      const countMixed1 = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: true },
+            upper: { key: 30, inclusive: false },
+          },
+        });
+      });
+      expect(countMixed1).toBe(1);
+
+      const countMixed2 = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: false },
+            upper: { key: 30, inclusive: true },
+          },
+        });
+      });
+      expect(countMixed2).toBe(1);
+    });
+
+    test("should respect inclusive bounds with exact boundary matches", async () => {
+      await t.run(async (ctx) => {
+        const docs = [
+          { name: "item1", value: 15 },
+          { name: "item2", value: 20 },
+          { name: "item3", value: 20 },
+          { name: "item4", value: 25 },
+        ];
+
+        for (const doc of docs) {
+          const id = await ctx.db.insert("testItems", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregate.insert(ctx, insertedDoc!);
+        }
+      });
+
+      const countInclusiveLowerDupe = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: true },
+          },
+        });
+      });
+      expect(countInclusiveLowerDupe).toBe(3);
+
+      const countExclusiveLowerDupe = await t.run(async (ctx) => {
+        return await aggregate.count(ctx, {
+          bounds: {
+            lower: { key: 20, inclusive: false },
+          },
+        });
+      });
+      expect(countExclusiveLowerDupe).toBe(1);
+    });
+
+    test("should respect inclusive bounds with array keys", async () => {
+      const aggregateWithArrayKeys = new TableAggregate(components.aggregate, {
+        sortKey: (doc) => [doc.value, doc.name],
+      });
+
+      await t.run(async (ctx) => {
+        const docs = [
+          { name: "a", value: 10 },
+          { name: "b", value: 20 },
+          { name: "c", value: 20 },
+          { name: "d", value: 30 },
+        ];
+
+        for (const doc of docs) {
+          const id = await ctx.db.insert("testItems", doc);
+          const insertedDoc = await ctx.db.get(id);
+          await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
+        }
+      });
+
+      const countInclusiveArrayLower = await t.run(async (ctx) => {
+        return await aggregateWithArrayKeys.count(ctx, {
+          bounds: {
+            lower: { key: [20, "b"], inclusive: true },
+          },
+        });
+      });
+      expect(countInclusiveArrayLower).toBe(3);
+
+      const countExclusiveArrayLower = await t.run(async (ctx) => {
+        return await aggregateWithArrayKeys.count(ctx, {
+          bounds: {
+            lower: { key: [20, "b"], inclusive: false },
+          },
+        });
+      });
+      expect(countExclusiveArrayLower).toBe(2);
+
+      const countInclusiveArrayUpper = await t.run(async (ctx) => {
+        return await aggregateWithArrayKeys.count(ctx, {
+          bounds: {
+            upper: { key: [20, "c"], inclusive: true },
+          },
+        });
+      });
+      expect(countInclusiveArrayUpper).toBe(3);
+
+      const countExclusiveArrayUpper = await t.run(async (ctx) => {
+        return await aggregateWithArrayKeys.count(ctx, {
+          bounds: {
+            upper: { key: [20, "c"], inclusive: false },
+          },
+        });
+      });
+      expect(countExclusiveArrayUpper).toBe(2);
+    });
+  });
 });
