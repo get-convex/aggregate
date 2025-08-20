@@ -1,7 +1,7 @@
 {
   "name": "@convex-dev/aggregate",
   "description": "Convex component to calculate counts and sums of values for efficient aggregation.",
-  "version": "0.1.23-alpha.0",
+  "version": "0.1.23",
   "keywords": [
     "convex",
     "component",

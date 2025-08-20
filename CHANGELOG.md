@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.23 alpha
+## 0.1.23
 
 - Fix inclusive bounds on complex IDs
 
