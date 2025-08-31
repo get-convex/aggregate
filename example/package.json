@@ -26,7 +26,7 @@
     "@xyflow/react": "^12.8.2",
     "convex": "^1.17.0",
     "convex-helpers": "^0.1.61",
-    "rand-seed": "^2.1.7",
+    "rand-seed": "^3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "type-route": "^1.1.0"
