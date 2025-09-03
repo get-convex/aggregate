@@ -41,6 +41,12 @@ export type Mounts = {
       { k1?: any; k2?: any; namespace?: any },
       { count: number; sum: number }
     >;
+    aggregateBetweenBatch: FunctionReference<
+      "query",
+      "public",
+      { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+      Array<{ count: number; sum: number }>
+    >;
     atNegativeOffset: FunctionReference<
       "query",
       "public",
@@ -52,6 +58,14 @@ export type Mounts = {
       "public",
       { k1?: any; k2?: any; namespace?: any; offset: number },
       { k: any; s: number; v: any }
+    >;
+    atOffsetBatch: FunctionReference<
+      "query",
+      "public",
+      {
+        queries: Array<{ k1?: any; k2?: any; namespace?: any; offset: number }>;
+      },
+      Array<{ k: any; s: number; v: any }>
     >;
     get: FunctionReference<
       "query",
