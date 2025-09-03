@@ -7,10 +7,9 @@ import {
   modules,
 } from "./setup.test.js";
 import { defineSchema, defineTable, GenericMutationCtx } from "convex/server";
-import { GenericId, v } from "convex/values";
+import { v } from "convex/values";
 import { convexTest } from "convex-test";
 import { DataModelFromSchemaDefinition } from "convex/server";
-import { Id } from "../component/_generated/dataModel.js";
 
 const schema = defineSchema({
   testItems: defineTable({
@@ -65,18 +64,6 @@ async function testItem(
   const id = await ctx.db.insert("testItems", {
     name: value.name,
     value: value.value,
-  });
-  return (await ctx.db.get(id))!;
-}
-
-async function photo(
-  ctx: GenericMutationCtx<DataModel>,
-  value: { album: string; url: string; score: number }
-) {
-  const id = await ctx.db.insert("photos", {
-    album: value.album,
-    url: value.url,
-    score: value.score,
   });
   return (await ctx.db.get(id))!;
 }
