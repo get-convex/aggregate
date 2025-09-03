@@ -18,7 +18,6 @@ import {
   paginateHandler,
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
-  atNegativeOffsetBatchHandler,
 } from "./btree.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
@@ -226,6 +225,17 @@ describe("btree", () => {
   })(
     "batch functions match individual calls",
     async ({ writes, aggregateQueries }) => {
+      const except = async (f: () => Promise<void>) => {
+        try {
+          await f();
+          return false;
+        } catch (e) {
+          if (e instanceof ConvexError) {
+            return true;
+          }
+          throw e;
+        }
+      };
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         await getOrCreateTree(ctx.db, undefined, 4, false);
@@ -233,11 +243,19 @@ describe("btree", () => {
 
         for (const write of writes) {
           if (write.type === "insert") {
-            await insertHandler(ctx, write);
-            simple.insert({ k: write.key, v: write.value, s: write.summand });
+            expect(await except(() => insertHandler(ctx, write))).toStrictEqual(
+              await except(async () =>
+                simple.insert({
+                  k: write.key,
+                  v: write.value,
+                  s: write.summand,
+                })
+              )
+            );
           } else if (write.type === "delete") {
-            await deleteHandler(ctx, write);
-            simple.delete(write.key);
+            expect(await except(() => deleteHandler(ctx, write))).toStrictEqual(
+              await except(async () => simple.delete(write.key))
+            );
           }
         }
 
@@ -284,20 +302,47 @@ describe("btree", () => {
           }
 
           const negativeOffsetQueries = [
-            { offset: 0, k1: undefined, k2: undefined, namespace: undefined },
+            { offset: -1, k1: undefined, k2: undefined, namespace: undefined },
           ];
 
-          const batchNegResults = await atNegativeOffsetBatchHandler(ctx, {
-            queries: negativeOffsetQueries,
-          });
-          expect(batchNegResults).toHaveLength(negativeOffsetQueries.length);
+          let batchError = false;
+          let batchResults: any = null;
+          try {
+            batchResults = await atOffsetBatchHandler(ctx, {
+              queries: negativeOffsetQueries,
+            });
+          } catch (e) {
+            if (e instanceof ConvexError) {
+              batchError = true;
+            } else {
+              throw e;
+            }
+          }
 
-          for (let i = 0; i < negativeOffsetQueries.length; i++) {
-            const individualResult = await atNegativeOffsetHandler(
-              ctx,
-              negativeOffsetQueries[i]
+          let individualError = false;
+          let individualResults: any = null;
+          try {
+            individualResults = await Promise.all(
+              negativeOffsetQueries.map((query) =>
+                query.offset >= 0
+                  ? atOffsetHandler(ctx, query)
+                  : atNegativeOffsetHandler(ctx, {
+                      ...query,
+                      offset: -query.offset - 1,
+                    })
+              )
             );
-            expect(batchNegResults[i]).toEqual(individualResult);
+          } catch (e) {
+            if (e instanceof ConvexError) {
+              individualError = true;
+            } else {
+              throw e;
+            }
+          }
+
+          expect(batchError).toStrictEqual(individualError);
+          if (!batchError && !individualError) {
+            expect(batchResults).toEqual(individualResults);
           }
         }
       });
