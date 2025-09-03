@@ -56,8 +56,8 @@ export const useStablePaginatedQuery = ((name, ...args) => {
 /**
  * Similar to useStableQuery but returns an object with data and isLoading properties.
  * The data property contains the stable query result, and isLoading indicates whether
- * new data is currently being fetched (true when the underlying result === undefined). 
- * 
+ * new data is currently being fetched (true when the underlying result === undefined).
+ *
  * This is useful for cases where you want to show loading state while the query is loading,
  * but also want to show the stable data while it's loading.
  *
