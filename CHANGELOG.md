@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.24 alpha
+## 0.1.24
 
 - Adds batch APIs for "at" and "count"
 
