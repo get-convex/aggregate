@@ -1,5 +1,5 @@
-@import '@mantine/core/styles.css';
-@import '@mantine/notifications/styles.css';
+@import "@mantine/core/styles.css";
+@import "@mantine/notifications/styles.css";
 
 :root {
   --color-light: #ffffff;
@@ -16,7 +16,9 @@ body {
 
 /* Hover effects for clickable cards */
 .hover-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .hover-card:hover {

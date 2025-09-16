@@ -16,6 +16,8 @@ import {
   offsetUntilHandler,
   atNegativeOffsetHandler,
   paginateHandler,
+  aggregateBetweenBatchHandler,
+  atOffsetBatchHandler,
 } from "./btree.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
@@ -209,6 +211,145 @@ describe("btree", () => {
       await del(4);
     });
   });
+
+  fcTest.prop({
+    writes: fc.array(arbitraryWrite, { minLength: 0, maxLength: 20 }),
+    aggregateQueries: fc.array(
+      fc.record({
+        k1: fc.option(arbitraryValue, { nil: undefined }),
+        k2: fc.option(arbitraryValue, { nil: undefined }),
+        namespace: fc.option(fc.string(), { nil: undefined }),
+      }),
+      { minLength: 1, maxLength: 5 }
+    ),
+  })(
+    "batch functions match individual calls",
+    async ({ writes, aggregateQueries }) => {
+      const except = async (f: () => Promise<void>) => {
+        try {
+          await f();
+          return false;
+        } catch (e) {
+          if (e instanceof ConvexError) {
+            return true;
+          }
+          throw e;
+        }
+      };
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await getOrCreateTree(ctx.db, undefined, 4, false);
+        const simple = new SimpleBTree();
+
+        for (const write of writes) {
+          if (write.type === "insert") {
+            expect(await except(() => insertHandler(ctx, write))).toStrictEqual(
+              await except(async () =>
+                simple.insert({
+                  k: write.key,
+                  v: write.value,
+                  s: write.summand,
+                })
+              )
+            );
+          } else if (write.type === "delete") {
+            expect(await except(() => deleteHandler(ctx, write))).toStrictEqual(
+              await except(async () => simple.delete(write.key))
+            );
+          }
+        }
+
+        if (aggregateQueries.length > 0) {
+          const batchResults = await aggregateBetweenBatchHandler(ctx, {
+            queries: aggregateQueries,
+          });
+          expect(batchResults).toHaveLength(aggregateQueries.length);
+
+          for (let i = 0; i < aggregateQueries.length; i++) {
+            const individualResult = await aggregateBetweenHandler(
+              ctx,
+              aggregateQueries[i]
+            );
+            expect(batchResults[i]).toEqual(individualResult);
+          }
+        }
+
+        const totalCount = simple.count();
+        if (totalCount > 0) {
+          const offsetQueries = [
+            { offset: 0, k1: undefined, k2: undefined, namespace: undefined },
+            {
+              offset: Math.floor(totalCount / 2),
+              k1: undefined,
+              k2: undefined,
+              namespace: undefined,
+            },
+          ].filter((q) => q.offset < totalCount);
+
+          if (offsetQueries.length > 0) {
+            const batchResults = await atOffsetBatchHandler(ctx, {
+              queries: offsetQueries,
+            });
+            expect(batchResults).toHaveLength(offsetQueries.length);
+
+            for (let i = 0; i < offsetQueries.length; i++) {
+              const individualResult = await atOffsetHandler(
+                ctx,
+                offsetQueries[i]
+              );
+              expect(batchResults[i]).toEqual(individualResult);
+            }
+          }
+
+          const negativeOffsetQueries = [
+            { offset: -1, k1: undefined, k2: undefined, namespace: undefined },
+          ];
+
+          let batchError = false;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let batchResults: any = null;
+          try {
+            batchResults = await atOffsetBatchHandler(ctx, {
+              queries: negativeOffsetQueries,
+            });
+          } catch (e) {
+            if (e instanceof ConvexError) {
+              batchError = true;
+            } else {
+              throw e;
+            }
+          }
+
+          let individualError = false;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let individualResults: any = null;
+          try {
+            individualResults = await Promise.all(
+              negativeOffsetQueries.map((query) =>
+                query.offset >= 0
+                  ? atOffsetHandler(ctx, query)
+                  : atNegativeOffsetHandler(ctx, {
+                      ...query,
+                      offset: -query.offset - 1,
+                    })
+              )
+            );
+          } catch (e) {
+            if (e instanceof ConvexError) {
+              individualError = true;
+            } else {
+              throw e;
+            }
+          }
+
+          expect(batchError).toStrictEqual(individualError);
+          if (!batchError && !individualError) {
+            expect(batchResults).toEqual(individualResults);
+          }
+        }
+      });
+    }
+  );
 });
 
 describe("namespaced btree", () => {

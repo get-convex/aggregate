@@ -77,6 +77,31 @@ export class Aggregate<
     );
     return count;
   }
+
+  /**
+   * Batch version of count() - counts items for multiple bounds in a single call.
+   */
+  async countBatch(
+    ctx: RunQueryCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number[]> {
+    const queryArgs = queries.map((query) => {
+      if (!query) {
+        throw new Error("You must pass bounds and/or namespace");
+      }
+      const namespace = namespaceFromArg(query);
+      const { k1, k2 } = boundsToPositions(query.bounds);
+      return { k1, k2, namespace };
+    });
+    const results = await ctx.runQuery(
+      this.component.btree.aggregateBetweenBatch,
+      {
+        queries: queryArgs,
+      }
+    );
+    return results.map((result: { count: number }) => result.count);
+  }
+
   /**
    * Adds up the sumValue of items between the given bounds.
    */
@@ -117,6 +142,28 @@ export class Aggregate<
       ...boundsToPositions(opts[0]?.bounds),
     });
     return btreeItemToAggregateItem(item);
+  }
+  /**
+   * Batch version of at() - returns items at multiple offsets in a single call.
+   */
+  async atBatch(
+    ctx: RunQueryCtx,
+    queries: NamespacedOptsBatch<
+      { offset: number; bounds?: Bounds<K, ID> },
+      Namespace
+    >
+  ): Promise<Item<K, ID>[]> {
+    const queryArgs = queries.map((q) => ({
+      offset: q.offset,
+      ...boundsToPositions(q.bounds),
+      namespace: namespaceFromArg(q),
+    }));
+
+    const results = await ctx.runQuery(this.component.btree.atOffsetBatch, {
+      queries: queryArgs,
+    });
+
+    return results.map(btreeItemToAggregateItem<K, ID>);
   }
   /**
    * Returns the rank/offset/index of the given key, within the bounds.
@@ -870,11 +917,15 @@ export type NamespacedOpts<Opts, Namespace> =
   | [{ namespace: Namespace } & Opts]
   | (undefined extends Namespace ? [Opts?] : never);
 
-function namespaceFromArg<Args extends object, Namespace>(
-  args: NamespacedArgs<Args, Namespace>
+export type NamespacedOptsBatch<Opts, Namespace> = Array<
+  undefined extends Namespace ? Opts : { namespace: Namespace } & Opts
+>;
+
+function namespaceFromArg<Namespace>(
+  args: { namespace: Namespace } | object
 ): Namespace {
   if ("namespace" in args) {
-    return args["namespace"];
+    return args["namespace"]!;
   }
   return undefined as Namespace;
 }
