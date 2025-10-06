@@ -506,10 +506,9 @@ aggregates based on the diff of these two paginated data streams.
 
 For improved performance when making multiple similar queries, the Aggregate component provides batch versions of common operations:
 
-- `batchCount()` - Count items for multiple bounds in a single call
-- `batchAt()` - Return items at multiple offsets in a single call
-
-If you want more batched functions, file a [GitHub issue](https://github.com/get-convex/aggregate/issues)
+- `countBatch()` - Count items for multiple bounds in a single call
+- `sumBatch()` - Sum items for multiple bounds in a single call
+- `atBatch()` - Return items at multiple offsets in a single call
 
 These batch functions are significantly more efficient than making individual calls because they:
 
@@ -526,9 +525,11 @@ const counts = await Promise.all([
 ]);
 
 // Use the batch equivalent for better performance:
-const counts = await aggregate.batchCount(ctx, {
-  queries: [{ bounds: bounds1 }, { bounds: bounds2 }, { bounds: bounds3 }],
-});
+const counts = await aggregate.countBatch(ctx, [
+  { bounds: bounds1 },
+  { bounds: bounds2 },
+  { bounds: bounds3 }
+]);
 ```
 
 The batch functions accept arrays of query parameters and return arrays of results in the same order, making them drop-in replacements for multiple individual calls while providing better performance characteristics.
