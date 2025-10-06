@@ -115,6 +115,31 @@ export class Aggregate<
     });
     return sum;
   }
+
+  /**
+   * Batch version of sum() - sums items for multiple bounds in a single call.
+   */
+  async sumBatch(
+    ctx: RunQueryCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number[]> {
+    const queryArgs = queries.map((query) => {
+      if (!query) {
+        throw new Error("You must pass bounds and/or namespace");
+      }
+      const namespace = namespaceFromArg(query);
+      const { k1, k2 } = boundsToPositions(query.bounds);
+      return { k1, k2, namespace };
+    });
+    const results = await ctx.runQuery(
+      this.component.btree.aggregateBetweenBatch,
+      {
+        queries: queryArgs,
+      }
+    );
+    return results.map((result: { sum: number }) => result.sum);
+  }
+
   /**
    * Returns the item at the given offset/index/rank in the order of key,
    * within the bounds. Zero-indexed, so at(0) is the smallest key within the

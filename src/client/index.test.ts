@@ -172,6 +172,78 @@ describe("TableAggregate", () => {
     });
   });
 
+  describe("sumBatch", () => {
+    let t: ConvexTest;
+
+    const { aggregate } = createAggregates();
+
+    beforeEach(() => {
+      t = setupTest();
+    });
+
+    test("should sum zero in empty table", async () => {
+      await t.run(async (ctx) => {
+        const result = await aggregate.sumBatch(ctx, [
+          { bounds: { lower: { key: 0, inclusive: true } } },
+          { bounds: { lower: { key: 0, inclusive: false } } },
+        ]);
+        expect(result.length).toBe(2);
+        expect(result[0]).toBe(0);
+        expect(result[1]).toBe(0);
+        const result2 = await aggregate.sumBatch(ctx, [{}, {}]);
+        expect(result2.length).toBe(2);
+        expect(result2[0]).toBe(0);
+        expect(result2[1]).toBe(0);
+      });
+    });
+
+    test("should sum items with different sumValues across multiple ranges", async () => {
+      await t.run(async (ctx) => {
+        const item1 = await testItem(ctx, { name: "name", value: 10 });
+        await aggregate.insert(ctx, item1);
+        const item2 = await testItem(ctx, { name: "name", value: 20 });
+        await aggregate.insert(ctx, item2);
+        const item3 = await testItem(ctx, { name: "name", value: 30 });
+        await aggregate.insert(ctx, item3);
+
+        const result = await aggregate.sumBatch(ctx, [
+          { bounds: { lower: { key: 10, inclusive: true } } }, // All items: 10 + 20 + 30 = 60
+          { bounds: { lower: { key: 20, inclusive: true } } }, // Items 2,3: 20 + 30 = 50
+          {
+            bounds: {
+              lower: { key: 10, inclusive: true },
+              upper: { key: 20, inclusive: true },
+            },
+          }, // Items 1,2: 10 + 20 = 30
+        ]);
+        expect(result.length).toBe(3);
+        expect(result[0]).toBe(60);
+        expect(result[1]).toBe(50);
+        expect(result[2]).toBe(30);
+      });
+    });
+
+    test("should handle exclusive bounds correctly", async () => {
+      await t.run(async (ctx) => {
+        const item1 = await testItem(ctx, { name: "name", value: 100 });
+        await aggregate.insert(ctx, item1);
+        const item2 = await testItem(ctx, { name: "name", value: 200 });
+        await aggregate.insert(ctx, item2);
+
+        const result = await aggregate.sumBatch(ctx, [
+          {
+            bounds: {
+              lower: { key: 100, id: item1._id, inclusive: false },
+              upper: { key: 200, inclusive: true },
+            },
+          }, // Only item2: 200
+        ]);
+        expect(result.length).toBe(1);
+        expect(result[0]).toBe(200);
+      });
+    });
+  });
+
   describe("atBatch", () => {
     const { aggregate } = createAggregates();
 
