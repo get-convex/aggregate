@@ -28,8 +28,11 @@ export type TuplePrefix<
 
 export type Bounds<K extends Key, ID extends string> =
   | SideBounds<K, ID>
+  | (K extends unknown[]
+      ? { prefix: TuplePrefix<Extract<K, unknown[]>> }
+      : never)
   | {
-      prefix: TuplePrefix<Extract<K, unknown[]>>;
+      eq: K;
     };
 
 // IDs are strings so in the Convex ordering, null < IDs < arrays.
@@ -82,6 +85,12 @@ export function boundsToPositions<K extends Key, ID extends string>(
 ): { k1?: Position; k2?: Position } {
   if (bounds === undefined) {
     return {};
+  }
+  if ("eq" in bounds) {
+    return {
+      k1: boundToPosition("lower", { key: bounds.eq, inclusive: true }),
+      k2: boundToPosition("upper", { key: bounds.eq, inclusive: true }),
+    };
   }
   if ("prefix" in bounds) {
     const prefix: Key[] = bounds.prefix;
