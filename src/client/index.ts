@@ -37,7 +37,7 @@ export type Item<K extends Key, ID extends string> = {
   sumValue: number;
 };
 
-export type { Key, Bound };
+export type { Key, Bound, Bounds };
 
 /**
  * Write data to be aggregated, and read aggregated data.
