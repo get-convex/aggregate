@@ -538,7 +538,7 @@ The batch functions accept arrays of query parameters and return arrays of resul
 
 Like all Convex queries, aggregates are
 [reactive](https://docs.convex.dev/tutorial/reactor#realtime-is-all-the-time),
-and updating them is [transactional](https://www.convex.dev/database).
+and updating them is transactional.
 
 If aggregated data updates infrequently, everything runs smoothly.
 However, if aggregated data updates frequently, the reactivity and atomicity can
