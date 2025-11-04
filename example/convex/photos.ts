@@ -12,11 +12,11 @@ import {
   internalMutation as rawInternalMutation,
   mutation as rawMutation,
   query,
-} from "./_generated/server";
-import { api, components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+} from "./_generated/server.js";
+import { components } from "./_generated/api.js";
+import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
-import { resetStatusValidator } from "./utils/resetStatus";
+import { resetStatusValidator } from "./utils/resetStatus.js";
 import {
   customCtx,
   customMutation,

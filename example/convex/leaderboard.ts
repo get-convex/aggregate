@@ -7,12 +7,12 @@ import {
   mutation,
   query,
   internalMutation,
-  MutationCtx,
+  type MutationCtx,
 } from "./_generated/server";
-import { components, internal } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+import { components, internal } from "./_generated/api.js";
+import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
-import { resetStatusValidator } from "./utils/resetStatus";
+import { resetStatusValidator } from "./utils/resetStatus.js";
 import { Migrations } from "@convex-dev/migrations";
 import { Triggers } from "convex-helpers/server/triggers";
 import {
@@ -211,7 +211,7 @@ export const addMockScores = mutationWithTriggers({
     const mockScores = [];
     for (let i = 0; i < args.count; i++) {
       const randomName =
-        playerNames[Math.floor(Math.random() * playerNames.length)];
+        playerNames[Math.floor(Math.random() * playerNames.length)]!;
       // Generate scores with some variety - mostly between 100-1000, with some outliers
       let score;
       const rand = Math.random();

@@ -8,12 +8,12 @@ import {
   mutation,
   query,
   internalMutation,
-  MutationCtx,
-} from "./_generated/server";
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+  type MutationCtx,
+} from "./_generated/server.js";
+import { components } from "./_generated/api.js";
+import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
-import { resetStatusValidator } from "./utils/resetStatus";
+import { resetStatusValidator } from "./utils/resetStatus.js";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -151,7 +151,7 @@ export const shufflePaginated = query({
 function shuffle<T>(array: T[], rand: Rand): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(rand.next() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [array[i], array[j]] = [array[j]!, array[i]!];
   }
   return array;
 }

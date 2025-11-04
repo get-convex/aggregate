@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ESNext"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "skipLibCheck": false,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -15,18 +11,12 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
     "isolatedModules": true,
-    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "./src",
-    "vite.config.ts"
-  ]
+  "include": ["./src", "vite.config.ts"]
 }
