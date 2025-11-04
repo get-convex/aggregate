@@ -24,7 +24,7 @@ export function useTreeLayout(
     const levelCounts = new Map<number, number>();
     const nodeDepths = new Map<string, number>();
     let maxDepth = 0;
-    let visited = new Set<string>();
+    const visited = new Set<string>();
 
     function calculateDepthsAndCounts(nodeId: string, level: number): void {
       if (visited.has(nodeId)) return;

@@ -10,7 +10,6 @@
 
 import type * as btree from "../btree.js";
 import type * as crons from "../crons.js";
-import type * as example from "../example.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
@@ -23,18 +22,9 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   btree: typeof btree;
   crons: typeof crons;
-  example: typeof example;
   leaderboard: typeof leaderboard;
   photos: typeof photos;
   shuffle: typeof shuffle;
@@ -42,10 +32,27 @@ declare const fullApi: ApiFromModules<{
   "utils/resetStatus": typeof utils_resetStatus;
 }>;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">

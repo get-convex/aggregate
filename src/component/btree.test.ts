@@ -306,7 +306,7 @@ describe("btree", () => {
           ];
 
           let batchError = false;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           let batchResults: any = null;
           try {
             batchResults = await atOffsetBatchHandler(ctx, {
@@ -321,7 +321,6 @@ describe("btree", () => {
           }
 
           let individualError = false;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let individualResults: any = null;
           try {
             individualResults = await Promise.all(
