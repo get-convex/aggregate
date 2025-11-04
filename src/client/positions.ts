@@ -4,8 +4,8 @@
  * positions, which are unique keys.
  */
 
-import { Value } from "convex/values";
-import { Key } from "../component/btree.js";
+import type { Value } from "convex/values";
+import type { Key } from "../component/btree.js";
 
 export type Bound<K extends Key, ID extends string> = {
   key: K;

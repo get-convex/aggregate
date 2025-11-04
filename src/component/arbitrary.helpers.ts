@@ -1,5 +1,5 @@
 import { fc } from "@fast-check/vitest";
-import { Value } from "./btree.js";
+import type { Value } from "./btree.js";
 
 const objectKeys = "abcdefghijklmnopqrstuvwxyz".split("");
 

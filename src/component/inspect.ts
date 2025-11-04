@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel.js";
-import { DatabaseReader, query } from "./_generated/server.js";
-import { getTree, Namespace, p } from "./btree.js";
+import type { Id } from "./_generated/dataModel.js";
+import { type DatabaseReader, query } from "./_generated/server.js";
+import { getTree, type Namespace, p } from "./btree.js";
 import schema from "./schema.js";
 
 export const display = query({

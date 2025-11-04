@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Value } from "convex/values";
+import type { Value } from "convex/values";
 
 // Returns -1 if k1 < k2
 // Returns 0 if k1 === k2
@@ -51,7 +50,7 @@ function compareSameTypeValues<T>(v1: T, v2: T): number {
 // For example, [1, null] < [2, 1n] means null sorts before all bigints
 // And [3, 5] < [3, 6] means floats sort as expected
 // And [7, [[5, "a"]]] < [7, [[5, "a"], [5, "b"]]] means arrays sort as expected
-function makeComparable(v: Value | undefined): [number, any] {
+function makeComparable(v: Value | undefined): [number, unknown] {
   if (v === undefined) {
     return [0, undefined];
   }

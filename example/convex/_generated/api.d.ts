@@ -10,6 +10,7 @@
 
 import type * as btree from "../btree.js";
 import type * as crons from "../crons.js";
+import type * as example from "../example.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
@@ -33,20 +34,20 @@ import type {
 declare const fullApi: ApiFromModules<{
   btree: typeof btree;
   crons: typeof crons;
+  example: typeof example;
   leaderboard: typeof leaderboard;
   photos: typeof photos;
   shuffle: typeof shuffle;
   stats: typeof stats;
   "utils/resetStatus": typeof utils_resetStatus;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
@@ -989,6 +990,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -1000,6 +1007,19 @@ export declare const components: {
         "internal",
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
+      >;
+      atOffsetBatch: FunctionReference<
+        "query",
+        "internal",
+        {
+          queries: Array<{
+            k1?: any;
+            k2?: any;
+            namespace?: any;
+            offset: number;
+          }>;
+        },
+        Array<{ k: any; s: number; v: any }>
       >;
       get: FunctionReference<
         "query",

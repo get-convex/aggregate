@@ -6,12 +6,12 @@ export const modules = import.meta.glob("./**/*.*s");
 export { componentSchema };
 export const componentModules = import.meta.glob("../component/**/*.ts");
 
-import { type UsedAPI } from "./index.js";
+import { type ComponentApi } from "./index.js";
 import { componentsGeneric } from "convex/server";
 import componentSchema from "../component/schema.js";
 
 export const components = componentsGeneric() as unknown as {
-  aggregate: UsedAPI;
+  aggregate: ComponentApi;
 };
 
 test("setup", () => {});

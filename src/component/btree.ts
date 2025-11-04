@@ -1,19 +1,24 @@
 import {
   ConvexError,
   convexToJson,
-  Value as ConvexValue,
+  type Value as ConvexValue,
   jsonToConvex,
   v,
 } from "convex/values";
 import {
-  DatabaseReader,
-  DatabaseWriter,
+  type DatabaseReader,
+  type DatabaseWriter,
   internalMutation,
   query,
 } from "./_generated/server.js";
-import { Doc, Id } from "./_generated/dataModel.js";
+import type { Doc, Id } from "./_generated/dataModel.js";
 import { compareValues } from "./compare.js";
-import { aggregate, Aggregate, Item, itemValidator } from "./schema.js";
+import {
+  aggregate,
+  type Aggregate,
+  type Item,
+  itemValidator,
+} from "./schema.js";
 import { internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;

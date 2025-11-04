@@ -1,25 +1,22 @@
-import {
+import type {
   DocumentByName,
   GenericDataModel,
   GenericMutationCtx,
   GenericQueryCtx,
   TableNamesInDataModel,
 } from "convex/server";
-import { Key } from "../component/btree.js";
-import { api } from "../component/_generated/api.js";
-import { UseApi } from "./useApi.js";
+import type { Key } from "../component/btree.js";
 import {
-  Position,
+  type Position,
   positionToKey,
   boundToPosition,
   keyToPosition,
-  Bound,
-  Bounds,
+  type Bound,
+  type Bounds,
   boundsToPositions,
 } from "./positions.js";
-import { GenericId, Value as ConvexValue } from "convex/values";
-
-export type UsedAPI = UseApi<typeof api>;
+import type { GenericId, Value as ConvexValue } from "convex/values";
+import type { ComponentApi } from "../component/_generated/component.js";
 
 // e.g. `ctx` from a Convex query or mutation or action.
 export type RunQueryCtx = {
@@ -57,7 +54,7 @@ export class Aggregate<
   ID extends string,
   Namespace extends ConvexValue | undefined = undefined,
 > {
-  constructor(protected component: UsedAPI) {}
+  constructor(protected component: ComponentApi) {}
 
   /// Aggregate queries.
 
@@ -743,7 +740,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   TableAggregateNamespace<T>
 > {
   constructor(
-    component: UsedAPI,
+    component: ComponentApi,
     private options: {
       sortKey: (d: TableAggregateDocument<T>) => T["Key"];
       sumValue?: (d: TableAggregateDocument<T>) => number;
