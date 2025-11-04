@@ -232,7 +232,7 @@ export const addMockScores = mutationWithTriggers({
     // Insert all scores and update aggregates
     for (const mockScore of mockScores) {
       const id = await ctx.db.insert("leaderboard", mockScore);
-      const doc = await ctx.db.get(id);
+      const _doc = await ctx.db.get(id);
     }
 
     return null;

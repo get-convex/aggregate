@@ -2,9 +2,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
   Title,
-  Card,
   Stack,
-  Group,
   TextInput,
   NumberInput,
   Button,

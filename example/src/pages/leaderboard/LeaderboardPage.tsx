@@ -2,11 +2,8 @@ import { Stack, AppShell, Container } from "@mantine/core";
 import { IconTrophy } from "@tabler/icons-react";
 import { CommonAppShell } from "../../common/CommonAppShell";
 import { PageHeader } from "../../common/PageHeader";
-import { AddScoreSection } from "./AddScoreSection";
-import { StatisticsSection } from "./StatisticsSection";
 import { SearchAnalysisSection } from "./SearchAnalysisSection";
 import { LeaderboardTable } from "./LeaderboardTable";
-import { BTreeAside } from "../btree/index";
 import { LeaderboardAside } from "./LeaderboardAside";
 
 export function LeaderboardPage() {
