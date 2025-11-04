@@ -25,7 +25,7 @@ export const init = mutation({
       ctx.db,
       namespace,
       maxNodeSize ?? DEFAULT_MAX_NODE_SIZE,
-      rootLazy ?? true
+      rootLazy ?? true,
     );
   },
 });
@@ -44,7 +44,7 @@ export const makeRootLazy = mutation({
       ctx.db,
       args.namespace,
       DEFAULT_MAX_NODE_SIZE,
-      true
+      true,
     );
     await ctx.db.patch(tree.root, { aggregate: undefined });
   },
@@ -167,7 +167,7 @@ export const clear = mutation({
       ctx.db,
       namespace,
       maxNodeSize ?? existingMaxNodeSize,
-      rootLazy ?? existingRootLazy
+      rootLazy ?? existingRootLazy,
     );
   },
 });

@@ -32,7 +32,7 @@ export function ShufflePage() {
       offset: (currentPage - 1) * pageSize,
       numItems: pageSize,
       seed,
-    }
+    },
   );
 
   return (

@@ -22,7 +22,7 @@ export function PhotosPage() {
       album: selectedAlbum,
       offset: (currentPage - 1) * pageSize,
       numItems: pageSize,
-    }
+    },
   );
 
   // Get total count for pagination

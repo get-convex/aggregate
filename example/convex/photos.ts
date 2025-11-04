@@ -41,7 +41,7 @@ const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 
 const internalMutation = customMutation(
   rawInternalMutation,
-  customCtx(triggers.wrapDB)
+  customCtx(triggers.wrapDB),
 );
 
 export const addPhoto = mutation({
@@ -97,7 +97,7 @@ export const pageOfPhotos = query({
     const photoDocs = await ctx.db
       .query("photos")
       .withIndex("by_album_creation_time", (q) =>
-        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime)
+        q.eq("album", album).gte("_creationTime", firstPhotoCreationTime),
       )
       .take(numItems);
 
@@ -121,7 +121,7 @@ export const availableAlbums = query({
       albumNames.map(async (album) => ({
         name: album,
         count: await photos.count(ctx, { namespace: album }),
-      }))
+      })),
     );
 
     return albumsWithCounts.sort((a, b) => a.name.localeCompare(b.name));
@@ -155,8 +155,8 @@ export const addPhotos = internalMutation({
   handler: async (ctx, { photos }) => {
     await Promise.all(
       photos.map((photo) =>
-        ctx.db.insert("photos", { album: photo.album, url: photo.url })
-      )
+        ctx.db.insert("photos", { album: photo.album, url: photo.url }),
+      ),
     );
   },
 });

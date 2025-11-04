@@ -30,7 +30,7 @@ export function LeaderboardTable() {
     {
       offset: (currentPage - 1) * pageSize,
       numItems: pageSize,
-    }
+    },
   );
 
   const totalScores = useQuery(api.leaderboard.countScores);

@@ -50,7 +50,7 @@ triggers.register("leaderboard", aggregateScoreByUser.trigger());
 // Custom function used instead of our regular mutation function, to wrap the db with our triggers
 const mutationWithTriggers = customMutation(
   mutation,
-  customCtx(triggers.wrapDB)
+  customCtx(triggers.wrapDB),
 );
 
 export const addScore = mutationWithTriggers({
@@ -127,7 +127,7 @@ export const pageOfScores = query({
     });
 
     const scores = await Promise.all(
-      page.page.map((doc) => ctx.db.get(doc.id))
+      page.page.map((doc) => ctx.db.get(doc.id)),
     );
 
     return scores.filter((d) => d != null);
@@ -257,7 +257,7 @@ export const backfillAggregatesMigration = migrations.define({
 // to backfill aggregates for existing leaderboard entries, if you created the
 // leaderboard before adding the aggregate components.
 export const runAggregateBackfill = migrations.runner(
-  internal.leaderboard.backfillAggregatesMigration
+  internal.leaderboard.backfillAggregatesMigration,
 );
 
 // ---- internal ----

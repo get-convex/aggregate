@@ -70,13 +70,13 @@ export const useRicherStableQuery = ((name, ...args) => {
     name as Parameters<typeof useQuery>[0],
     ...(args as Parameters<typeof useQuery> extends [unknown, ...infer R]
       ? R
-      : [])
+      : []),
   );
   const stableData = useStableQuery(
     name as Parameters<typeof useQuery>[0],
     ...(args as Parameters<typeof useQuery> extends [unknown, ...infer R]
       ? R
-      : [])
+      : []),
   );
 
   return {

@@ -30,7 +30,7 @@ export function ReportLatencySection() {
             value={latency}
             onChange={(value) =>
               setLatency(
-                value === "" ? "" : typeof value === "number" ? value : ""
+                value === "" ? "" : typeof value === "number" ? value : "",
               )
             }
             placeholder="Enter latency value"

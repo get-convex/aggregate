@@ -10,7 +10,7 @@ interface TreeLayoutResult {
 export function useTreeLayout(
   listTrees: BTreeDoc[],
   listNodes: BTreeNodeDoc[],
-  onDeleteItem?: (itemId: string, score: number) => void
+  onDeleteItem?: (itemId: string, score: number) => void,
 ): TreeLayoutResult {
   return useMemo(() => {
     if (!listTrees.length || !listNodes.length) {
@@ -37,7 +37,7 @@ export function useTreeLayout(
       const node = nodeMap.get(nodeId);
       if (node?.subtrees) {
         node.subtrees.forEach((subtreeId) =>
-          calculateDepthsAndCounts(subtreeId, level + 1)
+          calculateDepthsAndCounts(subtreeId, level + 1),
         );
       }
     }
@@ -65,7 +65,7 @@ export function useTreeLayout(
       } else {
         // Internal nodes: find the minimum depth of their children minus 1
         const childDepths = node.subtrees!.map((subtreeId) =>
-          assignVisualDepths(subtreeId)
+          assignVisualDepths(subtreeId),
         );
         const minChildDepth = Math.min(...childDepths);
         const visualDepth = Math.max(0, minChildDepth - 1);

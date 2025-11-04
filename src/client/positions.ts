@@ -66,19 +66,19 @@ function implodeKey(k: Key): Key {
 
 export function keyToPosition<K extends Key, ID extends string>(
   key: K,
-  id: ID
+  id: ID,
 ): Position {
   return [explodeKey(key), id, ""];
 }
 
 export function positionToKey<K extends Key, ID extends string>(
-  position: Position
+  position: Position,
 ): { key: K; id: ID } {
   return { key: implodeKey(position[0]) as K, id: position[1] as ID };
 }
 
 export function boundsToPositions<K extends Key, ID extends string>(
-  bounds?: Bounds<K, ID>
+  bounds?: Bounds<K, ID>,
 ): { k1?: Position; k2?: Position } {
   if (bounds === undefined) {
     return {};
@@ -103,16 +103,16 @@ export function boundsToPositions<K extends Key, ID extends string>(
 
 export function boundToPosition<K extends Key, ID extends string>(
   direction: "lower" | "upper",
-  bound: Bound<K, ID>
+  bound: Bound<K, ID>,
 ): Position;
 export function boundToPosition(direction: "lower" | "upper"): undefined;
 export function boundToPosition<K extends Key, ID extends string>(
   direction: "lower" | "upper",
-  bound?: Bound<K, ID>
+  bound?: Bound<K, ID>,
 ): Position | undefined;
 export function boundToPosition<K extends Key, ID extends string>(
   direction: "lower" | "upper",
-  bound?: Bound<K, ID>
+  bound?: Bound<K, ID>,
 ): Position | undefined {
   if (bound === undefined) {
     return undefined;

@@ -35,5 +35,5 @@ createRoot(document.getElementById("root")!).render(
         </RouteProvider>
       </ConvexProvider>
     </MantineProvider>
-  </StrictMode>
+  </StrictMode>,
 );

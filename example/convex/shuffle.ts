@@ -122,7 +122,7 @@ export const shufflePaginated = query({
     const indexes = allIndexes.slice(offset, offset + numItems);
 
     const atIndexes = await Promise.all(
-      indexes.map((i) => randomize.at(ctx, i))
+      indexes.map((i) => randomize.at(ctx, i)),
     );
 
     const items = await Promise.all(
@@ -130,7 +130,7 @@ export const shufflePaginated = query({
         const doc = await ctx.db.get(atIndex.id);
         if (!doc) throw new Error("Failed to get music");
         return doc.title;
-      })
+      }),
     );
 
     const totalPages = Math.ceil(count / numItems);

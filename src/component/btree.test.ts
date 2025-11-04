@@ -152,7 +152,7 @@ describe("btree", () => {
       async function countBetween(
         k1: number | undefined,
         k2: number | undefined,
-        count: number
+        count: number,
       ) {
         const c = await aggregateBetweenHandler(ctx, { k1, k2 });
         expect(c).toEqual({
@@ -220,7 +220,7 @@ describe("btree", () => {
         k2: fc.option(arbitraryValue, { nil: undefined }),
         namespace: fc.option(fc.string(), { nil: undefined }),
       }),
-      { minLength: 1, maxLength: 5 }
+      { minLength: 1, maxLength: 5 },
     ),
   })(
     "batch functions match individual calls",
@@ -249,12 +249,12 @@ describe("btree", () => {
                   k: write.key,
                   v: write.value,
                   s: write.summand,
-                })
-              )
+                }),
+              ),
             );
           } else if (write.type === "delete") {
             expect(await except(() => deleteHandler(ctx, write))).toStrictEqual(
-              await except(async () => simple.delete(write.key))
+              await except(async () => simple.delete(write.key)),
             );
           }
         }
@@ -268,7 +268,7 @@ describe("btree", () => {
           for (let i = 0; i < aggregateQueries.length; i++) {
             const individualResult = await aggregateBetweenHandler(
               ctx,
-              aggregateQueries[i]
+              aggregateQueries[i],
             );
             expect(batchResults[i]).toEqual(individualResult);
           }
@@ -295,7 +295,7 @@ describe("btree", () => {
             for (let i = 0; i < offsetQueries.length; i++) {
               const individualResult = await atOffsetHandler(
                 ctx,
-                offsetQueries[i]
+                offsetQueries[i],
               );
               expect(batchResults[i]).toEqual(individualResult);
             }
@@ -330,8 +330,8 @@ describe("btree", () => {
                   : atNegativeOffsetHandler(ctx, {
                       ...query,
                       offset: -query.offset - 1,
-                    })
-              )
+                    }),
+              ),
             );
           } catch (e) {
             if (e instanceof ConvexError) {
@@ -347,7 +347,7 @@ describe("btree", () => {
           }
         }
       });
-    }
+    },
   );
 });
 
@@ -465,7 +465,7 @@ class SimpleBTree {
     order: "asc" | "desc",
     cursor?: string,
     k1?: Value,
-    k2?: Value
+    k2?: Value,
   ) {
     if (cursor !== undefined && cursor.length === 0) {
       throw new ConvexError("end cursor");
@@ -512,7 +512,7 @@ const arbitraryWrite = fc.oneof(
     value: arbitrary01,
     summand: arbitraryUniformFloat(-10, 10),
   }),
-  fc.record({ type: l("delete"), key: arbitrary01 })
+  fc.record({ type: l("delete"), key: arbitrary01 }),
 );
 const arbitraryRead = fc.oneof(
   fc.record({
@@ -553,7 +553,7 @@ const arbitraryRead = fc.oneof(
     order: fc.oneof(l("asc"), l("desc")),
     k1: fc.option(arbitrary01),
     k2: fc.option(arbitrary01),
-  })
+  }),
 );
 type InferArbitrary<T> = T extends fc.Arbitrary<infer U> ? U : never;
 
@@ -599,22 +599,22 @@ describe("btree matches simpler impl", () => {
                 key: val(write.key),
                 value: val(write.value),
                 summand: write.summand,
-              })
-            )
+              }),
+            ),
           ).toStrictEqual(
             await except(async () =>
               simple.insert({
                 k: val(write.key),
                 v: val(write.value),
                 s: write.summand,
-              })
-            )
+              }),
+            ),
           );
         } else if (write.type === "delete") {
           expect(
-            await except(() => deleteHandler(ctx, { key: val(write.key) }))
+            await except(() => deleteHandler(ctx, { key: val(write.key) })),
           ).toStrictEqual(
-            await except(async () => simple.delete(val(write.key)))
+            await except(async () => simple.delete(val(write.key))),
           );
         }
       }
@@ -624,7 +624,7 @@ describe("btree matches simpler impl", () => {
         if (read.type === "atOffset") {
           const itemsBetween = simple.itemsBetween(
             maybeVal(read.k1),
-            maybeVal(read.k2)
+            maybeVal(read.k2),
           );
           if (itemsBetween.length === 0) {
             continue;
@@ -639,7 +639,7 @@ describe("btree matches simpler impl", () => {
         } else if (read.type === "atNegativeOffset") {
           const itemsBetween = simple.itemsBetween(
             maybeVal(read.k1),
-            maybeVal(read.k2)
+            maybeVal(read.k2),
           );
           if (itemsBetween.length === 0) {
             continue;
@@ -657,7 +657,7 @@ describe("btree matches simpler impl", () => {
             k1: maybeVal(read.k1),
           });
           expect(offset).toEqual(
-            simple.offsetOf(val(read.key), maybeVal(read.k1))
+            simple.offsetOf(val(read.key), maybeVal(read.k1)),
           );
         } else if (read.type === "offsetUntil") {
           const offset = await offsetUntilHandler(ctx, {
@@ -665,7 +665,7 @@ describe("btree matches simpler impl", () => {
             k2: maybeVal(read.k2),
           });
           expect(offset).toEqual(
-            simple.offsetUntil(val(read.key), maybeVal(read.k2))
+            simple.offsetUntil(val(read.key), maybeVal(read.k2)),
           );
         } else if (read.type === "countBetween") {
           const count = await aggregateBetweenHandler(ctx, {
@@ -673,7 +673,7 @@ describe("btree matches simpler impl", () => {
             k2: maybeVal(read.k2),
           });
           expect(count.count).toEqual(
-            simple.countBetween(maybeVal(read.k1), maybeVal(read.k2))
+            simple.countBetween(maybeVal(read.k1), maybeVal(read.k2)),
           );
         } else if (read.type === "sumBetween") {
           const sum = await aggregateBetweenHandler(ctx, {
@@ -681,7 +681,7 @@ describe("btree matches simpler impl", () => {
             k2: maybeVal(read.k2),
           });
           expect(sum.sum).toBeCloseTo(
-            simple.sumBetween(maybeVal(read.k1), maybeVal(read.k2))
+            simple.sumBetween(maybeVal(read.k1), maybeVal(read.k2)),
           );
         } else if (read.type === "paginate") {
           let isDone = false;
@@ -699,7 +699,7 @@ describe("btree matches simpler impl", () => {
               read.order,
               cursor,
               maybeVal(read.k1),
-              maybeVal(read.k2)
+              maybeVal(read.k2),
             );
             expect(realPaginate.page).toEqual(simplePaginate.page);
             expect(realPaginate.isDone).toStrictEqual(simplePaginate.isDone);
@@ -772,7 +772,7 @@ describe("btree matches simpler impl", () => {
     rootLazy: fc.boolean(),
   })(
     "btree operations with arbitrary values match simple btree",
-    testBehaviorMatch
+    testBehaviorMatch,
   );
 
   fcTest.prop(
@@ -780,7 +780,7 @@ describe("btree matches simpler impl", () => {
       writes: fc.array(arbitraryWrite, { maxLength: 100 }),
       reads: fc.array(arbitraryRead, { maxLength: 20 }),
     },
-    { numRuns: 100 }
+    { numRuns: 100 },
   )(
     "btree operations on natural numbers match simple btree",
     async ({ writes, reads }) => {
@@ -791,6 +791,6 @@ describe("btree matches simpler impl", () => {
         minNodeSize: 2,
         rootLazy: true,
       });
-    }
+    },
   );
 });

@@ -76,8 +76,8 @@ export const addLatencies = mutation({
           key: latency,
           id: new Date().toISOString(),
           sumValue: latency,
-        })
-      )
+        }),
+      ),
     );
   },
 });

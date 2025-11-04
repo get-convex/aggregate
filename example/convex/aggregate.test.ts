@@ -10,7 +10,7 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 const componentModules = import.meta.glob("../../src/component/**/*.ts");
 const migrationsModules = import.meta.glob(
-  "../node_modules/@convex-dev/migrations/src/component/**/*.ts"
+  "../node_modules/@convex-dev/migrations/src/component/**/*.ts",
 );
 
 // Types align because both imports resolve to the same Convex instance via example's node_modules
@@ -29,17 +29,17 @@ describe("leaderboard", () => {
     t.registerComponent(
       "aggregateByScore",
       asComponentSchema(componentSchema),
-      componentModules
+      componentModules,
     );
     t.registerComponent(
       "aggregateScoreByUser",
       asComponentSchema(componentSchema),
-      componentModules
+      componentModules,
     );
     t.registerComponent(
       "migrations",
       asComponentSchema(migrationsSchema),
-      migrationsModules
+      migrationsModules,
     );
     // Reduce maxNodeSize so we can test complex trees with fewer items.
     await t.mutation(components.aggregateByScore.public.clear, {
@@ -95,26 +95,26 @@ describe("leaderboard", () => {
     await t.mutation(api.leaderboard.addScore, { name: "Sarah", score: 5 });
 
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 0 })
+      await t.query(api.leaderboard.scoreAtRank, { rank: 0 }),
     ).toMatchObject({ name: "Sarah", score: 35 });
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 1 })
+      await t.query(api.leaderboard.scoreAtRank, { rank: 1 }),
     ).toMatchObject({ name: "Lee", score: 30 });
     expect(
-      await t.query(api.leaderboard.scoreAtRank, { rank: 5 })
+      await t.query(api.leaderboard.scoreAtRank, { rank: 5 }),
     ).toMatchObject({ name: "Sujay", score: 10 });
 
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 35 })
+      await t.query(api.leaderboard.rankOfScore, { score: 35 }),
     ).toStrictEqual(0);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 30 })
+      await t.query(api.leaderboard.rankOfScore, { score: 30 }),
     ).toStrictEqual(1);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 10 })
+      await t.query(api.leaderboard.rankOfScore, { score: 10 }),
     ).toStrictEqual(5);
     expect(
-      await t.query(api.leaderboard.rankOfScore, { score: 33 })
+      await t.query(api.leaderboard.rankOfScore, { score: 33 }),
     ).toStrictEqual(1);
 
     const scoresInOrder = await t.query(api.leaderboard.pageOfScores, {
@@ -175,7 +175,7 @@ describe("photos", () => {
     t.registerComponent(
       "photos",
       asComponentSchema(componentSchema),
-      componentModules
+      componentModules,
     );
     // Remove the non-existent init call - photos component doesn't need initialization
     return t;
@@ -223,7 +223,7 @@ describe("shuffle", () => {
     t.registerComponent(
       "music",
       asComponentSchema(componentSchema),
-      componentModules
+      componentModules,
     );
     return t;
   }
@@ -293,7 +293,7 @@ describe("stats", () => {
     t.registerComponent(
       "stats",
       asComponentSchema(componentSchema),
-      componentModules
+      componentModules,
     );
     await t.mutation(components.stats.public.clear, { maxNodeSize: 4 });
     return t;

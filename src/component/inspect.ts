@@ -18,7 +18,7 @@ export const display = query({
 async function displayNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
-  depth: number = 0
+  depth: number = 0,
 ) {
   const n = (await db.get(node))!;
   for (let i = 0; i < n.items.length; i++) {
@@ -48,7 +48,7 @@ export async function dumpTree(db: DatabaseReader, namespace: Namespace) {
 /// Prints keys in-order, with brackets for each node.
 async function dumpNode(
   db: DatabaseReader,
-  node: Id<"btreeNode">
+  node: Id<"btreeNode">,
 ): Promise<string> {
   const n = (await db.get(node))!;
   let s = "[";
@@ -59,7 +59,7 @@ async function dumpNode(
       .join(", ");
   } else {
     const subtrees = await Promise.all(
-      n.subtrees.map((subtree) => dumpNode(db, subtree))
+      n.subtrees.map((subtree) => dumpNode(db, subtree)),
     );
     for (let i = 0; i < n.items.length; i++) {
       s += `${subtrees[i]}, ${p(n.items[i].k)}, `;
@@ -110,7 +110,7 @@ export const listTrees = query({
       ...schema.tables.btree.validator.fields,
       _id: v.id("btree"),
       _creationTime: v.number(),
-    })
+    }),
   ),
   handler: async (ctx, args) => {
     const values = await ctx.db.query("btree").take(args.take ?? 100);
@@ -127,7 +127,7 @@ export const listTreeNodes = query({
       ...schema.tables.btreeNode.validator.fields,
       _id: v.id("btreeNode"),
       _creationTime: v.number(),
-    })
+    }),
   ),
   handler: async (ctx, args) => {
     const values = await ctx.db.query("btreeNode").take(args.take ?? 100);

@@ -23,15 +23,15 @@ export function SearchAnalysisSection() {
 
   const rankOfScore = useQuery(
     api.leaderboard.rankOfScore,
-    debouncedSearchScore !== "" ? { score: debouncedSearchScore } : "skip"
+    debouncedSearchScore !== "" ? { score: debouncedSearchScore } : "skip",
   );
   const userAverage = useQuery(
     api.leaderboard.userAverageScore,
-    debouncedSearchPlayer ? { name: debouncedSearchPlayer } : "skip"
+    debouncedSearchPlayer ? { name: debouncedSearchPlayer } : "skip",
   );
   const userHighScore = useQuery(
     api.leaderboard.userHighScore,
-    debouncedSearchPlayer ? { name: debouncedSearchPlayer } : "skip"
+    debouncedSearchPlayer ? { name: debouncedSearchPlayer } : "skip",
   );
 
   return (
