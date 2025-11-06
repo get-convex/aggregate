@@ -187,17 +187,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
@@ -373,17 +373,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
@@ -559,17 +559,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
@@ -745,17 +745,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
@@ -931,17 +931,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
@@ -1117,17 +1117,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",
