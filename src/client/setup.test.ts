@@ -6,7 +6,7 @@ export const modules = import.meta.glob("./**/*.*s");
 export { componentSchema };
 export const componentModules = import.meta.glob("../component/**/*.ts");
 
-import { type ComponentApi } from "./index.js";
+import type { ComponentApi } from "../component/_generated/component.js";
 import { componentsGeneric } from "convex/server";
 import componentSchema from "../component/schema.js";
 

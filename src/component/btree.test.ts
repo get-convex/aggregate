@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import schema, { Item } from "./schema.js";
+import schema, { type Item } from "./schema.js";
 import { modules } from "./setup.test.js";
 import { test as fcTest, fc } from "@fast-check/vitest";
 import {
@@ -12,7 +12,7 @@ import {
   offsetHandler,
   validateTree,
   getOrCreateTree,
-  Value,
+  type Value,
   offsetUntilHandler,
   atNegativeOffsetHandler,
   paginateHandler,

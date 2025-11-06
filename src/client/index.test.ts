@@ -6,10 +6,14 @@ import {
   componentModules,
   modules,
 } from "./setup.test.js";
-import { defineSchema, defineTable, GenericMutationCtx } from "convex/server";
+import {
+  defineSchema,
+  defineTable,
+  type GenericMutationCtx,
+} from "convex/server";
 import { v } from "convex/values";
 import { convexTest } from "convex-test";
-import { DataModelFromSchemaDefinition } from "convex/server";
+import type { DataModelFromSchemaDefinition } from "convex/server";
 
 const schema = defineSchema({
   testItems: defineTable({
