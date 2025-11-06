@@ -2,45 +2,19 @@
 
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import componentSchema from "../../src/component/schema";
-import migrationsSchema from "../node_modules/@convex-dev/migrations/src/component/schema";
 import { api, components, internal } from "./_generated/api";
 import schema from "./schema";
+import { register } from "@convex-dev/aggregate/test";
+import migrations from "@convex-dev/migrations/test";
 
 const modules = import.meta.glob("./**/*.ts");
-const componentModules = import.meta.glob("../../src/component/**/*.ts");
-const migrationsModules = import.meta.glob(
-  "../node_modules/@convex-dev/migrations/src/component/**/*.ts",
-);
-
-// Types align because both imports resolve to the same Convex instance via example's node_modules
-
-// Helper casters to keep types clean without using `any`.
-type TestSchema = Parameters<typeof convexTest>[0];
-type RegisterComponentParams = Parameters<
-  ReturnType<typeof convexTest>["registerComponent"]
->;
-const asTestSchema = (s: unknown) => s as TestSchema;
-const asComponentSchema = (s: unknown) => s as RegisterComponentParams[1];
 
 describe("leaderboard", () => {
   async function setupTest() {
-    const t = convexTest(asTestSchema(schema), modules);
-    t.registerComponent(
-      "aggregateByScore",
-      asComponentSchema(componentSchema),
-      componentModules,
-    );
-    t.registerComponent(
-      "aggregateScoreByUser",
-      asComponentSchema(componentSchema),
-      componentModules,
-    );
-    t.registerComponent(
-      "migrations",
-      asComponentSchema(migrationsSchema),
-      migrationsModules,
-    );
+    const t = convexTest(schema, modules);
+    register(t, "aggregateByScore");
+    register(t, "aggregateScoreByUser");
+    migrations.register(t);
     // Reduce maxNodeSize so we can test complex trees with fewer items.
     await t.mutation(components.aggregateByScore.public.clear, {
       maxNodeSize: 4,
@@ -171,12 +145,8 @@ describe("leaderboard", () => {
 
 describe("photos", () => {
   async function setupTest() {
-    const t = convexTest(asTestSchema(schema), modules);
-    t.registerComponent(
-      "photos",
-      asComponentSchema(componentSchema),
-      componentModules,
-    );
+    const t = convexTest(schema, modules);
+    register(t, "photos");
     // Remove the non-existent init call - photos component doesn't need initialization
     return t;
   }
@@ -219,12 +189,8 @@ describe("photos", () => {
 
 describe("shuffle", () => {
   async function setupTest() {
-    const t = convexTest(asTestSchema(schema), modules);
-    t.registerComponent(
-      "music",
-      asComponentSchema(componentSchema),
-      componentModules,
-    );
+    const t = convexTest(schema, modules);
+    register(t, "music");
     return t;
   }
 
@@ -289,12 +255,8 @@ describe("shuffle", () => {
 
 describe("stats", () => {
   async function setupTest() {
-    const t = convexTest(asTestSchema(schema), modules);
-    t.registerComponent(
-      "stats",
-      asComponentSchema(componentSchema),
-      componentModules,
-    );
+    const t = convexTest(schema, modules);
+    register(t, "stats");
     await t.mutation(components.stats.public.clear, { maxNodeSize: 4 });
     return t;
   }

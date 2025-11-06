@@ -4,7 +4,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { MantineProvider, createTheme } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import "./index.css";
-import App from "./App.tsx";
+import App from "./App.jsx";
 import { RouteProvider } from "./routes.ts";
 
 const theme = createTheme({

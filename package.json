@@ -58,7 +58,7 @@
     "convex": "^1.24.8"
   },
   "devDependencies": {
-    "@convex-dev/migrations": "^0.2.9",
+    "@convex-dev/migrations": "^0.2.10-alpha.0",
     "@edge-runtime/vm": "5.0.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
