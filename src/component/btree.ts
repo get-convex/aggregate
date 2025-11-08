@@ -29,7 +29,11 @@ export type Value = ConvexValue;
 export type Namespace = ConvexValue | undefined;
 
 export function p(v: ConvexValue): string {
-  return v?.toString() ?? "undefined";
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
 
 function log(s: string) {
