@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Text, Card, Stack, Group, Title } from "@mantine/core";
+import { Text, Card, Stack, Title } from "@mantine/core";
 
 export function StatisticsSection() {
   const totalCount = useQuery(api.leaderboard.countScores);

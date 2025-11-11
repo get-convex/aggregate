@@ -22,7 +22,7 @@ export function PhotosPage() {
       album: selectedAlbum,
       offset: (currentPage - 1) * pageSize,
       numItems: pageSize,
-    }
+    },
   );
 
   // Get total count for pagination
@@ -30,6 +30,7 @@ export function PhotosPage() {
 
   // Reset to page 1 when album changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [selectedAlbum]);
 

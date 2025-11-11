@@ -148,7 +148,7 @@ crons.interval(
   "daily data reset",
   { hours: 24 },
   internal.crons.resetAndSeed,
-  {}
+  {},
 );
 
 export default crons;

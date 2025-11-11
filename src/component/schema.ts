@@ -1,5 +1,5 @@
 import { defineSchema, defineTable } from "convex/server";
-import { Value as ConvexValue, Infer, v } from "convex/values";
+import { type Value as ConvexValue, type Infer, v } from "convex/values";
 
 const item = v.object({
   // key, usually an index key.

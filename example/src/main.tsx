@@ -4,8 +4,8 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { MantineProvider, createTheme } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import "./index.css";
-import App from "./App.tsx";
-import { RouteProvider } from "./routes.ts";
+import App from "./App.jsx";
+import { RouteProvider } from "./routes.js";
 
 const theme = createTheme({
   colors: {
@@ -35,5 +35,5 @@ createRoot(document.getElementById("root")!).render(
         </RouteProvider>
       </ConvexProvider>
     </MantineProvider>
-  </StrictMode>
+  </StrictMode>,
 );

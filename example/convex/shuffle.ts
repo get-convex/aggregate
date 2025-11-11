@@ -8,12 +8,12 @@ import {
   mutation,
   query,
   internalMutation,
-  MutationCtx,
-} from "./_generated/server";
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+  type MutationCtx,
+} from "./_generated/server.js";
+import { components } from "./_generated/api.js";
+import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
-import { resetStatusValidator } from "./utils/resetStatus";
+import { resetStatusValidator } from "./utils/resetStatus.js";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -122,7 +122,7 @@ export const shufflePaginated = query({
     const indexes = allIndexes.slice(offset, offset + numItems);
 
     const atIndexes = await Promise.all(
-      indexes.map((i) => randomize.at(ctx, i))
+      indexes.map((i) => randomize.at(ctx, i)),
     );
 
     const items = await Promise.all(
@@ -130,7 +130,7 @@ export const shufflePaginated = query({
         const doc = await ctx.db.get(atIndex.id);
         if (!doc) throw new Error("Failed to get music");
         return doc.title;
-      })
+      }),
     );
 
     const totalPages = Math.ceil(count / numItems);
@@ -151,7 +151,7 @@ export const shufflePaginated = query({
 function shuffle<T>(array: T[], rand: Rand): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(rand.next() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [array[i], array[j]] = [array[j]!, array[i]!];
   }
   return array;
 }

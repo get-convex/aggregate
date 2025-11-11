@@ -9,16 +9,19 @@ aggregation.
 
 [![Efficient COUNT, SUM, MAX with the Aggregate Component](https://thumbs.video-to-markdown.com/9c06ce06.jpg)](https://youtu.be/YD3nW_PtHWA)
 
-Suppose you have a leaderboard of game scores. These are some operations
-that the Aggregate component makes easy and efficient:
+Suppose you have a leaderboard of game scores. These are some operations that
+the Aggregate component makes easy and efficient:
 
 1. Count the total number of scores: `aggregate.count(ctx)`
-2. Count the number of scores greater than 65: `aggregate.count(ctx, { bounds: { lower: { key: 65, inclusive: false } } })`
-3. Find the p95 score: `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
+2. Count the number of scores greater than 65:
+   `aggregate.count(ctx, { bounds: { lower: { key: 65, inclusive: false } } })`
+3. Find the p95 score:
+   `aggregate.at(ctx, Math.floor(aggregate.count(ctx) * 0.95))`
 4. Find the overall average score: `aggregate.sum(ctx) / aggregate.count(ctx)`
-5. Find the ranking for a score of 65 in the leaderboard: `aggregate.indexOf(ctx, 65)`
-6. Find the average score for an individual user. You can define another aggregate
-   grouped by user and aggregate within each:
+5. Find the ranking for a score of 65 in the leaderboard:
+   `aggregate.indexOf(ctx, 65)`
+6. Find the average score for an individual user. You can define another
+   aggregate grouped by user and aggregate within each:
 
 ```ts
 // aggregateScoreByUser is the leaderboard scores grouped by username.
@@ -33,10 +36,10 @@ const globalAverageScore =
   (await aggregateScoreByUser.count(ctx));
 ```
 
-7. Alternatively, you can define an aggregate with separate namespaces,
-   and do the same query. This method increases throughput because a user's data
-   won't interfere with other users. However, you lose the ability to aggregate
-   over all users.
+7. Alternatively, you can define an aggregate with separate namespaces, and do
+   the same query. This method increases throughput because a user's data won't
+   interfere with other users. However, you lose the ability to aggregate over
+   all users.
 
 ```ts
 const forUser = { namespace: username };
@@ -47,7 +50,8 @@ const avgScoreForUser =
 ```
 
 The Aggregate component provides `O(log(n))`-time lookups, instead of the `O(n)`
-that would result from naive usage of `.collect()` in Convex or `COUNT(*)` in MySQL or Postgres.
+that would result from naive usage of `.collect()` in Convex or `COUNT(*)` in
+MySQL or Postgres.
 
 ## Examples
 
@@ -55,8 +59,8 @@ that would result from naive usage of `.collect()` in Convex or `COUNT(*)` in My
 
 With plain Convex indexes, you can insert new documents and you can paginate
 through all documents. But sometimes you want big-picture data that encompases
-many of your individual data points, without having to fetch them all.
-That's where aggregates come in.
+many of your individual data points, without having to fetch them all. That's
+where aggregates come in.
 
 The Aggregates component keeps a data structure with denormalized counts and
 sums. It's effectively a key-value store which is sorted by the key, and where
@@ -74,12 +78,12 @@ The keys may be arbitrary Convex values, so you can choose to sort your data by:
 
 You can use sorting to group your data set.
 
-If you want to keep track of multiple games with scores for each user,
-use a tuple of `[game, username, score]` as the key.
-Then you can bound your queries with a prefix of the key:
+If you want to keep track of multiple games with scores for each user, use a
+tuple of `[game, username, score]` as the key. Then you can bound your queries
+with a prefix of the key:
 
-1. `aggregateByGame.count(ctx, { prefix: [game] })` counts how many times
-   a given game has been played
+1. `aggregateByGame.count(ctx, { prefix: [game] })` counts how many times a
+   given game has been played
 2. `aggregateByGame.count(ctx, { prefix: [game, username] })` counts how many
    times a given user has played a given game.
 3. `aggregateByGame.max(ctx, { prefix: [game, username] })` returns the high
@@ -98,8 +102,8 @@ If you separate your data via the `sortKey` and `prefix` bounds, you can look at
 your data from any altitude. You can do a global `count` to see how many total
 data points there are, or you can zero in on an individual group of the data.
 
-However, there's a tradeoff: nearby data points can interfere with each other
-in the internal data structure, reducing throughput. See
+However, there's a tradeoff: nearby data points can interfere with each other in
+the internal data structure, reducing throughput. See
 [below](#read-dependencies-and-writes) for more details. To avoid interference,
 you can use Namespaces.
 
@@ -113,9 +117,9 @@ If your app has multiple games, it's not useful to aggregate scores across
 different games. The scoring system for chess isn't related to the scoring
 system for football. So we can namespace our scores based on the game.
 
-Whenever we aggregate scores, we _must_ specify the namespace.
-On the other hand, the internal aggregation data structure can keep the scores
-separate and keep throughput high.
+Whenever we aggregate scores, we _must_ specify the namespace. On the other
+hand, the internal aggregation data structure can keep the scores separate and
+keep throughput high.
 
 Here's how you would create the aggregate we just described:
 
@@ -147,19 +151,21 @@ See an example of a namespaced aggregate in
 The Aggregate component can efficiently calculate all of these:
 
 - In a messaging app, how many messages have been sent within the past month?
-- [Offset-based pagination](#offset-based-pagination): view the 14th page of photos,
-  where each page has 50 photos.
-- [Random access](#total-count-and-randomization): Look up a random song in a playlist, as the next song to play.
+- [Offset-based pagination](#offset-based-pagination): view the 14th page of
+  photos, where each page has 50 photos.
+- [Random access](#total-count-and-randomization): Look up a random song in a
+  playlist, as the next song to play.
 
 Try it out: https://aggregate-component-example.netlify.app/
 
 ## Pre-requisite: Convex
 
-You'll need an existing Convex project to use the component.
-Convex is a hosted backend platform, including a database, serverless functions,
-and a ton more you can learn about [here](https://docs.convex.dev/get-started).
+You'll need an existing Convex project to use the component. Convex is a hosted
+backend platform, including a database, serverless functions, and a ton more you
+can learn about [here](https://docs.convex.dev/get-started).
 
-Run `npm create convex` or follow any of the [quickstarts](https://docs.convex.dev/home) to set one up.
+Run `npm create convex` or follow any of the
+[quickstarts](https://docs.convex.dev/home) to set one up.
 
 ## Installation
 
@@ -177,7 +183,7 @@ npm install @convex-dev/aggregate
 ```ts
 // convex/convex.config.ts
 import { defineApp } from "convex/server";
-import aggregate from "@convex-dev/aggregate/convex.config";
+import aggregate from "@convex-dev/aggregate/convex.config.js";
 
 const app = defineApp();
 app.use(aggregate);
@@ -189,8 +195,8 @@ export default app;
 You can aggregate multiple tables, multiple sort keys, or multiple values, but
 you need to make an instance of the aggregate component for each.
 
-You do this by using the `aggregate` component multiple times, giving each
-usage its own name.
+You do this by using the `aggregate` component multiple times, giving each usage
+its own name.
 
 ```ts
 app.use(aggregate, { name: "aggregateScores" });
@@ -204,8 +210,8 @@ see below, using `components.aggregateScores` instead of `components.aggregate`.
 
 ### Write to the aggregate data structure
 
-Usually you want to aggregate data in a Convex table.
-If you're aggregating data that's not in a table, you can use the
+Usually you want to aggregate data in a Convex table. If you're aggregating data
+that's not in a table, you can use the
 [lower-level API](#aggregate-without-a-table).
 
 For table-based data, you can use the `TableAggregate` to define how table data
@@ -264,15 +270,15 @@ await ctx.db.delete(id);
 await aggregate.delete(ctx, oldDoc!);
 ```
 
-It's important that _every_ modification to the table also updates
-the associated aggregate. See
+It's important that _every_ modification to the table also updates the
+associated aggregate. See
 [tips](#automatically-update-aggregate-when-table-changes) below.
 
 Note that
 [Convex mutations are atomic](https://docs.convex.dev/functions/mutation-functions#transactions),
-so you don't need to worry about race
-conditions where the document is written but the aggregate isn't, and you don't
-need to worry about a query reading a document that isn't in the aggregate yet.
+so you don't need to worry about race conditions where the document is written
+but the aggregate isn't, and you don't need to worry about a query reading a
+document that isn't in the aggregate yet.
 
 If the table already has data before attaching the aggregate,
 [run a migration to backfill](#attach-aggregate-to-an-existing-table).
@@ -319,8 +325,8 @@ const randomize = new TableAggregate<{
 ```
 
 Without sorting, all documents are ordered by their `_id` which is generally
-random. And you can look up the document at any index to find one at random
-or shuffle the whole table.
+random. And you can look up the document at any index to find one at random or
+shuffle the whole table.
 
 See more examples in [`example/convex/shuffle.ts`](example/convex/shuffle.ts),
 including a paginated random shuffle of some music.
@@ -339,7 +345,7 @@ For this example, imagine you have a table of photo albums.
 defineSchema({
   photos: defineTable({ album: v.string(), url: v.string() }).index(
     "by_album_creation_time",
-    ["album"]
+    ["album"],
   ),
 });
 ```
@@ -397,7 +403,7 @@ import { DirectAggregate } from "@convex-dev/aggregate";
 // Note the `id` should be unique to be a tie-breaker in case two data points
 // have the same key.
 const aggregate = new DirectAggregate<{ Key: number; Id: string }>(
-  components.aggregate
+  components.aggregate,
 );
 
 // within a mutation, add values to be aggregated
@@ -415,8 +421,8 @@ See [`example/convex/stats.ts`](example/convex/stats.ts) for an example.
 ## Operations
 
 You've set up your aggregate. Now let's see how to backfill it to account for
-existing data, keep the data in sync with mutations, or repair it when the
-data gets out of sync.
+existing data, keep the data in sync with mutations, or repair it when the data
+gets out of sync.
 
 ### Attach Aggregate to an existing table
 
@@ -425,25 +431,24 @@ Adding aggregation to an existing table requires a
 ways to perform migrations, but here's an overview of one way:
 
 1. Use `insertIfDoesNotExist`/`replaceOrInsert`/`deleteIfExists` in place of
-   `insert`/`replace`/`delete` (or `idempotentTrigger` in place of `trigger`)
-   to update items in the aggregate. These methods act the same, except they
-   work even if the aggregate component isn't in sync with the table.
+   `insert`/`replace`/`delete` (or `idempotentTrigger` in place of `trigger`) to
+   update items in the aggregate. These methods act the same, except they work
+   even if the aggregate component isn't in sync with the table.
 2. Deploy this code change, so the live path writing documents also write to the
    aggregate component.
 3. Use a paginated background
-   [migration](https://www.npmjs.com/package/@convex-dev/migrations)
-   to walk all existing data and call `insertIfDoesNotExist`. In the example,
-   you would run `runAggregateBackfill` in
-   [leaderboard.ts](example/convex/leaderboard.ts).
+   [migration](https://www.npmjs.com/package/@convex-dev/migrations) to walk all
+   existing data and call `insertIfDoesNotExist`. In the example, you would run
+   `runAggregateBackfill` in [leaderboard.ts](example/convex/leaderboard.ts).
 4. Now all of the data is represented in the `Aggregate`, you can start calling
    read methods like `aggregate.count(ctx)` and you can change the write methods
    back (`insertIfDoesNotExist` -> `insert` etc.).
 
 ### Automatically update aggregate when table changes
 
-It's important that _every_ modification to the table also updates
-the associated aggregate. If they get out of sync then computed aggregates might
-be incorrect. Then you might have to [fix them](#repair-incorrect-aggregates).
+It's important that _every_ modification to the table also updates the
+associated aggregate. If they get out of sync then computed aggregates might be
+incorrect. Then you might have to [fix them](#repair-incorrect-aggregates).
 
 There are three ways to go about keeping data in sync:
 
@@ -481,14 +486,14 @@ triggers.register("mytable", aggregate.trigger());
 export const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 ```
 
-The [`example/convex/photos.ts`](example/convex/photos.ts) example uses
-a trigger.
+The [`example/convex/photos.ts`](example/convex/photos.ts) example uses a
+trigger.
 
 ### Repair incorrect aggregates
 
 If some mutation or direct write in the Dashboard updated the source of truth
-data without writing to the aggregate, they can get out of sync and the
-returned aggregates may be incorrect.
+data without writing to the aggregate, they can get out of sync and the returned
+aggregates may be incorrect.
 
 The simplest way to fix is to start over. Either call
 `await aggregate.clear(ctx)` or rename the component like
@@ -496,25 +501,31 @@ The simplest way to fix is to start over. Either call
 follow the instructions from [above](#attach-aggregate-to-an-existing-table).
 
 There is an alternative which doesn't clear the aggregates: compare the source
-of truth to the aggregate table. You can use `db.query("mytable").paginate()`
-on your Convex table and `aggregate.paginate()` on the aggregate. Update the
+of truth to the aggregate table. You can use `db.query("mytable").paginate()` on
+your Convex table and `aggregate.paginate()` on the aggregate. Update the
 aggregates based on the diff of these two paginated data streams.
 
 ## Performance Optimizations
 
 ### Batch Operations
 
-For improved performance when making multiple similar queries, the Aggregate component provides batch versions of common operations:
+For improved performance when making multiple similar queries, the Aggregate
+component provides batch versions of common operations:
 
 - `countBatch()` - Count items for multiple bounds in a single call
 - `sumBatch()` - Sum items for multiple bounds in a single call
 - `atBatch()` - Return items at multiple offsets in a single call
 
-These batch functions are significantly more efficient than making individual calls because they:
+These batch functions are significantly more efficient than making individual
+calls because they:
 
-1. Reduce function call overhead: Instead of multiple separate function invocations, batch operations make a single call that processes multiple queries internally.
-2. Optimize database access: Batch operations can leverage internal optimizations and reduce the number of database round trips.
-3. Improve transaction efficiency: When used in mutations, batch operations reduce the transaction scope and potential for conflicts.
+1. Reduce function call overhead: Instead of multiple separate function
+   invocations, batch operations make a single call that processes multiple
+   queries internally.
+2. Optimize database access: Batch operations can leverage internal
+   optimizations and reduce the number of database round trips.
+3. Improve transaction efficiency: When used in mutations, batch operations
+   reduce the transaction scope and potential for conflicts.
 
 ```ts
 // Instead of multiple individual calls:
@@ -528,11 +539,13 @@ const counts = await Promise.all([
 const counts = await aggregate.countBatch(ctx, [
   { bounds: bounds1 },
   { bounds: bounds2 },
-  { bounds: bounds3 }
+  { bounds: bounds3 },
 ]);
 ```
 
-The batch functions accept arrays of query parameters and return arrays of results in the same order, making them drop-in replacements for multiple individual calls while providing better performance characteristics.
+The batch functions accept arrays of query parameters and return arrays of
+results in the same order, making them drop-in replacements for multiple
+individual calls while providing better performance characteristics.
 
 ## Reactivity and Atomicity
 
@@ -540,9 +553,9 @@ Like all Convex queries, aggregates are
 [reactive](https://docs.convex.dev/tutorial/reactor#realtime-is-all-the-time),
 and updating them is transactional.
 
-If aggregated data updates infrequently, everything runs smoothly.
-However, if aggregated data updates frequently, the reactivity and atomicity can
-cause issues: reactive queries can rerun often, and mutations can slow down.
+If aggregated data updates infrequently, everything runs smoothly. However, if
+aggregated data updates frequently, the reactivity and atomicity can cause
+issues: reactive queries can rerun often, and mutations can slow down.
 
 ### Reactivity
 
@@ -550,23 +563,22 @@ Reactivity means if you query an aggregate, like a count, sum, rank,
 offset-based page, etc. your UI will automatically update to reflect updates.
 
 If someone gets a new high score, everyone else's leaderboard will show them
-moving down, and the total count of scores will increase.
-If I add a new song, it will automatically get shuffled into the
-music album.
+moving down, and the total count of scores will increase. If I add a new song,
+it will automatically get shuffled into the music album.
 
 Don't worry about polling to get new results. Don't worry about data needing a
-few seconds to propagate through the system. And you don't need to refresh
-your browser. As soon as the data is updated, the aggregates are updated
-everywhere, including the user's UI.
+few seconds to propagate through the system. And you don't need to refresh your
+browser. As soon as the data is updated, the aggregates are updated everywhere,
+including the user's UI.
 
 ### Transactions
 
 Transactionality means if you do multiple writes in the same mutation, like
-adding data to a table and inserting it into an aggregate, those operations
-are performed together. No query or mutation can observe a race condition where
-the data exists in the table but not in the aggregate. And if two mutations
-insert data into an aggregate, the count will go up by two, even if the
-mutations are running in parallel.
+adding data to a table and inserting it into an aggregate, those operations are
+performed together. No query or mutation can observe a race condition where the
+data exists in the table but not in the aggregate. And if two mutations insert
+data into an aggregate, the count will go up by two, even if the mutations are
+running in parallel.
 
 There's a special transactional property of components that is even better than
 the Convex guarantees you're used to. If you were to keep a denormalized count
@@ -586,9 +598,9 @@ export const addTwo = mutation({
 });
 ```
 
-When you call the `addTwo` mutation, the count will increase by... one.
-That's because TypeScript runs both `db.query`s before running the `db.patch`s.
-But with the Aggregate component, the count goes up by two as intended. That's
+When you call the `addTwo` mutation, the count will increase by... one. That's
+because TypeScript runs both `db.query`s before running the `db.patch`s. But
+with the Aggregate component, the count goes up by two as intended. That's
 because component operations are atomic.
 
 ```ts
@@ -606,8 +618,8 @@ You may have noticed that `Aggregate` methods can be called from actions, unlike
 `ctx.db`. This was an accident, but it works, so let's call it a feature! In
 particular, each `Aggregate` method called from any context, including from an
 action, will be atomic within itself. However, we recommend calling the methods
-from a mutation or query so they can be transactional with other database
-reads and writes.
+from a mutation or query so they can be transactional with other database reads
+and writes.
 
 Reactivity and transactionality can be amazing for user experience, but if you
 observe issues with queries rerunning often or mutations slowing down or
@@ -616,16 +628,16 @@ component. Specifically, how reads and writes intersect.
 
 ### Read dependencies and writes
 
-When a query calls `await aggregate.count(ctx)`, this depends on
-the entire aggregate data structure. When any mutation changes the data
-structure, i.e. `insert`, `delete`, or `replace`, the query reruns and sends new
-results to the frontend. This is necessary to keep the frontend looking snappy,
-but it can cause large function call and bandwidth usage on Convex.
+When a query calls `await aggregate.count(ctx)`, this depends on the entire
+aggregate data structure. When any mutation changes the data structure, i.e.
+`insert`, `delete`, or `replace`, the query reruns and sends new results to the
+frontend. This is necessary to keep the frontend looking snappy, but it can
+cause large function call and bandwidth usage on Convex.
 
 When a _mutation_ calls `await aggregate.count(ctx)`, then this mutation needs
-to [run transactionally](https://docs.convex.dev/database/advanced/occ)
-relative to other mutations. Another mutation that does an `insert`, `delete`,
-or `replace` can cause an [OCC conflict](https://docs.convex.dev/error#1).
+to [run transactionally](https://docs.convex.dev/database/advanced/occ) relative
+to other mutations. Another mutation that does an `insert`, `delete`, or
+`replace` can cause an [OCC conflict](https://docs.convex.dev/error#1).
 
 In order to calculate in `O(log(n))` time, the aggregate component stores
 denormalized counts in an internal data structure. Data points with nearby keys
@@ -633,23 +645,23 @@ may have their counts accumulated in one place.
 
 Imagine the leaderboard aggregate defined with `Key: [username, score]`. Users
 "Laura" and "Lauren" have adjacent keys, so there is a node internal to the
-Aggregate component that includes the counts of Laura and Lauren combined.
-If Laura is looking at her own high score, this involves reading from the
-internal node shared with Lauren. So when Lauren gets a new high score,
-Laura's query reruns (but its result doesn't change). And when Laura and Lauren
-both get new scores at the same time, their mutations will run slower to make
-the change to the internal node transactional.
+Aggregate component that includes the counts of Laura and Lauren combined. If
+Laura is looking at her own high score, this involves reading from the internal
+node shared with Lauren. So when Lauren gets a new high score, Laura's query
+reruns (but its result doesn't change). And when Laura and Lauren both get new
+scores at the same time, their mutations will run slower to make the change to
+the internal node transactional.
 
-Corollary: if a table's aggregate uses a key on `_creationTime`,
-each new data point will be added to the same part of the data structure (the
-end), because `_creationTime` keeps increasing. Therefore all inserts will
-wait for each other and no mutations can run in parallel.
+Corollary: if a table's aggregate uses a key on `_creationTime`, each new data
+point will be added to the same part of the data structure (the end), because
+`_creationTime` keeps increasing. Therefore all inserts will wait for each other
+and no mutations can run in parallel.
 
 On the other hand, each namespace has its own data structure and there's no
 overlap in internal nodes between namespaces. So if you use
-`Namespace: username` and `Key: score`, which has similar capabilities
-to an aggregate with `Key: [username, score]`, then you never have a problem
-with "Laura" and "Lauren" having contention.
+`Namespace: username` and `Key: score`, which has similar capabilities to an
+aggregate with `Key: [username, score]`, then you never have a problem with
+"Laura" and "Lauren" having contention.
 
 ### Put bounds on aggregated data
 
@@ -672,9 +684,9 @@ await aggregateScoreByUser.count(ctx, { prefix: [username] });
 
 ### Lazy aggregation
 
-The aggregate data structure internally denormalizes counts so they
-can be calculated efficiently by only reading a few documents instead of every
-document in your table.
+The aggregate data structure internally denormalizes counts so they can be
+calculated efficiently by only reading a few documents instead of every document
+in your table.
 
 However, this isn't always required: we can trade off speed and database
 bandwidth for reduced impact of writes.
@@ -685,8 +697,8 @@ just one, but it also means that an insert at a very small key won't intersect
 with a write or read on a very large key.
 
 If you want to maximize query speed without worrying about conflicts, e.g.
-because the data changes infrequently but queries are frequent, you can turn
-off the default behavior by starting over with `aggregate.clear(ctx, 16, false)`
+because the data changes infrequently but queries are frequent, you can turn off
+the default behavior by starting over with `aggregate.clear(ctx, 16, false)`
 which set `rootLazy` to `false`.
 
 Another way to optimize lazy aggregation is to increase the `maxNodeSize` of the
@@ -696,6 +708,7 @@ default of 16, that means each write updates some document that accumulates
 all other writes, and reads may spuriously rerun 1/16th of the time. To increase
 `maxNodeSize`, run `aggregate.clear(ctx, maxNodeSize)` and start over.
 
-Found a bug? Feature request? [File it here](https://github.com/get-convex/aggregate/issues).
+Found a bug? Feature request?
+[File it here](https://github.com/get-convex/aggregate/issues).
 
 <!-- END: Include on https://convex.dev/components -->

@@ -1,6 +1,6 @@
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Card, Stack, Title, Group, NumberInput, Button } from "@mantine/core";
+import { Card, Stack, Title, NumberInput, Button } from "@mantine/core";
 import { useState } from "react";
 
 export function ReportLatencySection() {
@@ -30,7 +30,7 @@ export function ReportLatencySection() {
             value={latency}
             onChange={(value) =>
               setLatency(
-                value === "" ? "" : typeof value === "number" ? value : ""
+                value === "" ? "" : typeof value === "number" ? value : "",
               )
             }
             placeholder="Enter latency value"

@@ -7,12 +7,12 @@ import {
   mutation,
   query,
   internalMutation,
-  MutationCtx,
+  type MutationCtx,
 } from "./_generated/server";
-import { components, internal } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
+import { components, internal } from "./_generated/api.js";
+import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
-import { resetStatusValidator } from "./utils/resetStatus";
+import { resetStatusValidator } from "./utils/resetStatus.js";
 import { Migrations } from "@convex-dev/migrations";
 import { Triggers } from "convex-helpers/server/triggers";
 import {
@@ -50,7 +50,7 @@ triggers.register("leaderboard", aggregateScoreByUser.trigger());
 // Custom function used instead of our regular mutation function, to wrap the db with our triggers
 const mutationWithTriggers = customMutation(
   mutation,
-  customCtx(triggers.wrapDB)
+  customCtx(triggers.wrapDB),
 );
 
 export const addScore = mutationWithTriggers({
@@ -127,7 +127,7 @@ export const pageOfScores = query({
     });
 
     const scores = await Promise.all(
-      page.page.map((doc) => ctx.db.get(doc.id))
+      page.page.map((doc) => ctx.db.get(doc.id)),
     );
 
     return scores.filter((d) => d != null);
@@ -211,7 +211,7 @@ export const addMockScores = mutationWithTriggers({
     const mockScores = [];
     for (let i = 0; i < args.count; i++) {
       const randomName =
-        playerNames[Math.floor(Math.random() * playerNames.length)];
+        playerNames[Math.floor(Math.random() * playerNames.length)]!;
       // Generate scores with some variety - mostly between 100-1000, with some outliers
       let score;
       const rand = Math.random();
@@ -232,7 +232,7 @@ export const addMockScores = mutationWithTriggers({
     // Insert all scores and update aggregates
     for (const mockScore of mockScores) {
       const id = await ctx.db.insert("leaderboard", mockScore);
-      const doc = await ctx.db.get(id);
+      const _doc = await ctx.db.get(id);
     }
 
     return null;
@@ -257,7 +257,7 @@ export const backfillAggregatesMigration = migrations.define({
 // to backfill aggregates for existing leaderboard entries, if you created the
 // leaderboard before adding the aggregate components.
 export const runAggregateBackfill = migrations.runner(
-  internal.leaderboard.backfillAggregatesMigration
+  internal.leaderboard.backfillAggregatesMigration,
 );
 
 // ---- internal ----

@@ -6,10 +6,14 @@ import {
   componentModules,
   modules,
 } from "./setup.test.js";
-import { defineSchema, defineTable, GenericMutationCtx } from "convex/server";
+import {
+  defineSchema,
+  defineTable,
+  type GenericMutationCtx,
+} from "convex/server";
 import { v } from "convex/values";
 import { convexTest } from "convex-test";
-import { DataModelFromSchemaDefinition } from "convex/server";
+import type { DataModelFromSchemaDefinition } from "convex/server";
 
 const schema = defineSchema({
   testItems: defineTable({
@@ -59,7 +63,7 @@ function createAggregates() {
 
 async function testItem(
   ctx: GenericMutationCtx<DataModel>,
-  value: { name: string; value: number }
+  value: { name: string; value: number },
 ) {
   const id = await ctx.db.insert("testItems", {
     name: value.name,
@@ -108,7 +112,7 @@ describe("TableAggregate", () => {
       await t.run(async (ctx) => {
         await aggregate.insert(
           ctx,
-          await testItem(ctx, { name: "name", value: 1 })
+          await testItem(ctx, { name: "name", value: 1 }),
         );
         let count = 0;
         for await (const namespace of aggregate.iterNamespaces(ctx)) {
@@ -151,7 +155,7 @@ describe("TableAggregate", () => {
         await aggregate.insert(ctx, item1);
         await aggregate.insert(
           ctx,
-          await testItem(ctx, { name: "name", value: 2 })
+          await testItem(ctx, { name: "name", value: 2 }),
         );
         const result = await aggregate.countBatch(ctx, [
           { bounds: { lower: { key: 1, inclusive: true } } },
@@ -256,7 +260,7 @@ describe("TableAggregate", () => {
       await t.run(async (ctx) => {
         await aggregate.insert(
           ctx,
-          await testItem(ctx, { name: "name", value: 1 })
+          await testItem(ctx, { name: "name", value: 1 }),
         );
         const result = await aggregate.atBatch(ctx, [{ offset: 0 }]);
         expect(result.length).toBe(1);

@@ -30,7 +30,7 @@ export function LeaderboardTable() {
     {
       offset: (currentPage - 1) * pageSize,
       numItems: pageSize,
-    }
+    },
   );
 
   const totalScores = useQuery(api.leaderboard.countScores);
@@ -41,6 +41,7 @@ export function LeaderboardTable() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [pageSize]);
 

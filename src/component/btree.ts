@@ -1,19 +1,24 @@
 import {
   ConvexError,
   convexToJson,
-  Value as ConvexValue,
+  type Value as ConvexValue,
   jsonToConvex,
   v,
 } from "convex/values";
 import {
-  DatabaseReader,
-  DatabaseWriter,
+  type DatabaseReader,
+  type DatabaseWriter,
   internalMutation,
   query,
 } from "./_generated/server.js";
-import { Doc, Id } from "./_generated/dataModel.js";
+import type { Doc, Id } from "./_generated/dataModel.js";
 import { compareValues } from "./compare.js";
-import { aggregate, Aggregate, Item, itemValidator } from "./schema.js";
+import {
+  aggregate,
+  type Aggregate,
+  type Item,
+  itemValidator,
+} from "./schema.js";
 import { internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;
@@ -24,7 +29,11 @@ export type Value = ConvexValue;
 export type Namespace = ConvexValue | undefined;
 
 export function p(v: ConvexValue): string {
-  return v?.toString() ?? "undefined";
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
 
 function log(s: string) {
@@ -35,13 +44,13 @@ function log(s: string) {
 
 export async function insertHandler(
   ctx: { db: DatabaseWriter },
-  args: { key: Key; value: Value; summand?: number; namespace?: Namespace }
+  args: { key: Key; value: Value; summand?: number; namespace?: Namespace },
 ) {
   const tree = await getOrCreateTree(
     ctx.db,
     args.namespace,
     DEFAULT_MAX_NODE_SIZE,
-    true
+    true,
   );
   const summand = args.summand ?? 0;
   const pushUp = await insertIntoNode(ctx, args.namespace, tree.root, {
@@ -55,7 +64,7 @@ export async function insertHandler(
       pushUp.rightSubtreeCount &&
       add(
         add(pushUp.leftSubtreeCount, pushUp.rightSubtreeCount),
-        itemAggregate(pushUp.item)
+        itemAggregate(pushUp.item),
       );
     const newRoot = await ctx.db.insert("btreeNode", {
       items: [pushUp.item],
@@ -70,19 +79,19 @@ export async function insertHandler(
 
 export async function deleteHandler(
   ctx: { db: DatabaseWriter },
-  args: { key: Key; namespace?: Namespace }
+  args: { key: Key; namespace?: Namespace },
 ) {
   const tree = await getOrCreateTree(
     ctx.db,
     args.namespace,
     DEFAULT_MAX_NODE_SIZE,
-    true
+    true,
   );
   await deleteFromNode(ctx, args.namespace, tree.root, args.key);
   const root = (await ctx.db.get(tree.root))!;
   if (root.items.length === 0 && root.subtrees.length === 1) {
     log(
-      `collapsing root ${root._id} because its only child is ${root.subtrees[0]}`
+      `collapsing root ${root._id} because its only child is ${root.subtrees[0]}`,
     );
     await ctx.db.patch(tree._id, {
       root: root.subtrees[0],
@@ -104,7 +113,7 @@ export const validate = query({
 
 export async function validateTree(
   ctx: { db: DatabaseReader },
-  args: { namespace?: Namespace }
+  args: { namespace?: Namespace },
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (!tree) {
@@ -121,7 +130,7 @@ type ValidationResult = {
 
 async function MAX_NODE_SIZE(
   ctx: { db: DatabaseReader },
-  namespace: Namespace
+  namespace: Namespace,
 ) {
   const tree = await mustGetTree(ctx.db, namespace);
   return tree.maxNodeSize;
@@ -129,7 +138,7 @@ async function MAX_NODE_SIZE(
 
 async function MIN_NODE_SIZE(
   ctx: { db: DatabaseReader },
-  namespace: Namespace
+  namespace: Namespace,
 ) {
   const max = await MAX_NODE_SIZE(ctx, namespace);
   if (max % 2 !== 0 || max < 4) {
@@ -142,7 +151,7 @@ async function validateNode(
   ctx: { db: DatabaseReader },
   namespace: Namespace,
   node: Id<"btreeNode">,
-  depth: number
+  depth: number,
 ): Promise<ValidationResult> {
   const n = await ctx.db.get(node);
   if (!n) {
@@ -168,8 +177,8 @@ async function validateNode(
   }
   const validatedSubtrees = await Promise.all(
     n.subtrees.map((subtree) =>
-      validateNode(ctx, namespace, subtree, depth + 1)
-    )
+      validateNode(ctx, namespace, subtree, depth + 1),
+    ),
   );
   for (let i = 0; i < n.subtrees.length; i++) {
     // Each subtree's min is greater than the key at the prior index
@@ -207,7 +216,7 @@ async function validateNode(
   // Node sum matches sum of subtree sums plus key sum.
   if (Math.abs(acc.sum - nAggregate.sum) > 0.0001) {
     throw new ConvexError(
-      `node ${node} sum does not match subtrees ${acc.sum} !== ${nAggregate.sum}`
+      `node ${node} sum does not match subtrees ${acc.sum} !== ${nAggregate.sum}`,
     );
   }
 
@@ -225,7 +234,7 @@ async function validateNode(
 /// If k1 or k2 are undefined, that bound is unlimited.
 export async function aggregateBetweenHandler(
   ctx: { db: DatabaseReader },
-  args: { k1?: Key; k2?: Key; namespace?: Namespace }
+  args: { k1?: Key; k2?: Key; namespace?: Namespace },
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -248,7 +257,7 @@ async function filterBetween(
   db: DatabaseReader,
   node: Id<"btreeNode">,
   k1?: Key,
-  k2?: Key
+  k2?: Key,
 ): Promise<WithinBounds[]> {
   const n = (await db.get(node))!;
   const included: (WithinBounds | Promise<WithinBounds[]>)[] = [];
@@ -264,8 +273,8 @@ async function filterBetween(
           db,
           n.subtrees[i],
           unboundedLeft ? undefined : k1,
-          unboundedRight ? undefined : k2
-        )
+          unboundedRight ? undefined : k2,
+        ),
       );
     }
   }
@@ -307,7 +316,7 @@ async function aggregateBetweenInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
   k1?: Key,
-  k2?: Key
+  k2?: Key,
 ): Promise<Aggregate> {
   const filtered = await filterBetween(db, node, k1, k2);
   const counts = await Promise.all(
@@ -318,7 +327,7 @@ async function aggregateBetweenInNode(
         const subtree = (await db.get(included.subtree))!;
         return await nodeAggregate(db, subtree);
       }
-    })
+    }),
   );
   let count = { count: 0, sum: 0 };
   for (const c of counts) {
@@ -329,7 +338,7 @@ async function aggregateBetweenInNode(
 
 export async function getHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key; namespace?: Namespace }
+  args: { key: Key; namespace?: Namespace },
 ) {
   const tree = (await getTree(ctx.db, args.namespace))!;
   return await getInNode(ctx.db, tree.root, args.key);
@@ -344,7 +353,7 @@ export const get = query({
 async function getInNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
-  key: Key
+  key: Key,
 ): Promise<Item | null> {
   const n = (await db.get(node))!;
   let i = 0;
@@ -377,7 +386,7 @@ export const atOffset = query({
 
 export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace }
+  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace },
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -399,7 +408,7 @@ export const atNegativeOffset = query({
 
 export async function atNegativeOffsetHandler(
   ctx: { db: DatabaseReader },
-  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace }
+  args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace },
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -410,13 +419,13 @@ export async function atNegativeOffsetHandler(
     tree.root,
     args.offset,
     args.k1,
-    args.k2
+    args.k2,
   );
 }
 
 export async function offsetHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key; k1?: Key; namespace?: Namespace }
+  args: { key: Key; k1?: Key; namespace?: Namespace },
 ) {
   return (
     await aggregateBetweenHandler(ctx, {
@@ -440,7 +449,7 @@ export const offset = query({
 
 export async function offsetUntilHandler(
   ctx: { db: DatabaseReader },
-  args: { key: Key; k2?: Key; namespace?: Namespace }
+  args: { key: Key; k2?: Key; namespace?: Namespace },
 ) {
   return (
     await aggregateBetweenHandler(ctx, {
@@ -466,7 +475,7 @@ async function deleteFromNode(
   ctx: { db: DatabaseWriter },
   namespace: Namespace,
   node: Id<"btreeNode">,
-  key: Key
+  key: Key,
 ): Promise<Item | null> {
   let n = (await ctx.db.get(node))!;
   let foundItem: null | Item = null;
@@ -499,7 +508,7 @@ async function deleteFromNode(
           n.aggregate &&
           sub(
             add(n.aggregate, itemAggregate(predecessor)),
-            itemAggregate(n.items[i])
+            itemAggregate(n.items[i]),
           ),
       });
       n = (await ctx.db.get(node))!;
@@ -543,7 +552,7 @@ async function deleteFromNode(
         // Rotate right
         const grandchild = leftSibling.subtrees.length
           ? await ctx.db.get(
-              leftSibling.subtrees[leftSibling.subtrees.length - 1]
+              leftSibling.subtrees[leftSibling.subtrees.length - 1],
             )
           : null;
         const grandchildCount = grandchild
@@ -559,7 +568,7 @@ async function deleteFromNode(
             grandchildCount &&
             add(
               add(deficientSubtree.aggregate, grandchildCount),
-              itemAggregate(n.items[i - 1])
+              itemAggregate(n.items[i - 1]),
             ),
         });
         await ctx.db.patch(leftSibling._id, {
@@ -572,7 +581,7 @@ async function deleteFromNode(
             grandchildCount &&
             sub(
               sub(leftSibling.aggregate, grandchildCount),
-              itemAggregate(leftSibling.items[leftSibling.items.length - 1])
+              itemAggregate(leftSibling.items[leftSibling.items.length - 1]),
             ),
         });
         await ctx.db.patch(node, {
@@ -607,7 +616,7 @@ async function deleteFromNode(
             grandchildCount &&
             add(
               add(deficientSubtree.aggregate, grandchildCount),
-              itemAggregate(n.items[i])
+              itemAggregate(n.items[i]),
             ),
         });
         await ctx.db.patch(rightSibling._id, {
@@ -618,7 +627,7 @@ async function deleteFromNode(
             grandchildCount &&
             sub(
               sub(rightSibling.aggregate, grandchildCount),
-              itemAggregate(rightSibling.items[0])
+              itemAggregate(rightSibling.items[0]),
             ),
         });
         await ctx.db.patch(node, {
@@ -648,7 +657,7 @@ async function deleteFromNode(
 async function mergeNodes(
   db: DatabaseWriter,
   parent: Doc<"btreeNode">,
-  leftIndex: number
+  leftIndex: number,
 ) {
   const left = (await db.get(parent.subtrees[leftIndex]))!;
   const right = (await db.get(parent.subtrees[leftIndex + 1]))!;
@@ -661,7 +670,7 @@ async function mergeNodes(
       right.aggregate &&
       add(
         add(left.aggregate, right.aggregate),
-        itemAggregate(parent.items[leftIndex])
+        itemAggregate(parent.items[leftIndex]),
       ),
   });
   await db.patch(parent._id, {
@@ -683,7 +692,7 @@ async function negativeOffsetInNode(
   node: Id<"btreeNode">,
   index: number,
   k1?: Key,
-  k2?: Key
+  k2?: Key,
 ): Promise<Item> {
   const filtered = await filterBetween(db, node, k1, k2);
   for (const included of filtered.reverse()) {
@@ -702,7 +711,7 @@ async function negativeOffsetInNode(
     }
   }
   throw new ConvexError(
-    `negative offset exceeded count by ${index} (in node ${node})`
+    `negative offset exceeded count by ${index} (in node ${node})`,
   );
 }
 
@@ -711,7 +720,7 @@ async function atOffsetInNode(
   node: Id<"btreeNode">,
   index: number,
   k1?: Key,
-  k2?: Key
+  k2?: Key,
 ): Promise<Item> {
   const filtered = await filterBetween(db, node, k1, k2);
   for (const included of filtered) {
@@ -745,13 +754,13 @@ async function subtreeCounts(db: DatabaseReader, node: Doc<"btreeNode">) {
     node.subtrees.map(async (subtree) => {
       const s = (await db.get(subtree))!;
       return nodeAggregate(db, s);
-    })
+    }),
   );
 }
 
 async function nodeAggregate(
   db: DatabaseReader,
-  node: Doc<"btreeNode">
+  node: Doc<"btreeNode">,
 ): Promise<Aggregate> {
   if (node.aggregate !== undefined) {
     return node.aggregate;
@@ -790,7 +799,7 @@ async function insertIntoNode(
   ctx: { db: DatabaseWriter },
   namespace: Namespace,
   node: Id<"btreeNode">,
-  item: Item
+  item: Item,
 ): Promise<PushUp | null> {
   const n = (await ctx.db.get(node))!;
   let i = 0;
@@ -846,18 +855,18 @@ async function insertIntoNode(
     const subCounts = await subtreeCounts(ctx.db, newN);
     const leftCount = add(
       accumulate(topLevel.slice(0, minNodeSize)),
-      accumulate(subCounts.length ? subCounts.slice(0, minNodeSize + 1) : [])
+      accumulate(subCounts.length ? subCounts.slice(0, minNodeSize + 1) : []),
     );
     const rightCount = add(
       accumulate(topLevel.slice(minNodeSize + 1)),
-      accumulate(subCounts.length ? subCounts.slice(minNodeSize + 1) : [])
+      accumulate(subCounts.length ? subCounts.slice(minNodeSize + 1) : []),
     );
     if (
       newN.aggregate &&
       leftCount.count + rightCount.count + 1 !== newN.aggregate.count
     ) {
       throw new Error(
-        `bad count split ${leftCount.count} ${rightCount.count} ${newN.aggregate.count}`
+        `bad count split ${leftCount.count} ${rightCount.count} ${newN.aggregate.count}`,
       );
     }
     // Sanity check that we split the sum across our new children correctly.
@@ -868,11 +877,11 @@ async function insertIntoNode(
         leftCount.sum +
           rightCount.sum +
           newN.items[minNodeSize].s -
-          newN.aggregate.sum
+          newN.aggregate.sum,
       ) > 0.00001
     ) {
       throw new Error(
-        `bad sum split ${leftCount.sum} ${rightCount.sum} ${newN.items[minNodeSize].s} ${newN.aggregate.sum}`
+        `bad sum split ${leftCount.sum} ${rightCount.sum} ${newN.items[minNodeSize].s} ${newN.aggregate.sum}`,
       );
     }
     await ctx.db.patch(node, {
@@ -923,7 +932,7 @@ export async function getOrCreateTree(
   db: DatabaseWriter,
   namespace: Namespace,
   maxNodeSize?: number,
-  rootLazy?: boolean
+  rootLazy?: boolean,
 ): Promise<Doc<"btree">> {
   const originalTree = await getTree(db, namespace);
   if (originalTree) {
@@ -959,7 +968,7 @@ export async function getOrCreateTree(
 
 async function isRootLazy(
   db: DatabaseReader,
-  namespace: Namespace
+  namespace: Namespace,
 ): Promise<boolean> {
   const tree = await getTree(db, namespace);
   if (!tree) {
@@ -1008,7 +1017,7 @@ export async function paginateHandler(
     k1?: Key;
     k2?: Key;
     namespace?: Namespace;
-  }
+  },
 ) {
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
@@ -1021,7 +1030,7 @@ export async function paginateHandler(
     args.order,
     args.cursor,
     args.k1,
-    args.k2
+    args.k2,
   );
 }
 
@@ -1032,7 +1041,7 @@ export async function paginateInNode(
   order: "asc" | "desc",
   cursor?: string,
   k1?: Key,
-  k2?: Key
+  k2?: Key,
 ): Promise<{
   page: Item[];
   cursor: string;
@@ -1082,7 +1091,7 @@ export async function paginateInNode(
         db,
         included.subtree,
         limit - items.length,
-        order
+        order,
       );
       items.push(...page);
       if (!isDone) {
@@ -1116,7 +1125,7 @@ export const paginateNamespaces = query({
 
 export async function paginateNamespacesHandler(
   ctx: { db: DatabaseReader },
-  args: { limit: number; cursor?: string }
+  args: { limit: number; cursor?: string },
 ) {
   if (args.cursor === "endcursor") {
     return {
@@ -1149,7 +1158,7 @@ export const aggregateBetweenBatch = query({
         k1: v.optional(v.any()),
         k2: v.optional(v.any()),
         namespace: v.optional(v.any()),
-      })
+      }),
     ),
   },
   returns: v.array(aggregate),
@@ -1158,10 +1167,10 @@ export const aggregateBetweenBatch = query({
 
 export async function aggregateBetweenBatchHandler(
   ctx: { db: DatabaseReader },
-  args: { queries: Array<{ k1?: Key; k2?: Key; namespace?: Namespace }> }
+  args: { queries: Array<{ k1?: Key; k2?: Key; namespace?: Namespace }> },
 ) {
   return await Promise.all(
-    args.queries.map((query) => aggregateBetweenHandler(ctx, query))
+    args.queries.map((query) => aggregateBetweenHandler(ctx, query)),
   );
 }
 
@@ -1173,7 +1182,7 @@ export const atOffsetBatch = query({
         k1: v.optional(v.any()),
         k2: v.optional(v.any()),
         namespace: v.optional(v.any()),
-      })
+      }),
     ),
   },
   returns: v.array(itemValidator),
@@ -1190,7 +1199,7 @@ export async function atOffsetBatchHandler(
       k2?: Key;
       namespace?: Namespace;
     }>;
-  }
+  },
 ) {
   return await Promise.all(
     args.queries.map((query) =>
@@ -1199,7 +1208,7 @@ export async function atOffsetBatchHandler(
         : atNegativeOffsetHandler(ctx, {
             ...query,
             offset: -query.offset - 1,
-          })
-    )
+          }),
+    ),
   );
 }
