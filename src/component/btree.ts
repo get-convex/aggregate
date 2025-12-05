@@ -45,13 +45,16 @@ function log(s: string) {
 export async function insertHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key; value: Value; summand?: number; namespace?: Namespace },
+  treeArg?: Doc<"btree">,
 ) {
-  const tree = await getOrCreateTree(
-    ctx.db,
-    args.namespace,
-    DEFAULT_MAX_NODE_SIZE,
-    true,
-  );
+  const tree =
+    treeArg ||
+    (await getOrCreateTree(
+      ctx.db,
+      args.namespace,
+      DEFAULT_MAX_NODE_SIZE,
+      true,
+    ));
   const summand = args.summand ?? 0;
   const pushUp = await insertIntoNode(ctx, args.namespace, tree.root, {
     k: args.key,
@@ -80,13 +83,16 @@ export async function insertHandler(
 export async function deleteHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key; namespace?: Namespace },
+  treeArg?: Doc<"btree">,
 ) {
-  const tree = await getOrCreateTree(
-    ctx.db,
-    args.namespace,
-    DEFAULT_MAX_NODE_SIZE,
-    true,
-  );
+  const tree =
+    treeArg ||
+    (await getOrCreateTree(
+      ctx.db,
+      args.namespace,
+      DEFAULT_MAX_NODE_SIZE,
+      true,
+    ));
   await deleteFromNode(ctx, args.namespace, tree.root, args.key);
   const root = (await ctx.db.get(tree.root))!;
   if (root.items.length === 0 && root.subtrees.length === 1) {
