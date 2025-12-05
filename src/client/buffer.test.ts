@@ -1,19 +1,15 @@
 import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { DirectAggregate } from "./index.js";
-import {
-  components,
-  componentSchema,
-  componentModules,
-  modules,
-} from "./setup.test.js";
+import { components, modules } from "./setup.test.js";
 import { defineSchema } from "convex/server";
+import { register } from "../test.js";
 
 const schema = defineSchema({});
 
 function setupTest() {
   const t = convexTest(schema, modules);
-  t.registerComponent("aggregateDirect", componentSchema, componentModules);
+  register(t);
   return t;
 }
 
@@ -23,7 +19,7 @@ test("buffer flush in mutation context", async () => {
   const aggregate = new DirectAggregate<{
     Key: number;
     Id: string;
-  }>(components.aggregateDirect);
+  }>(components.aggregate);
 
   // Test that reading with buffered operations in a mutation works (auto-flushes)
   await t.run(async (ctx) => {
