@@ -388,6 +388,12 @@ export async function atOffsetHandler(
   ctx: { db: DatabaseReader },
   args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace },
 ) {
+  if (args.offset < 0) {
+    throw new Error("offset must be non-negative");
+  }
+  if (!Number.isInteger(args.offset)) {
+    throw new Error("offset must be an integer");
+  }
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
     throw new ConvexError("tree is empty");
@@ -410,6 +416,12 @@ export async function atNegativeOffsetHandler(
   ctx: { db: DatabaseReader },
   args: { offset: number; k1?: Key; k2?: Key; namespace?: Namespace },
 ) {
+  if (args.offset < 0) {
+    throw new Error("offset must be non-negative");
+  }
+  if (!Number.isInteger(args.offset)) {
+    throw new Error("offset must be an integer");
+  }
   const tree = await getTree(ctx.db, args.namespace);
   if (tree === null) {
     throw new ConvexError("tree is empty");
