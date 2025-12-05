@@ -170,6 +170,50 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     public: {
+      batch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          operations: Array<
+            | {
+                key: any;
+                namespace?: any;
+                summand?: number;
+                type: "insert";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "delete" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replace";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replaceOrInsert";
+                value: any;
+              }
+            | {
+                key: any;
+                namespace?: any;
+                summand?: number;
+                type: "insertIfDoesNotExist";
+                value: any;
+              }
+          >;
+        },
+        null,
+        Name
+      >;
       clear: FunctionReference<
         "mutation",
         "internal",
