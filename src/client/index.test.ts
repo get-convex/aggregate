@@ -882,3 +882,242 @@ describe("TableAggregate with namespace", () => {
     });
   });
 });
+
+describe("TableAggregate pagination", () => {
+  const leaderboardSchema = defineSchema({
+    leaderboard: defineTable({
+      monthKey: v.string(),
+      totalPoints: v.number(),
+    }),
+  });
+
+  type LeaderboardDataModel =
+    DataModelFromSchemaDefinition<typeof leaderboardSchema>;
+
+  function setupLeaderboardTest() {
+    const t = convexTest(leaderboardSchema, modules);
+    t.registerComponent("aggregate", componentSchema, componentModules);
+    return t;
+  }
+
+  test("paginate with pageSize=1 returns cursor when more items exist (customer scenario)", async () => {
+    const t = setupLeaderboardTest();
+
+    const leaderboardAggregate = new TableAggregate<{
+      Namespace: string;
+      Key: [number, string];
+      DataModel: LeaderboardDataModel;
+      TableName: "leaderboard";
+    }>(components.aggregate, {
+      namespace: (doc) => doc.monthKey,
+      sortKey: (doc) => [-doc.totalPoints, doc._id],
+    });
+
+    await t.run(async (ctx) => {
+      // Insert 3 items in the namespace (simulating the customer's scenario)
+      const id1 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 376,
+      });
+      const doc1 = await ctx.db.get(id1);
+      await leaderboardAggregate.insert(ctx, doc1!);
+
+      const id2 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 60,
+      });
+      const doc2 = await ctx.db.get(id2);
+      await leaderboardAggregate.insert(ctx, doc2!);
+
+      const id3 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 6,
+      });
+      const doc3 = await ctx.db.get(id3);
+      await leaderboardAggregate.insert(ctx, doc3!);
+
+      // Verify count is 3
+      const count = await leaderboardAggregate.count(ctx, {
+        namespace: "2025-11",
+      });
+      expect(count).toBe(3);
+
+      // Paginate with pageSize=1, order=asc
+      const result = await leaderboardAggregate.paginate(ctx, {
+        namespace: "2025-11",
+        pageSize: 1,
+        order: "asc",
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.isDone).toBe(false);
+      expect(result.cursor).not.toBe("");
+    });
+  });
+
+  test("paginate with pageSize=1 iterates through all items correctly (customer scenario)", async () => {
+    const t = setupLeaderboardTest();
+
+    const leaderboardAggregate = new TableAggregate<{
+      Namespace: string;
+      Key: [number, string];
+      DataModel: LeaderboardDataModel;
+      TableName: "leaderboard";
+    }>(components.aggregate, {
+      namespace: (doc) => doc.monthKey,
+      sortKey: (doc) => [-doc.totalPoints, doc._id],
+    });
+
+    await t.run(async (ctx) => {
+      // Insert 3 items
+      const id1 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 376,
+      });
+      const doc1 = await ctx.db.get(id1);
+      await leaderboardAggregate.insert(ctx, doc1!);
+
+      const id2 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 60,
+      });
+      const doc2 = await ctx.db.get(id2);
+      await leaderboardAggregate.insert(ctx, doc2!);
+
+      const id3 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 6,
+      });
+      const doc3 = await ctx.db.get(id3);
+      await leaderboardAggregate.insert(ctx, doc3!);
+
+      // Paginate through all items with pageSize=1
+      const allItems: Array<{ key: [number, string]; id: string }> = [];
+      let cursor: string | undefined = undefined;
+      let iterations = 0;
+      const maxIterations = 10; // Safety limit
+
+      while (iterations < maxIterations) {
+        const result = await leaderboardAggregate.paginate(ctx, {
+          namespace: "2025-11",
+          pageSize: 1,
+          order: "asc",
+          cursor,
+        });
+        allItems.push(...result.page);
+        if (result.isDone) {
+          break;
+        }
+        cursor = result.cursor;
+        iterations++;
+      }
+
+      expect(allItems.length).toBe(3);
+      // Keys should be sorted in ascending order: [-376, ...], [-60, ...], [-6, ...]
+      expect(allItems[0].key[0]).toBe(-376);
+      expect(allItems[1].key[0]).toBe(-60);
+      expect(allItems[2].key[0]).toBe(-6);
+    });
+  });
+
+  test("paginate with pageSize=10 returns all items at once", async () => {
+    const t = setupLeaderboardTest();
+
+    const leaderboardAggregate = new TableAggregate<{
+      Namespace: string;
+      Key: [number, string];
+      DataModel: LeaderboardDataModel;
+      TableName: "leaderboard";
+    }>(components.aggregate, {
+      namespace: (doc) => doc.monthKey,
+      sortKey: (doc) => [-doc.totalPoints, doc._id],
+    });
+
+    await t.run(async (ctx) => {
+      // Insert 3 items
+      const id1 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 376,
+      });
+      const doc1 = await ctx.db.get(id1);
+      await leaderboardAggregate.insert(ctx, doc1!);
+
+      const id2 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 60,
+      });
+      const doc2 = await ctx.db.get(id2);
+      await leaderboardAggregate.insert(ctx, doc2!);
+
+      const id3 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 6,
+      });
+      const doc3 = await ctx.db.get(id3);
+      await leaderboardAggregate.insert(ctx, doc3!);
+
+      // Paginate with pageSize=10 should return all 3 items
+      const result = await leaderboardAggregate.paginate(ctx, {
+        namespace: "2025-11",
+        pageSize: 10,
+        order: "asc",
+      });
+
+      expect(result.page.length).toBe(3);
+      expect(result.isDone).toBe(true);
+    });
+  });
+
+  test("iter with namespace and composite keys works correctly", async () => {
+    const t = setupLeaderboardTest();
+
+    const leaderboardAggregate = new TableAggregate<{
+      Namespace: string;
+      Key: [number, string];
+      DataModel: LeaderboardDataModel;
+      TableName: "leaderboard";
+    }>(components.aggregate, {
+      namespace: (doc) => doc.monthKey,
+      sortKey: (doc) => [-doc.totalPoints, doc._id],
+    });
+
+    await t.run(async (ctx) => {
+      // Insert 3 items
+      const id1 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 376,
+      });
+      const doc1 = await ctx.db.get(id1);
+      await leaderboardAggregate.insert(ctx, doc1!);
+
+      const id2 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 60,
+      });
+      const doc2 = await ctx.db.get(id2);
+      await leaderboardAggregate.insert(ctx, doc2!);
+
+      const id3 = await ctx.db.insert("leaderboard", {
+        monthKey: "2025-11",
+        totalPoints: 6,
+      });
+      const doc3 = await ctx.db.get(id3);
+      await leaderboardAggregate.insert(ctx, doc3!);
+
+      // Use iter to get all items
+      const allItems: Array<{ key: [number, string]; id: string }> = [];
+      for await (const item of leaderboardAggregate.iter(ctx, {
+        namespace: "2025-11",
+        order: "asc",
+        pageSize: 1, // Use small pageSize to test pagination
+      })) {
+        allItems.push(item);
+      }
+
+      expect(allItems.length).toBe(3);
+      expect(allItems[0].key[0]).toBe(-376);
+      expect(allItems[1].key[0]).toBe(-60);
+      expect(allItems[2].key[0]).toBe(-6);
+    });
+  });
+});

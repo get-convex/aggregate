@@ -383,6 +383,184 @@ describe("namespaced btree", () => {
   });
 });
 
+describe("pagination", () => {
+  test("paginate with pageSize=1 returns cursor when more items exist (leaf node)", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      // Use default maxNodeSize (16) so 3 items fit in a single leaf node
+      await getOrCreateTree(ctx.db, undefined, 16, false);
+
+      // Insert 3 items
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await insertHandler(ctx, { key: 3, value: "c" });
+
+      // Verify count is 3
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toBe(3);
+
+      // Paginate with pageSize=1, order=asc
+      const result = await paginateHandler(ctx, {
+        limit: 1,
+        order: "asc",
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.page[0].k).toBe(1);
+      expect(result.isDone).toBe(false);
+      expect(result.cursor).not.toBe("");
+    });
+  });
+
+  test("paginate with pageSize=1 returns cursor when more items exist (multi-level tree)", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      // Use small maxNodeSize to force multi-level tree
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+
+      // Insert 3 items
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await insertHandler(ctx, { key: 3, value: "c" });
+
+      // Verify count is 3
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toBe(3);
+
+      // Paginate with pageSize=1, order=asc
+      const result = await paginateHandler(ctx, {
+        limit: 1,
+        order: "asc",
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.page[0].k).toBe(1);
+      expect(result.isDone).toBe(false);
+      expect(result.cursor).not.toBe("");
+    });
+  });
+
+  test("paginate with pageSize=1 iterates through all items correctly", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 16, false);
+
+      // Insert 3 items
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await insertHandler(ctx, { key: 3, value: "c" });
+
+      // Paginate through all items with pageSize=1
+      const allItems: Item[] = [];
+      let cursor: string | undefined = undefined;
+      let iterations = 0;
+      const maxIterations = 10; // Safety limit
+
+      while (iterations < maxIterations) {
+        const result = await paginateHandler(ctx, {
+          limit: 1,
+          order: "asc",
+          cursor,
+        });
+        allItems.push(...result.page);
+        if (result.isDone) {
+          break;
+        }
+        cursor = result.cursor;
+        iterations++;
+      }
+
+      expect(allItems.length).toBe(3);
+      expect(allItems.map((i) => i.k)).toEqual([1, 2, 3]);
+    });
+  });
+
+  test("paginate with namespace and pageSize=1 returns cursor when more items exist", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, "2025-11", 16, false);
+
+      // Insert 3 items in the namespace (simulating the customer's scenario)
+      await insertHandler(ctx, {
+        key: [-376, "w17cfq6k"],
+        value: "w17cfq6k",
+        namespace: "2025-11",
+      });
+      await insertHandler(ctx, {
+        key: [-60, "w17bxthk"],
+        value: "w17bxthk",
+        namespace: "2025-11",
+      });
+      await insertHandler(ctx, {
+        key: [-6, "w17brm4f"],
+        value: "w17brm4f",
+        namespace: "2025-11",
+      });
+
+      // Verify count is 3
+      const { count } = await aggregateBetweenHandler(ctx, {
+        namespace: "2025-11",
+      });
+      expect(count).toBe(3);
+
+      // Paginate with pageSize=1, order=asc
+      const result = await paginateHandler(ctx, {
+        limit: 1,
+        order: "asc",
+        namespace: "2025-11",
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.isDone).toBe(false);
+      expect(result.cursor).not.toBe("");
+    });
+  });
+
+  test("paginate with composite array keys and pageSize=1", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 16, false);
+
+      // Insert items with composite array keys (like the customer's sortKey: [-totalPoints, _id])
+      await insertHandler(ctx, { key: [-100, "id1"], value: "id1" });
+      await insertHandler(ctx, { key: [-50, "id2"], value: "id2" });
+      await insertHandler(ctx, { key: [-25, "id3"], value: "id3" });
+
+      // Verify count is 3
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toBe(3);
+
+      // Paginate with pageSize=1, order=asc
+      const result = await paginateHandler(ctx, {
+        limit: 1,
+        order: "asc",
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.isDone).toBe(false);
+      expect(result.cursor).not.toBe("");
+
+      // Continue pagination to get all items
+      const allItems: Item[] = [...result.page];
+      let cursor = result.cursor;
+      while (cursor !== "") {
+        const nextResult = await paginateHandler(ctx, {
+          limit: 1,
+          order: "asc",
+          cursor,
+        });
+        allItems.push(...nextResult.page);
+        if (nextResult.isDone) {
+          break;
+        }
+        cursor = nextResult.cursor;
+      }
+
+      expect(allItems.length).toBe(3);
+    });
+  });
+});
+
 class SimpleBTree {
   private items: Item[] = [];
   constructor() {}
