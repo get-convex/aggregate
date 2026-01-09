@@ -882,3 +882,333 @@ describe("TableAggregate with namespace", () => {
     });
   });
 });
+
+describe("Bounds with eq", () => {
+  let t: ConvexTest;
+  let aggregate: ReturnType<typeof createAggregates>["aggregate"];
+
+  beforeEach(() => {
+    t = setupTest();
+    ({ aggregate } = createAggregates());
+  });
+
+  test("should count items with eq bound on non-array key", async () => {
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "item1", value: 10 },
+        { name: "item2", value: 20 },
+        { name: "item3", value: 20 },
+        { name: "item4", value: 30 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregate.insert(ctx, insertedDoc!);
+      }
+    });
+
+    // Test eq bound - should only count items with exact key value
+    const countEq20 = await t.run(async (ctx) => {
+      return await aggregate.count(ctx, {
+        bounds: { eq: 20 },
+      });
+    });
+    expect(countEq20).toBe(2); // Two items with value 20
+
+    const countEq10 = await t.run(async (ctx) => {
+      return await aggregate.count(ctx, {
+        bounds: { eq: 10 },
+      });
+    });
+    expect(countEq10).toBe(1); // One item with value 10
+
+    const countEq30 = await t.run(async (ctx) => {
+      return await aggregate.count(ctx, {
+        bounds: { eq: 30 },
+      });
+    });
+    expect(countEq30).toBe(1); // One item with value 30
+
+    const countEq40 = await t.run(async (ctx) => {
+      return await aggregate.count(ctx, {
+        bounds: { eq: 40 },
+      });
+    });
+    expect(countEq40).toBe(0); // No items with value 40
+  });
+
+  test("should sum items with eq bound on non-array key", async () => {
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "item1", value: 15 },
+        { name: "item2", value: 15 },
+        { name: "item3", value: 25 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregate.insert(ctx, insertedDoc!);
+      }
+    });
+
+    const sumEq15 = await t.run(async (ctx) => {
+      return await aggregate.sum(ctx, {
+        bounds: { eq: 15 },
+      });
+    });
+    expect(sumEq15).toBe(30); // 15 + 15 = 30
+
+    const sumEq25 = await t.run(async (ctx) => {
+      return await aggregate.sum(ctx, {
+        bounds: { eq: 25 },
+      });
+    });
+    expect(sumEq25).toBe(25);
+
+    const sumEq100 = await t.run(async (ctx) => {
+      return await aggregate.sum(ctx, {
+        bounds: { eq: 100 },
+      });
+    });
+    expect(sumEq100).toBe(0); // No items with value 100
+  });
+
+  test("should work with eq bound on array keys", async () => {
+    const aggregateWithArrayKeys = new TableAggregate<{
+      Key: [number, string];
+      DataModel: DataModel;
+      TableName: "testItems";
+    }>(components.aggregate, {
+      sortKey: (doc) => [doc.value, doc.name],
+      sumValue: (doc) => doc.value,
+    });
+
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "a", value: 10 },
+        { name: "b", value: 20 },
+        { name: "c", value: 20 },
+        { name: "d", value: 30 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
+      }
+    });
+
+    // Test eq bound with exact array match
+    const countEqArray = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { eq: [20, "b"] },
+      });
+    });
+    expect(countEqArray).toBe(1); // Only one item with exact key [20, "b"]
+
+    const countEqArray2 = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { eq: [20, "c"] },
+      });
+    });
+    expect(countEqArray2).toBe(1); // Only one item with exact key [20, "c"]
+
+    const countEqArrayNonExistent = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { eq: [20, "z"] },
+      });
+    });
+    expect(countEqArrayNonExistent).toBe(0); // No items with key [20, "z"]
+  });
+
+  test("should work with eq bound and namespace", async () => {
+    const { aggregateWithNamespace } = createAggregates();
+
+    await t.run(async (ctx) => {
+      const docs = [
+        { album: "vacation", url: "photo1.jpg", score: 10 },
+        { album: "vacation", url: "photo2.jpg", score: 20 },
+        { album: "vacation", url: "photo3.jpg", score: 20 },
+        { album: "family", url: "photo4.jpg", score: 20 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("photos", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregateWithNamespace.insert(ctx, insertedDoc!);
+      }
+    });
+
+    // Test eq bound within vacation namespace
+    const vacationCountEq20 = await t.run(async (ctx) => {
+      return await aggregateWithNamespace.count(ctx, {
+        namespace: "vacation",
+        bounds: { eq: 20 },
+      });
+    });
+    expect(vacationCountEq20).toBe(2); // Two vacation photos with score 20
+
+    // Test eq bound within family namespace
+    const familyCountEq20 = await t.run(async (ctx) => {
+      return await aggregateWithNamespace.count(ctx, {
+        namespace: "family",
+        bounds: { eq: 20 },
+      });
+    });
+    expect(familyCountEq20).toBe(1); // One family photo with score 20
+
+    // Test eq bound with non-existent value in namespace
+    const vacationCountEq100 = await t.run(async (ctx) => {
+      return await aggregateWithNamespace.count(ctx, {
+        namespace: "vacation",
+        bounds: { eq: 100 },
+      });
+    });
+    expect(vacationCountEq100).toBe(0);
+  });
+
+  test("should use eq bounds in batch operations", async () => {
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "item1", value: 10 },
+        { name: "item2", value: 20 },
+        { name: "item3", value: 20 },
+        { name: "item4", value: 30 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregate.insert(ctx, insertedDoc!);
+      }
+    });
+
+    // Test countBatch with multiple eq bounds
+    const counts = await t.run(async (ctx) => {
+      return await aggregate.countBatch(ctx, [
+        { bounds: { eq: 10 } },
+        { bounds: { eq: 20 } },
+        { bounds: { eq: 30 } },
+        { bounds: { eq: 40 } },
+      ]);
+    });
+    expect(counts).toEqual([1, 2, 1, 0]);
+
+    // Test sumBatch with eq bounds
+    const sums = await t.run(async (ctx) => {
+      return await aggregate.sumBatch(ctx, [
+        { bounds: { eq: 10 } },
+        { bounds: { eq: 20 } },
+        { bounds: { eq: 30 } },
+      ]);
+    });
+    expect(sums).toEqual([10, 40, 30]);
+  });
+});
+
+describe("Bounds with prefix on array keys", () => {
+  let t: ConvexTest;
+
+  beforeEach(() => {
+    t = setupTest();
+  });
+
+  test("should still work with prefix bounds on array keys", async () => {
+    const aggregateWithArrayKeys = new TableAggregate<{
+      Key: [number, string];
+      DataModel: DataModel;
+      TableName: "testItems";
+    }>(components.aggregate, {
+      sortKey: (doc) => [doc.value, doc.name],
+      sumValue: (doc) => doc.value,
+    });
+
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "a", value: 10 },
+        { name: "b", value: 10 },
+        { name: "c", value: 20 },
+        { name: "d", value: 20 },
+        { name: "e", value: 30 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
+      }
+    });
+
+    // Test prefix bound - should match all items with value 10
+    const countPrefix10 = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { prefix: [10] },
+      });
+    });
+    expect(countPrefix10).toBe(2); // Two items with first element 10
+
+    const countPrefix20 = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { prefix: [20] },
+      });
+    });
+    expect(countPrefix20).toBe(2); // Two items with first element 20
+
+    // Test empty prefix - should match all items
+    const countPrefixEmpty = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { prefix: [] },
+      });
+    });
+    expect(countPrefixEmpty).toBe(5); // All items
+
+    // Test full prefix - should match exact item
+    const countPrefixFull = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.count(ctx, {
+        bounds: { prefix: [10, "a"] },
+      });
+    });
+    expect(countPrefixFull).toBe(1); // Only [10, "a"]
+  });
+
+  test("should sum with prefix bounds on array keys", async () => {
+    const aggregateWithArrayKeys = new TableAggregate<{
+      Key: [number, string];
+      DataModel: DataModel;
+      TableName: "testItems";
+    }>(components.aggregate, {
+      sortKey: (doc) => [doc.value, doc.name],
+      sumValue: (doc) => doc.value,
+    });
+
+    await t.run(async (ctx) => {
+      const docs = [
+        { name: "a", value: 10 },
+        { name: "b", value: 10 },
+        { name: "c", value: 20 },
+      ];
+
+      for (const doc of docs) {
+        const id = await ctx.db.insert("testItems", doc);
+        const insertedDoc = await ctx.db.get(id);
+        await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
+      }
+    });
+
+    const sumPrefix10 = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.sum(ctx, {
+        bounds: { prefix: [10] },
+      });
+    });
+    expect(sumPrefix10).toBe(20); // 10 + 10 = 20
+
+    const sumPrefix20 = await t.run(async (ctx) => {
+      return await aggregateWithArrayKeys.sum(ctx, {
+        bounds: { prefix: [20] },
+      });
+    });
+    expect(sumPrefix20).toBe(20);
+  });
+});
