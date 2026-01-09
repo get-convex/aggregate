@@ -10,7 +10,7 @@
  */
 
 import { DirectAggregate, TableAggregate } from "@convex-dev/aggregate";
-import { mutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
 import { components } from "./_generated/api.js";
 import { v } from "convex/values";
 import { customMutation } from "convex-helpers/server/customFunctions";
@@ -32,10 +32,17 @@ const leaderboardAggregate = new TableAggregate<{
   sumValue: (doc) => doc.score,
 });
 
+export const reset = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    await aggregate.clearAll(ctx);
+  },
+});
+
 /**
  * Basic example: Enable buffering, queue operations, then flush manually.
  */
-export const basicBatchedWrites = mutation({
+export const basicBatchedWrites = internalMutation({
   args: {
     count: v.number(),
   },
@@ -43,10 +50,12 @@ export const basicBatchedWrites = mutation({
     // Enable buffering mode - modifies the aggregate instance in place
     aggregate.startBuffering();
 
+    const initialCount = await aggregate.count(ctx);
+
     // Queue multiple insert operations
     for (let i = 0; i < count; i++) {
       await aggregate.insert(ctx, {
-        key: i,
+        key: i + initialCount,
         id: `item-${i}`,
         sumValue: i * 10,
       });
@@ -57,6 +66,11 @@ export const basicBatchedWrites = mutation({
 
     // Read operations work normally (and auto-flush if needed)
     const total = await aggregate.count(ctx);
+
+    if (total !== initialCount + count) {
+      console.log({ initialCount, count, total });
+      throw new Error("Total count is incorrect");
+    }
 
     return { inserted: count, total };
   },
@@ -121,10 +135,21 @@ export const addMultipleScores = mutationWithTriggers({
     ),
   },
   handler: async (ctx, { scores }) => {
+    const initialSumValue = await leaderboardAggregate.sum(ctx);
+
     // Just insert into the table - the trigger automatically
     // updates the aggregate, and buffering batches all the updates
     for (const { name, score } of scores) {
       await ctx.db.insert("leaderboard", { name, score });
+    }
+
+    const totalSumValue = await leaderboardAggregate.sum(ctx);
+
+    if (
+      totalSumValue !==
+      initialSumValue + scores.reduce((acc, { score }) => acc + score, 0)
+    ) {
+      throw new Error("Total sum value is incorrect");
     }
 
     return {
@@ -168,7 +193,7 @@ export const compareTriggersWithAndWithoutBatching = mutation({
     useBatching: v.boolean(),
   },
   handler: async (ctx, { count, useBatching }) => {
-    const start = Date.now();
+    console.time();
 
     const customCtx = triggers.wrapDB(ctx);
     if (useBatching) {
@@ -194,12 +219,11 @@ export const compareTriggersWithAndWithoutBatching = mutation({
       }
     }
 
-    const duration = Date.now() - start;
+    console.timeEnd();
 
     return {
       method: useBatching ? "with batching" : "without batching",
       count,
-      durationMs: duration,
       message: useBatching
         ? `1 batched call to aggregate component`
         : `${count} individual calls to aggregate component`,

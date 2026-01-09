@@ -227,141 +227,147 @@ export const batch = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { operations }) => {
-    // Group operations by namespace to fetch each tree once
-    const namespaceGroups = new Map<string, typeof operations>();
-    for (const op of operations) {
-      const namespace = "namespace" in op ? op.namespace : undefined;
+    // Map to store trees for each namespace
+    const treesMap = new Map<string, ReturnType<typeof getOrCreateTree>>();
+
+    // Helper function to get or create tree for a namespace
+    const getTreeForNamespace = async (namespace: any) => {
       // Use a sentinel value for undefined namespace since JSON.stringify(undefined) returns undefined
-      const key = namespace === undefined ? "__undefined__" : JSON.stringify(namespace);
-      if (!namespaceGroups.has(key)) {
-        namespaceGroups.set(key, []);
+      const key =
+        namespace === undefined ? "__undefined__" : JSON.stringify(namespace);
+      if (!treesMap.has(key)) {
+        treesMap.set(
+          key,
+          getOrCreateTree(ctx.db, namespace, DEFAULT_MAX_NODE_SIZE, true),
+        );
       }
-      namespaceGroups.get(key)!.push(op);
-    }
+      return await treesMap.get(key)!;
+    };
 
-    // Process each namespace group
-    for (const [namespaceKey, ops] of namespaceGroups.entries()) {
-      const namespace = namespaceKey === "__undefined__" ? undefined : JSON.parse(namespaceKey);
-      const tree = await getOrCreateTree(
-        ctx.db,
-        namespace,
-        DEFAULT_MAX_NODE_SIZE,
-        true,
-      );
-
-      // Process operations in order
-      for (const op of ops) {
-        if (op.type === "insert") {
-          await insertHandler(
-            ctx,
-            {
-              key: op.key,
-              value: op.value,
-              summand: op.summand,
-              namespace: op.namespace,
-            },
-            tree,
-          );
-        } else if (op.type === "delete") {
+    // Process operations in order
+    for (const op of operations) {
+      if (op.type === "insert") {
+        const tree = await getTreeForNamespace(op.namespace);
+        await insertHandler(
+          ctx,
+          {
+            key: op.key,
+            value: op.value,
+            summand: op.summand,
+            namespace: op.namespace,
+          },
+          tree,
+        );
+      } else if (op.type === "delete") {
+        const tree = await getTreeForNamespace(op.namespace);
+        await deleteHandler(
+          ctx,
+          {
+            key: op.key,
+            namespace: op.namespace,
+          },
+          tree,
+        );
+      } else if (op.type === "replace") {
+        // Handle delete from original namespace
+        const deleteTree = await getTreeForNamespace(op.namespace);
+        await deleteHandler(
+          ctx,
+          {
+            key: op.currentKey,
+            namespace: op.namespace,
+          },
+          deleteTree,
+        );
+        // Handle insert to new namespace (which might be different)
+        const insertTree = await getTreeForNamespace(op.newNamespace);
+        await insertHandler(
+          ctx,
+          {
+            key: op.newKey,
+            value: op.value,
+            summand: op.summand,
+            namespace: op.newNamespace,
+          },
+          insertTree,
+        );
+      } else if (op.type === "deleteIfExists") {
+        const tree = await getTreeForNamespace(op.namespace);
+        try {
           await deleteHandler(
             ctx,
-            {
-              key: op.key,
-              namespace: op.namespace,
-            },
+            { key: op.key, namespace: op.namespace },
             tree,
           );
-        } else if (op.type === "replace") {
+        } catch (e) {
+          if (
+            e instanceof ConvexError &&
+            e.data?.code === "DELETE_MISSING_KEY"
+          ) {
+            continue;
+          }
+          throw e;
+        }
+      } else if (op.type === "replaceOrInsert") {
+        // Handle delete from original namespace
+        const deleteTree = await getTreeForNamespace(op.namespace);
+        try {
           await deleteHandler(
             ctx,
             {
               key: op.currentKey,
               namespace: op.namespace,
             },
-            tree,
+            deleteTree,
           );
-          await insertHandler(
-            ctx,
-            {
-              key: op.newKey,
-              value: op.value,
-              summand: op.summand,
-              namespace: op.newNamespace,
-            },
-            tree,
-          );
-        } else if (op.type === "deleteIfExists") {
-          try {
-            await deleteHandler(
-              ctx,
-              { key: op.key, namespace: op.namespace },
-              tree,
-            );
-          } catch (e) {
-            if (
-              e instanceof ConvexError &&
-              e.data?.code === "DELETE_MISSING_KEY"
-            ) {
-              continue;
-            }
+        } catch (e) {
+          if (
+            !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
+          ) {
             throw e;
           }
-        } else if (op.type === "replaceOrInsert") {
-          try {
-            await deleteHandler(
-              ctx,
-              {
-                key: op.currentKey,
-                namespace: op.namespace,
-              },
-              tree,
-            );
-          } catch (e) {
-            if (
-              !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
-            ) {
-              throw e;
-            }
-          }
-          await insertHandler(
-            ctx,
-            {
-              key: op.newKey,
-              value: op.value,
-              summand: op.summand,
-              namespace: op.newNamespace,
-            },
-            tree,
-          );
-        } else if (op.type === "insertIfDoesNotExist") {
-          // insertIfDoesNotExist is implemented as replaceOrInsert
-          try {
-            await deleteHandler(
-              ctx,
-              {
-                key: op.key,
-                namespace: op.namespace,
-              },
-              tree,
-            );
-          } catch (e) {
-            if (
-              !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
-            ) {
-              throw e;
-            }
-          }
-          await insertHandler(
+        }
+        // Handle insert to new namespace (which might be different)
+        const insertTree = await getTreeForNamespace(op.newNamespace);
+        await insertHandler(
+          ctx,
+          {
+            key: op.newKey,
+            value: op.value,
+            summand: op.summand,
+            namespace: op.newNamespace,
+          },
+          insertTree,
+        );
+      } else if (op.type === "insertIfDoesNotExist") {
+        const tree = await getTreeForNamespace(op.namespace);
+        // insertIfDoesNotExist is implemented as replaceOrInsert
+        try {
+          await deleteHandler(
             ctx,
             {
               key: op.key,
-              value: op.value,
-              summand: op.summand,
               namespace: op.namespace,
             },
             tree,
           );
+        } catch (e) {
+          if (
+            !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
+          ) {
+            throw e;
+          }
         }
+        await insertHandler(
+          ctx,
+          {
+            key: op.key,
+            value: op.value,
+            summand: op.summand,
+            namespace: op.namespace,
+          },
+          tree,
+        );
       }
     }
   },
