@@ -62,7 +62,7 @@ export const basicBatchedWrites = internalMutation({
     }
 
     // Disable buffering after we're done
-    aggregate.finishBuffering(ctx);
+    await aggregate.finishBuffering(ctx);
 
     // Read operations work normally (and auto-flush if needed)
     const total = await aggregate.count(ctx);
