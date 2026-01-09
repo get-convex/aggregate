@@ -23,7 +23,7 @@ test("buffer flush in mutation context", async () => {
 
   // Test that reading with buffered operations in a mutation works (auto-flushes)
   await t.run(async (ctx) => {
-    aggregate.buffer(true);
+    aggregate.startBuffering();
     await aggregate.insert(ctx, { key: 1, id: "a" });
     await aggregate.insert(ctx, { key: 2, id: "b" });
 
@@ -31,20 +31,19 @@ test("buffer flush in mutation context", async () => {
     const count = await aggregate.count(ctx);
     expect(count).toBe(2);
 
-    aggregate.buffer(false);
+    await aggregate.finishBuffering(ctx);
   });
 
   // Test manual flush
   await t.run(async (ctx) => {
-    aggregate.buffer(true);
+    aggregate.startBuffering();
     await aggregate.insert(ctx, { key: 3, id: "c" });
 
     // Manual flush
     await aggregate.flush(ctx);
 
-    aggregate.buffer(false);
-
     const count = await aggregate.count(ctx);
     expect(count).toBe(3);
+    await aggregate.finishBuffering(ctx);
   });
 });
