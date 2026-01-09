@@ -4,18 +4,33 @@
  * This demonstrates how to use the `.buffer()` method to queue write
  * operations and flush them in a batch, reducing the number of mutations
  * and improving performance.
+ *
+ * This is especially useful when using triggers, as it batches all triggered
+ * aggregate writes into a single component call instead of one per write.
  */
 
-import { DirectAggregate } from "@convex-dev/aggregate";
+import { DirectAggregate, TableAggregate } from "@convex-dev/aggregate";
 import { mutation } from "./_generated/server";
 import { components } from "./_generated/api.js";
 import { v } from "convex/values";
 import { customMutation } from "convex-helpers/server/customFunctions";
+import { Triggers } from "convex-helpers/server/triggers";
+import type { DataModel } from "./_generated/dataModel";
 
 const aggregate = new DirectAggregate<{
   Key: number;
   Id: string;
 }>(components.batchedWrites);
+
+// Example with TableAggregate and Triggers
+const leaderboardAggregate = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "leaderboard";
+}>(components.batchedWrites, {
+  sortKey: (doc) => -doc.score, // Negative for descending order
+  sumValue: (doc) => doc.score,
+});
 
 /**
  * Basic example: Enable buffering, queue operations, then flush manually.
@@ -26,7 +41,7 @@ export const basicBatchedWrites = mutation({
   },
   handler: async (ctx, { count }) => {
     // Enable buffering mode - modifies the aggregate instance in place
-    aggregate.buffer(true);
+    aggregate.startBuffering();
 
     // Queue multiple insert operations
     for (let i = 0; i < count; i++) {
@@ -38,9 +53,7 @@ export const basicBatchedWrites = mutation({
     }
 
     // Disable buffering after we're done
-    aggregate.buffer(false);
-    // Flush all buffered operations in a single batch
-    await aggregate.flush(ctx);
+    aggregate.finishBuffering(ctx);
 
     // Read operations work normally (and auto-flush if needed)
     const total = await aggregate.count(ctx);
@@ -50,58 +63,146 @@ export const basicBatchedWrites = mutation({
 });
 
 /**
- * Advanced example: Use custom functions with onSuccess callback.
+ * Advanced example: Use custom functions with Triggers and buffering.
  *
- * This pattern is useful when you are also using triggers, to avoid all
- * triggered writes calling the component individually.
+ * This is the RECOMMENDED pattern when using triggers!
+ *
+ * When using triggers, each table write triggers an aggregate write.
+ * If you insert 100 rows, that's 100 separate calls to the aggregate component.
+ * With buffering, all 100 writes are batched into a single component call.
+ *
+ * Performance benefits:
+ * - Single component call instead of N calls
+ * - Single tree fetch instead of N fetches
+ * - Better handling of write contention
  */
 
-// Create a custom mutation that uses buffered aggregate
-const mutationWithBuffering = customMutation(mutation, {
+// Set up triggers
+const triggers = new Triggers<DataModel>();
+triggers.register("leaderboard", leaderboardAggregate.trigger());
+
+// Create a custom mutation that:
+// 1. Wraps the database with triggers
+// 2. Enables buffering before the mutation runs
+// 3. Flushes after the mutation completes successfully
+const mutationWithTriggers = customMutation(mutation, {
   args: {},
-  input: async () => {
-    aggregate.buffer(true);
+  input: async (ctx) => {
+    // Enable buffering for all aggregate operations
+    leaderboardAggregate.startBuffering();
+
     return {
-      ctx: {},
+      ctx: {
+        // Wrap db with triggers
+        ...triggers.wrapDB(ctx),
+      },
       args: {},
       onSuccess: async ({ ctx }) => {
-        await aggregate.flush(ctx);
+        // Flush all buffered operations in a single batch
+        await leaderboardAggregate.finishBuffering(ctx);
       },
     };
   },
 });
 
 /**
- * Example using custom function with onSuccess callback.
+ * Example: Add multiple scores with triggers and batching.
  *
- * This demonstrates the recommended pattern for batching:
- * - Enable buffering at the start (in customCtx)
- * - Queue operations throughout the function using the global aggregate
- * - Flush in the onSuccess callback
+ * Without buffering: Each insert triggers a separate aggregate.insert call
+ * With buffering: All inserts are batched into one aggregate.batch call
  */
-export const batchedWritesWithOnSuccess = mutationWithBuffering({
+export const addMultipleScores = mutationWithTriggers({
   args: {
-    items: v.array(
+    scores: v.array(
       v.object({
-        key: v.number(),
-        id: v.string(),
-        value: v.number(),
+        name: v.string(),
+        score: v.number(),
       }),
     ),
   },
-  handler: async (ctx, { items }) => {
-    // Queue all operations - they're stored in memory, not sent yet
-    // We use the global 'aggregate' instance which has buffering enabled
-    for (const item of items) {
-      await aggregate.insert(ctx, {
-        key: item.key,
-        id: item.id,
-        sumValue: item.value,
-      });
+  handler: async (ctx, { scores }) => {
+    // Just insert into the table - the trigger automatically
+    // updates the aggregate, and buffering batches all the updates
+    for (const { name, score } of scores) {
+      await ctx.db.insert("leaderboard", { name, score });
     }
 
     return {
-      queued: items.length,
+      inserted: scores.length,
+      message: `Added ${scores.length} scores with batched aggregate updates`,
+    };
+  },
+});
+
+/**
+ * Example: Update multiple scores - shows replace operations are also batched
+ */
+export const updateMultipleScores = mutationWithTriggers({
+  args: {
+    updates: v.array(
+      v.object({
+        id: v.id("leaderboard"),
+        newScore: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, { updates }) => {
+    // Each patch triggers aggregate.replace, all batched together
+    for (const { id, newScore } of updates) {
+      await ctx.db.patch(id, { score: newScore });
+    }
+
+    return {
+      updated: updates.length,
+      message: `Updated ${updates.length} scores with batched aggregate updates`,
+    };
+  },
+});
+
+/**
+ * Example showing the difference with and without batching
+ */
+export const compareTriggersWithAndWithoutBatching = mutation({
+  args: {
+    count: v.number(),
+    useBatching: v.boolean(),
+  },
+  handler: async (ctx, { count, useBatching }) => {
+    const start = Date.now();
+
+    const customCtx = triggers.wrapDB(ctx);
+    if (useBatching) {
+      // With batching: all aggregate operations batched into one call
+      leaderboardAggregate.startBuffering();
+
+      for (let i = 0; i < count; i++) {
+        await customCtx.db.insert("leaderboard", {
+          name: `player-${i}`,
+          score: Math.floor(Math.random() * 1000),
+        });
+      }
+
+      await leaderboardAggregate.finishBuffering(ctx);
+    } else {
+      // Without batching: each insert makes a separate aggregate call
+
+      for (let i = 0; i < count; i++) {
+        await customCtx.db.insert("leaderboard", {
+          name: `player-${i}`,
+          score: Math.floor(Math.random() * 1000),
+        });
+      }
+    }
+
+    const duration = Date.now() - start;
+
+    return {
+      method: useBatching ? "with batching" : "without batching",
+      count,
+      durationMs: duration,
+      message: useBatching
+        ? `1 batched call to aggregate component`
+        : `${count} individual calls to aggregate component`,
     };
   },
 });
@@ -135,7 +236,7 @@ export const complexBatchedOperations = mutation({
   },
   handler: async (ctx, { inserts, deletes, updates }) => {
     // Enable buffering
-    aggregate.buffer(true);
+    aggregate.startBuffering();
 
     // Queue inserts
     for (const item of inserts) {
@@ -163,11 +264,8 @@ export const complexBatchedOperations = mutation({
       );
     }
 
-    // Flush all operations at once
-    await aggregate.flush(ctx);
-
-    // Disable buffering
-    aggregate.buffer(false);
+    // Flush all operations at once and stop buffering
+    await aggregate.finishBuffering(ctx);
 
     return {
       operations: {
@@ -192,7 +290,7 @@ export const comparePerformance = mutation({
 
     if (useBatching) {
       // Batched approach
-      aggregate.buffer(true);
+      aggregate.startBuffering();
 
       for (let i = 0; i < count; i++) {
         await aggregate.insert(ctx, {
@@ -202,8 +300,7 @@ export const comparePerformance = mutation({
         });
       }
 
-      await aggregate.flush(ctx);
-      aggregate.buffer(false);
+      await aggregate.finishBuffering(ctx);
     } else {
       // Unbatched approach
       for (let i = 0; i < count; i++) {
@@ -234,7 +331,7 @@ export const autoFlushOnRead = mutation({
   },
   handler: async (ctx, { count }) => {
     // Enable buffering
-    aggregate.buffer(true);
+    aggregate.startBuffering();
 
     // Queue some operations
     for (let i = 0; i < count; i++) {
@@ -253,8 +350,8 @@ export const autoFlushOnRead = mutation({
       },
     });
 
-    // Disable buffering
-    aggregate.buffer(false);
+    // Flush all operations at once and stop buffering
+    await aggregate.finishBuffering(ctx);
 
     return {
       queued: count,
@@ -290,7 +387,7 @@ export const batchedWritesWithNamespaces = mutation({
     }>(components.batchedWrites);
 
     // Enable buffering
-    namespacedAggregate.buffer(true);
+    namespacedAggregate.startBuffering();
 
     // Queue operations - they'll be grouped by namespace internally
     for (const op of operations) {
@@ -302,12 +399,9 @@ export const batchedWritesWithNamespaces = mutation({
       });
     }
 
-    // Flush all operations
+    // Flush all operations and stop buffering
     // The batch mutation will group by namespace automatically
-    await namespacedAggregate.flush(ctx);
-
-    // Disable buffering
-    namespacedAggregate.buffer(false);
+    await namespacedAggregate.finishBuffering(ctx);
 
     // Count unique namespaces
     const namespaces = new Set(operations.map((op) => op.namespace));

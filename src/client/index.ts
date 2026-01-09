@@ -104,23 +104,29 @@ export class Aggregate<
   constructor(protected component: ComponentApi) {}
 
   /**
-   * Enable or disable buffering mode. When buffering is enabled, write operations are
-   * queued and sent in a batch when flush() is called or when any read
+   * Start buffering write operations. When buffering is enabled, write operations are
+   * queued and sent in a batch when flush() or stopBuffering() is called or when any read
    * operation is performed.
-   *
-   * Modifies this instance in place and returns it for chaining.
    *
    * Example usage:
    * ```ts
-   * aggregate.buffer(true);
+   * aggregate.startBuffering();
    * aggregate.insert(ctx, { key: 1, id: "a" });
    * aggregate.insert(ctx, { key: 2, id: "b" });
-   * await aggregate.flush(ctx); // Send all buffered operations
+   * await aggregate.stopBuffering(ctx); // Send all buffered operations
    * ```
    */
-  buffer(enabled: boolean): this {
-    this.isBuffering = enabled;
-    return this;
+  startBuffering(): void {
+    this.isBuffering = true;
+  }
+
+  /**
+   * Stop buffering write operations and flush all buffered operations.
+   * @param ctx - The mutation context, used to flush the buffered operations.
+   */
+  async finishBuffering(ctx: RunMutationCtx): Promise<void> {
+    this.isBuffering = false;
+    await this.flush(ctx);
   }
 
   /**
