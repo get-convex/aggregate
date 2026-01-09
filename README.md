@@ -489,6 +489,74 @@ export const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
 The [`example/convex/photos.ts`](example/convex/photos.ts) example uses a
 trigger.
 
+### Optimizing Triggers with Batching
+
+**Recommended:** When using triggers, combine them with the batching API for
+optimal performance.
+
+Without batching, each table write triggers a separate call to the aggregate
+component. If you insert 100 rows in a mutation, that's 100 individual calls to
+the aggregate component, each fetching and updating the B-tree separately.
+
+With batching, all triggered aggregate operations are queued and sent as a
+single batch at the end of the mutation. This provides:
+
+- **Single component call** instead of N separate calls
+- **Single tree fetch** instead of N fetches
+- **Better write contention handling** - one atomic update instead of many
+- **Significant performance improvement** - especially for bulk operations
+
+Here's how to set it up:
+
+```ts
+import { TableAggregate } from "@convex-dev/aggregate";
+import { Triggers } from "convex-helpers/server/triggers";
+import { customMutation } from "convex-helpers/server/customFunctions";
+import { mutation as rawMutation } from "./_generated/server";
+
+const aggregate = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "leaderboard";
+}>(components.aggregate, {
+  sortKey: (doc) => -doc.score,
+});
+
+// Set up triggers
+const triggers = new Triggers<DataModel>();
+triggers.register("leaderboard", aggregate.trigger());
+
+// Create a custom mutation that enables buffering and flushes on success
+const mutation = customMutation(rawMutation, {
+  args: {},
+  input: async (ctx) => {
+    aggregate.startBuffering();
+    return {
+      ctx: triggers.wrapDB(ctx),
+      args: {},
+      onSuccess: async ({ ctx }) => {
+        await aggregate.finishBuffering(ctx);
+      },
+    };
+  },
+});
+
+// Now use this mutation in your functions
+export const addScores = mutation({
+  args: { scores: v.array(v.object({ name: v.string(), score: v.number() })) },
+  handler: async (ctx, { scores }) => {
+    // Each insert triggers an aggregate operation, but they're all batched!
+    for (const { name, score } of scores) {
+      await ctx.db.insert("leaderboard", { name, score });
+    }
+    // The flush happens automatically in the onSuccess callback
+  },
+});
+```
+
+See [`example/convex/batchedWrites.ts`](example/convex/batchedWrites.ts) for a
+complete working example with performance comparisons.
+
 ### Repair incorrect aggregates
 
 If some mutation or direct write in the Dashboard updated the source of truth
@@ -507,10 +575,10 @@ aggregates based on the diff of these two paginated data streams.
 
 ## Performance Optimizations
 
-### Batch Operations
+### Batch Read Operations
 
 For improved performance when making multiple similar queries, the Aggregate
-component provides batch versions of common operations:
+component provides batch versions of common read operations:
 
 - `countBatch()` - Count items for multiple bounds in a single call
 - `sumBatch()` - Sum items for multiple bounds in a single call
@@ -546,6 +614,46 @@ const counts = await aggregate.countBatch(ctx, [
 The batch functions accept arrays of query parameters and return arrays of
 results in the same order, making them drop-in replacements for multiple
 individual calls while providing better performance characteristics.
+
+### Batch Write Operations
+
+When making multiple write operations (inserts, deletes, or updates), you can
+use the batching API to queue operations and send them in a single call to the
+aggregate component. This is especially valuable when using triggers.
+
+**When to use batching:**
+
+- Making multiple aggregate writes in a single mutation
+- Using triggers that automatically update aggregates on table changes
+- Bulk operations like importing data or backfilling
+
+The batching API works by enabling buffering mode, queueing operations in
+memory, and flushing them all at once:
+
+```ts
+// Enable buffering
+aggregate.startBuffering();
+
+// Queue operations (not sent yet)
+await aggregate.insert(ctx, { key: 1, id: "a" });
+await aggregate.insert(ctx, { key: 2, id: "b" });
+await aggregate.insert(ctx, { key: 3, id: "c" });
+
+// Flush all operations in a single batch and stop buffering
+await aggregate.finishBuffering(ctx);
+```
+
+**Benefits of batching:**
+
+- **Single component call** - One mutation instead of N separate calls
+- **Single tree fetch** - The B-tree is fetched once for all operations
+- **Better write contention** - All operations processed atomically together
+- **Reduced overhead** - Less network and serialization overhead
+
+See the [Optimizing Triggers with Batching](#optimizing-triggers-with-batching)
+section for the recommended pattern when using triggers, and see
+[`example/convex/batchedWrites.ts`](example/convex/batchedWrites.ts) for
+complete examples.
 
 ## Reactivity and Atomicity
 
