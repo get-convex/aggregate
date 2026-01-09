@@ -71,13 +71,6 @@ type BufferedOperation =
       summand?: number;
       namespace?: any;
       newNamespace?: any;
-    }
-  | {
-      type: "insertIfDoesNotExist";
-      key: any;
-      value: any;
-      summand?: number;
-      namespace?: any;
     };
 
 /**
@@ -556,16 +549,6 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "insertIfDoesNotExist",
-        key: keyToPosition(key, id),
-        value: id,
-        summand,
-        namespace,
-      });
-      return;
-    }
     await this._replaceOrInsert(
       ctx,
       namespace,

@@ -202,13 +202,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 type: "replaceOrInsert";
                 value: any;
               }
-            | {
-                key: any;
-                namespace?: any;
-                summand?: number;
-                type: "insertIfDoesNotExist";
-                value: any;
-              }
           >;
         },
         null,
