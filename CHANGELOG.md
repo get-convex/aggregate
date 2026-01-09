@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Allow passing { bounds: { eq: key }}, supporting non-array keys for counts
+  when a key is used more than once.
+- Asserts that offset is an integer
+
 ## 0.2.0
 
 - Adds /test and /\_generated/component.js entrypoints
