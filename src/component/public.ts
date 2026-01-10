@@ -1,4 +1,4 @@
-import { ConvexError, v, type Value } from "convex/values";
+import { ConvexError, convexToJson, v, type Value } from "convex/values";
 import { mutation, type DatabaseWriter } from "./_generated/server.js";
 import {
   DEFAULT_MAX_NODE_SIZE,
@@ -278,7 +278,9 @@ export const batch = mutation({
     const getTreeForNamespace = async (namespace: any) => {
       // Use a sentinel value for undefined namespace since JSON.stringify(undefined) returns undefined
       const key =
-        namespace === undefined ? "__undefined__" : JSON.stringify(namespace);
+        namespace === undefined
+          ? "__undefined__"
+          : JSON.stringify(convexToJson(namespace));
       if (!treesMap.has(key)) {
         treesMap.set(
           key,
