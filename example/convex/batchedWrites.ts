@@ -207,7 +207,9 @@ export const compareTriggersWithAndWithoutBatching = mutation({
         });
       }
 
+      console.time("finishBuffering");
       await leaderboardAggregate.finishBuffering(ctx);
+      console.timeEnd("finishBuffering");
     } else {
       // Without batching: each insert makes a separate aggregate call
 
@@ -310,7 +312,7 @@ export const comparePerformance = mutation({
     useBatching: v.boolean(),
   },
   handler: async (ctx, { count, useBatching }) => {
-    const start = Date.now();
+    console.time("overall");
 
     if (useBatching) {
       // Batched approach
@@ -324,7 +326,9 @@ export const comparePerformance = mutation({
         });
       }
 
+      console.time("finishBuffering");
       await aggregate.finishBuffering(ctx);
+      console.timeEnd("finishBuffering");
     } else {
       // Unbatched approach
       for (let i = 0; i < count; i++) {
@@ -336,12 +340,11 @@ export const comparePerformance = mutation({
       }
     }
 
-    const duration = Date.now() - start;
+    console.timeEnd("overall");
 
     return {
       method: useBatching ? "batched" : "unbatched",
       count,
-      durationMs: duration,
     };
   },
 });
