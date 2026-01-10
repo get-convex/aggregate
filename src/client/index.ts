@@ -92,6 +92,7 @@ export class Aggregate<
   Namespace extends ConvexValue | undefined = undefined,
 > {
   private isBuffering = false;
+  private currentFlushPromise: Promise<unknown> | null = null;
   private operationQueue: BufferedOperation[] = [];
 
   constructor(protected component: ComponentApi) {}
@@ -106,7 +107,7 @@ export class Aggregate<
    * aggregate.startBuffering();
    * aggregate.insert(ctx, { key: 1, id: "a" });
    * aggregate.insert(ctx, { key: 2, id: "b" });
-   * await aggregate.stopBuffering(ctx); // Send all buffered operations
+   * await aggregate.finishBuffering(ctx); // Send all buffered operations
    * ```
    */
   startBuffering(): void {
@@ -118,8 +119,7 @@ export class Aggregate<
    * @param ctx - The mutation context, used to flush the buffered operations.
    */
   async finishBuffering(ctx: RunMutationCtx): Promise<void> {
-    this.isBuffering = false;
-    await this.flush(ctx);
+    await this.flush(ctx, { stopBuffering: true });
   }
 
   /**
@@ -127,27 +127,43 @@ export class Aggregate<
    * This sends all queued write operations in a single batch mutation.
    * Called automatically before any read operation when buffering is enabled.
    */
-  async flush(ctx: RunMutationCtx): Promise<void> {
+  async flush(
+    ctx: RunMutationCtx,
+    opts?: { stopBuffering?: boolean },
+  ): Promise<void> {
+    const { stopBuffering = false } = opts ?? {};
+    while (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    // start critical section (no awaiting allowed)
+    if (stopBuffering) {
+      this.isBuffering = false;
+    }
     if (this.operationQueue.length === 0) {
       return;
     }
     const operations = this.operationQueue;
     this.operationQueue = [];
-    await ctx.runMutation(this.component.public.batch, {
-      operations,
-    });
+    this.currentFlushPromise = ctx
+      .runMutation(this.component.public.batch, {
+        operations,
+      })
+      .then(() => (this.currentFlushPromise = null));
+    // end critical section
+    await this.currentFlushPromise;
   }
 
   private async flushBeforeRead(ctx: RunQueryCtx | RunMutationCtx) {
     if (this.isBuffering && this.operationQueue.length > 0) {
       if (!("runMutation" in ctx)) {
         throw new Error(
-          "Cannot read with buffered operations in a query context. " +
-            "Either call this from a mutation context, or call flush() before reading, " +
-            "or disable buffering with .buffer(false).",
+          "Buffered operations found in a query context: " +
+            this.operationQueue.map((op) => op.type).join(", "),
         );
       }
       await this.flush(ctx);
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
     }
   }
 
