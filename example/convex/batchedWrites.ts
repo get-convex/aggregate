@@ -1,7 +1,7 @@
 /**
  * Example of using the batch API for efficient writes.
  *
- * This demonstrates how to use the `.buffer()` method to queue write
+ * This demonstrates how to use `startBuffering` and `finishBuffering` for write
  * operations and flush them in a batch, reducing the number of mutations
  * and improving performance.
  *
