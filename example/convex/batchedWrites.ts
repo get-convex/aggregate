@@ -193,19 +193,21 @@ export const compareTriggersWithAndWithoutBatching = mutation({
     useBatching: v.boolean(),
   },
   handler: async (ctx, { count, useBatching }) => {
-    console.time();
-
     const customCtx = triggers.wrapDB(ctx);
+    const initialCount = await leaderboardAggregate.count(ctx);
+    console.time();
     if (useBatching) {
       // With batching: all aggregate operations batched into one call
       leaderboardAggregate.startBuffering();
 
+      console.time("insert loop");
       for (let i = 0; i < count; i++) {
         await customCtx.db.insert("leaderboard", {
-          name: `player-${i}`,
+          name: `player-${i + initialCount}`,
           score: Math.floor(Math.random() * 1000),
         });
       }
+      console.timeEnd("insert loop");
 
       console.time("finishBuffering");
       await leaderboardAggregate.finishBuffering(ctx);
@@ -215,7 +217,7 @@ export const compareTriggersWithAndWithoutBatching = mutation({
 
       for (let i = 0; i < count; i++) {
         await customCtx.db.insert("leaderboard", {
-          name: `player-${i}`,
+          name: `player-${i + initialCount}`,
           score: Math.floor(Math.random() * 1000),
         });
       }
