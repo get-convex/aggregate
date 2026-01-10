@@ -291,67 +291,30 @@ export const batch = mutation({
     // Process operations in order
     for (const op of operations) {
       if (op.type === "insert") {
+        const { type: _, ...args } = op;
         const tree = await getTreeForNamespace(op.namespace);
-        await insertHandler(
-          ctx,
-          {
-            key: op.key,
-            value: op.value,
-            summand: op.summand,
-            namespace: op.namespace,
-          },
-          tree,
-        );
+        await insertHandler(ctx, args, tree);
       } else if (op.type === "delete") {
+        const { type: _, ...args } = op;
         const tree = await getTreeForNamespace(op.namespace);
-        await deleteHandler(
-          ctx,
-          {
-            key: op.key,
-            namespace: op.namespace,
-          },
-          tree,
-        );
+        await deleteHandler(ctx, args, tree);
       } else if (op.type === "replace") {
+        const { type: _, ...args } = op;
         // Handle delete from original namespace
         const deleteTree = await getTreeForNamespace(op.namespace);
         // Handle insert to new namespace (which might be different)
         const insertTree = await getTreeForNamespace(op.newNamespace);
-        await replaceHandler(
-          ctx,
-          {
-            currentKey: op.currentKey,
-            newKey: op.newKey,
-            value: op.value,
-            summand: op.summand,
-          },
-          deleteTree,
-          insertTree,
-        );
+        await replaceHandler(ctx, args, deleteTree, insertTree);
       } else if (op.type === "deleteIfExists") {
+        const { type: _, ...args } = op;
         const tree = await getTreeForNamespace(op.namespace);
-        await deleteIfExistsHandler(
-          ctx,
-          { key: op.key, namespace: op.namespace },
-          tree,
-        );
+        await deleteIfExistsHandler(ctx, args, tree);
       } else if (op.type === "replaceOrInsert") {
+        const { type: _, ...args } = op;
         // Handle delete from original namespace
         const deleteTree = await getTreeForNamespace(op.namespace);
         const newTree = await getTreeForNamespace(op.newNamespace);
-        await replaceOrInsertHandler(
-          ctx,
-          {
-            currentKey: op.currentKey,
-            newKey: op.newKey,
-            value: op.value,
-            summand: op.summand,
-            namespace: op.namespace,
-            newNamespace: op.newNamespace,
-          },
-          deleteTree,
-          newTree,
-        );
+        await replaceOrInsertHandler(ctx, args, deleteTree, newTree);
       }
     }
   },
