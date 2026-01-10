@@ -492,22 +492,14 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
+    const args = { key: keyToPosition(key, id), summand, value: id, namespace };
     if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "insert",
-        key: keyToPosition(key, id),
-        value: id,
-        summand,
-        namespace,
-      });
+      this.operationQueue.push({ type: "insert", ...args });
       return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.insert, {
-      key: keyToPosition(key, id),
-      summand,
-      value: id,
-      namespace,
-    });
+    await ctx.runMutation(this.component.public.insert, args);
   }
   async _delete(
     ctx: RunMutationCtx,
@@ -515,18 +507,14 @@ export class Aggregate<
     key: K,
     id: ID,
   ): Promise<void> {
+    const args = { key: keyToPosition(key, id), namespace };
     if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "delete",
-        key: keyToPosition(key, id),
-        namespace,
-      });
+      this.operationQueue.push({ type: "delete", ...args });
       return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.delete_, {
-      key: keyToPosition(key, id),
-      namespace,
-    });
+    await ctx.runMutation(this.component.public.delete_, args);
   }
   async _replace(
     ctx: RunMutationCtx,
@@ -537,26 +525,21 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "replace",
-        currentKey: keyToPosition(currentKey, id),
-        newKey: keyToPosition(newKey, id),
-        value: id,
-        summand,
-        namespace: currentNamespace,
-        newNamespace,
-      });
-      return;
-    }
-    await ctx.runMutation(this.component.public.replace, {
+    const args = {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
       namespace: currentNamespace,
       newNamespace,
-    });
+    };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "replace", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.replace, args);
   }
   async _insertIfDoesNotExist(
     ctx: RunMutationCtx,
@@ -581,18 +564,20 @@ export class Aggregate<
     key: K,
     id: ID,
   ): Promise<void> {
+    const args = {
+      key: keyToPosition(key, id),
+      namespace,
+    };
     if (this.isBuffering) {
       this.operationQueue.push({
         type: "deleteIfExists",
-        key: keyToPosition(key, id),
-        namespace,
+        ...args,
       });
       return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.deleteIfExists, {
-      key: keyToPosition(key, id),
-      namespace,
-    });
+    await ctx.runMutation(this.component.public.deleteIfExists, args);
   }
   async _replaceOrInsert(
     ctx: RunMutationCtx,
@@ -603,26 +588,21 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "replaceOrInsert",
-        currentKey: keyToPosition(currentKey, id),
-        newKey: keyToPosition(newKey, id),
-        value: id,
-        summand,
-        namespace: currentNamespace,
-        newNamespace,
-      });
-      return;
-    }
-    await ctx.runMutation(this.component.public.replaceOrInsert, {
+    const args = {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
-      summand,
       value: id,
+      summand,
       namespace: currentNamespace,
       newNamespace,
-    });
+    };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "replaceOrInsert", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.replaceOrInsert, args);
   }
 
   /// Initialization and maintenance.
@@ -646,6 +626,7 @@ export class Aggregate<
       Namespace
     >
   ): Promise<void> {
+    await this.flushBeforeRead(ctx);
     await ctx.runMutation(this.component.public.clear, {
       maxNodeSize: opts[0]?.maxNodeSize,
       rootLazy: opts[0]?.rootLazy,
@@ -712,6 +693,7 @@ export class Aggregate<
     ctx: RunMutationCtx & RunQueryCtx,
     opts?: { maxNodeSize?: number; rootLazy?: boolean },
   ): Promise<void> {
+    await this.flushBeforeRead(ctx);
     for await (const namespace of this.iterNamespaces(ctx)) {
       await this.clear(ctx, { ...opts, namespace });
     }
