@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2-alpha.0
+
+- Enables buffering writes for performance when using triggers
+
 ## 0.2.1
 
 - Allow passing { bounds: { eq: key }}, supporting non-array keys for counts
