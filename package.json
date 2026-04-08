@@ -80,7 +80,7 @@
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "8.58.0",
     "@typescript-eslint/parser": "8.58.0",
-    "@vitejs/plugin-react": "5.2.0",
+    "@vitejs/plugin-react": "6.0.1",
     "@vitest/coverage-v8": "4.1.2",
     "@xyflow/react": "12.10.2",
     "chokidar-cli": "3.0.0",
