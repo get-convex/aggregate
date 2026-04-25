@@ -71,7 +71,7 @@ export async function insertHandler(
       subtrees: [pushUp.leftSubtree, pushUp.rightSubtree],
       aggregate: total,
     });
-    await ctx.db.patch(tree._id, {
+    await ctx.db.patch("btree", tree._id, {
       root: newRoot,
     });
   }
@@ -88,21 +88,21 @@ export async function deleteHandler(
     true,
   );
   await deleteFromNode(ctx, args.namespace, tree.root, args.key);
-  const root = (await ctx.db.get(tree.root))!;
+  const root = (await ctx.db.get("btreeNode", tree.root))!;
   if (root.items.length === 0 && root.subtrees.length === 1) {
     log(
       `collapsing root ${root._id} because its only child is ${root.subtrees[0]}`,
     );
-    await ctx.db.patch(tree._id, {
+    await ctx.db.patch("btree", tree._id, {
       root: root.subtrees[0],
     });
     if (root.aggregate === undefined) {
       // Maintain lazy root even when the root disappears.
-      await ctx.db.patch(root.subtrees[0], {
+      await ctx.db.patch("btreeNode", root.subtrees[0], {
         aggregate: undefined,
       });
     }
-    await ctx.db.delete(root._id);
+    await ctx.db.delete("btreeNode", root._id);
   }
 }
 
@@ -153,7 +153,7 @@ async function validateNode(
   node: Id<"btreeNode">,
   depth: number,
 ): Promise<ValidationResult> {
-  const n = await ctx.db.get(node);
+  const n = await ctx.db.get("btreeNode", node);
   if (!n) {
     throw new ConvexError(`missing node ${node}`);
   }
@@ -259,7 +259,7 @@ async function filterBetween(
   k1?: Key,
   k2?: Key,
 ): Promise<WithinBounds[]> {
-  const n = (await db.get(node))!;
+  const n = (await db.get("btreeNode", node))!;
   const included: (WithinBounds | Promise<WithinBounds[]>)[] = [];
   function includeSubtree(i: number, unboundedRight: boolean) {
     const unboundedLeft = k1 === undefined || included.length > 0;
@@ -324,7 +324,7 @@ async function aggregateBetweenInNode(
       if (included.type === "item") {
         return itemAggregate(included.item);
       } else {
-        const subtree = (await db.get(included.subtree))!;
+        const subtree = (await db.get("btreeNode", included.subtree))!;
         return await nodeAggregate(db, subtree);
       }
     }),
@@ -355,7 +355,7 @@ async function getInNode(
   node: Id<"btreeNode">,
   key: Key,
 ): Promise<Item | null> {
-  const n = (await db.get(node))!;
+  const n = (await db.get("btreeNode", node))!;
   let i = 0;
   for (; i < n.items.length; i++) {
     const compare = compareKeys(key, n.items[i].k);
@@ -489,7 +489,7 @@ async function deleteFromNode(
   node: Id<"btreeNode">,
   key: Key,
 ): Promise<Item | null> {
-  let n = (await ctx.db.get(node))!;
+  let n = (await ctx.db.get("btreeNode", node))!;
   let foundItem: null | Item = null;
   let i = 0;
   for (; i < n.items.length; i++) {
@@ -503,7 +503,7 @@ async function deleteFromNode(
       // we've found the key. delete it.
       if (n.subtrees.length === 0) {
         // if this is a leaf node, just delete the key
-        await ctx.db.patch(node, {
+        await ctx.db.patch("btreeNode", node, {
           items: [...n.items.slice(0, i), ...n.items.slice(i + 1)],
           aggregate: n.aggregate && sub(n.aggregate, itemAggregate(n.items[i])),
         });
@@ -513,7 +513,7 @@ async function deleteFromNode(
       const predecessor = await negativeOffsetInNode(ctx.db, n.subtrees[i], 0);
       log(`replacing ${p(key)} with predecessor ${p(predecessor.k)}`);
       foundItem = n.items[i];
-      await ctx.db.patch(node, {
+      await ctx.db.patch("btreeNode", node, {
         items: [...n.items.slice(0, i), predecessor, ...n.items.slice(i + 1)],
         // In this intermediate state, we have removed the foundItem and effectively duplicated the predecessor.
         aggregate:
@@ -523,7 +523,7 @@ async function deleteFromNode(
             itemAggregate(n.items[i]),
           ),
       });
-      n = (await ctx.db.get(node))!;
+      n = (await ctx.db.get("btreeNode", node))!;
       // From now on, we're deleting the predecessor from the left subtree
       key = predecessor.k;
       break;
@@ -545,32 +545,32 @@ async function deleteFromNode(
   }
   const newAggregate = n.aggregate && sub(n.aggregate, itemAggregate(deleted));
   if (newAggregate) {
-    await ctx.db.patch(node, {
+    await ctx.db.patch("btreeNode", node, {
       aggregate: newAggregate,
     });
   }
 
   // Now we need to check if the subtree at index i is too small
-  const deficientSubtree = (await ctx.db.get(n.subtrees[i]))!;
+  const deficientSubtree = (await ctx.db.get("btreeNode", n.subtrees[i]))!;
   const minNodeSize = await MIN_NODE_SIZE(ctx, namespace);
   if (deficientSubtree.items.length < minNodeSize) {
     log(`deficient subtree ${deficientSubtree._id}`);
     // If the subtree is too small, we need to rebalance
     if (i > 0) {
       // Try to move a key from the left sibling
-      const leftSibling = (await ctx.db.get(n.subtrees[i - 1]))!;
+      const leftSibling = (await ctx.db.get("btreeNode", n.subtrees[i - 1]))!;
       if (leftSibling.items.length > minNodeSize) {
         log(`rotating right with left sibling ${leftSibling._id}`);
         // Rotate right
         const grandchild = leftSibling.subtrees.length
           ? await ctx.db.get(
-              leftSibling.subtrees[leftSibling.subtrees.length - 1],
+              "btreeNode", leftSibling.subtrees[leftSibling.subtrees.length - 1],
             )
           : null;
         const grandchildCount = grandchild
           ? grandchild.aggregate
           : { count: 0, sum: 0 };
-        await ctx.db.patch(deficientSubtree._id, {
+        await ctx.db.patch("btreeNode", deficientSubtree._id, {
           items: [n.items[i - 1], ...deficientSubtree.items],
           subtrees: grandchild
             ? [grandchild._id, ...deficientSubtree.subtrees]
@@ -583,7 +583,7 @@ async function deleteFromNode(
               itemAggregate(n.items[i - 1]),
             ),
         });
-        await ctx.db.patch(leftSibling._id, {
+        await ctx.db.patch("btreeNode", leftSibling._id, {
           items: leftSibling.items.slice(0, leftSibling.items.length - 1),
           subtrees: grandchild
             ? leftSibling.subtrees.slice(0, leftSibling.subtrees.length - 1)
@@ -596,7 +596,7 @@ async function deleteFromNode(
               itemAggregate(leftSibling.items[leftSibling.items.length - 1]),
             ),
         });
-        await ctx.db.patch(node, {
+        await ctx.db.patch("btreeNode", node, {
           items: [
             ...n.items.slice(0, i - 1),
             leftSibling.items[leftSibling.items.length - 1],
@@ -608,17 +608,17 @@ async function deleteFromNode(
     }
     if (i < n.subtrees.length - 1) {
       // Try to move a key from the right sibling
-      const rightSibling = (await ctx.db.get(n.subtrees[i + 1]))!;
+      const rightSibling = (await ctx.db.get("btreeNode", n.subtrees[i + 1]))!;
       if (rightSibling.items.length > minNodeSize) {
         log(`rotating left with right sibling ${rightSibling._id}`);
         // Rotate left
         const grandchild = rightSibling.subtrees.length
-          ? await ctx.db.get(rightSibling.subtrees[0])
+          ? await ctx.db.get("btreeNode", rightSibling.subtrees[0])
           : null;
         const grandchildCount = grandchild
           ? grandchild.aggregate
           : { count: 0, sum: 0 };
-        await ctx.db.patch(deficientSubtree._id, {
+        await ctx.db.patch("btreeNode", deficientSubtree._id, {
           items: [...deficientSubtree.items, n.items[i]],
           subtrees: grandchild
             ? [...deficientSubtree.subtrees, grandchild._id]
@@ -631,7 +631,7 @@ async function deleteFromNode(
               itemAggregate(n.items[i]),
             ),
         });
-        await ctx.db.patch(rightSibling._id, {
+        await ctx.db.patch("btreeNode", rightSibling._id, {
           items: rightSibling.items.slice(1),
           subtrees: grandchild ? rightSibling.subtrees.slice(1) : [],
           aggregate:
@@ -642,7 +642,7 @@ async function deleteFromNode(
               itemAggregate(rightSibling.items[0]),
             ),
         });
-        await ctx.db.patch(node, {
+        await ctx.db.patch("btreeNode", node, {
           items: [
             ...n.items.slice(0, i),
             rightSibling.items[0],
@@ -671,10 +671,10 @@ async function mergeNodes(
   parent: Doc<"btreeNode">,
   leftIndex: number,
 ) {
-  const left = (await db.get(parent.subtrees[leftIndex]))!;
-  const right = (await db.get(parent.subtrees[leftIndex + 1]))!;
+  const left = (await db.get("btreeNode", parent.subtrees[leftIndex]))!;
+  const right = (await db.get("btreeNode", parent.subtrees[leftIndex + 1]))!;
   log(`merging ${right._id} into ${left._id}`);
-  await db.patch(left._id, {
+  await db.patch("btreeNode", left._id, {
     items: [...left.items, parent.items[leftIndex], ...right.items],
     subtrees: [...left.subtrees, ...right.subtrees],
     aggregate:
@@ -685,7 +685,7 @@ async function mergeNodes(
         itemAggregate(parent.items[leftIndex]),
       ),
   });
-  await db.patch(parent._id, {
+  await db.patch("btreeNode", parent._id, {
     items: [
       ...parent.items.slice(0, leftIndex),
       ...parent.items.slice(leftIndex + 1),
@@ -695,7 +695,7 @@ async function mergeNodes(
       ...parent.subtrees.slice(leftIndex + 2),
     ],
   });
-  await db.delete(right._id);
+  await db.delete("btreeNode", right._id);
 }
 
 // index 0 starts at the right
@@ -714,7 +714,7 @@ async function negativeOffsetInNode(
       }
       index -= 1;
     } else {
-      const subtree = (await db.get(included.subtree))!;
+      const subtree = (await db.get("btreeNode", included.subtree))!;
       const subtreeCount = (await nodeAggregate(db, subtree)).count;
       if (index < subtreeCount) {
         return await negativeOffsetInNode(db, included.subtree, index);
@@ -742,7 +742,7 @@ async function atOffsetInNode(
       }
       index -= 1;
     } else {
-      const subtree = (await db.get(included.subtree))!;
+      const subtree = (await db.get("btreeNode", included.subtree))!;
       const subtreeCount = (await nodeAggregate(db, subtree)).count;
       if (index < subtreeCount) {
         return await atOffsetInNode(db, included.subtree, index);
@@ -764,7 +764,7 @@ function nodeCounts(node: Doc<"btreeNode">): Aggregate[] {
 async function subtreeCounts(db: DatabaseReader, node: Doc<"btreeNode">) {
   return await Promise.all(
     node.subtrees.map(async (subtree) => {
-      const s = (await db.get(subtree))!;
+      const s = (await db.get("btreeNode", subtree))!;
       return nodeAggregate(db, s);
     }),
   );
@@ -813,7 +813,7 @@ async function insertIntoNode(
   node: Id<"btreeNode">,
   item: Item,
 ): Promise<PushUp | null> {
-  const n = (await ctx.db.get(node))!;
+  const n = (await ctx.db.get("btreeNode", node))!;
   let i = 0;
   for (; i < n.items.length; i++) {
     const compare = compareKeys(item.k, n.items[i].k);
@@ -830,7 +830,7 @@ async function insertIntoNode(
     // insert into subtree
     const pushUp = await insertIntoNode(ctx, namespace, n.subtrees[i], item);
     if (pushUp) {
-      await ctx.db.patch(node, {
+      await ctx.db.patch("btreeNode", node, {
         items: [...n.items.slice(0, i), pushUp.item, ...n.items.slice(i)],
         subtrees: [
           ...n.subtrees.slice(0, i),
@@ -841,18 +841,18 @@ async function insertIntoNode(
       });
     }
   } else {
-    await ctx.db.patch(node, {
+    await ctx.db.patch("btreeNode", node, {
       items: [...n.items.slice(0, i), item, ...n.items.slice(i)],
     });
   }
   const newAggregate = n.aggregate && add(n.aggregate, itemAggregate(item));
   if (newAggregate) {
-    await ctx.db.patch(node, {
+    await ctx.db.patch("btreeNode", node, {
       aggregate: newAggregate,
     });
   }
 
-  const newN = (await ctx.db.get(node))!;
+  const newN = (await ctx.db.get("btreeNode", node))!;
   const maxNodeSize = await MAX_NODE_SIZE(ctx, namespace);
   const minNodeSize = await MIN_NODE_SIZE(ctx, namespace);
   if (newN.items.length > maxNodeSize) {
@@ -896,7 +896,7 @@ async function insertIntoNode(
         `bad sum split ${leftCount.sum} ${rightCount.sum} ${newN.items[minNodeSize].s} ${newN.aggregate.sum}`,
       );
     }
-    await ctx.db.patch(node, {
+    await ctx.db.patch("btreeNode", node, {
       items: newN.items.slice(0, minNodeSize),
       subtrees: newN.subtrees.length
         ? newN.subtrees.slice(0, minNodeSize + 1)
@@ -969,11 +969,11 @@ export async function getOrCreateTree(
     maxNodeSize: effectiveMaxNodeSize,
     namespace,
   });
-  const newTree = await db.get(id);
+  const newTree = await db.get("btree", id);
   // Check the maxNodeSize is valid.
   await MIN_NODE_SIZE({ db }, namespace);
   if (effectiveRootLazy) {
-    await db.patch(root, { aggregate: undefined });
+    await db.patch("btreeNode", root, { aggregate: undefined });
   }
   return newTree!;
 }
@@ -986,20 +986,20 @@ async function isRootLazy(
   if (!tree) {
     return true;
   }
-  return (await db.get(tree.root))?.aggregate === undefined;
+  return (await db.get("btreeNode", tree.root))?.aggregate === undefined;
 }
 
 export const deleteTreeNodes = internalMutation({
   args: { node: v.id("btreeNode") },
   returns: v.null(),
   handler: async (ctx, { node }) => {
-    const n = (await ctx.db.get(node))!;
+    const n = (await ctx.db.get("btreeNode", node))!;
     for (const subtree of n.subtrees) {
       await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, {
         node: subtree,
       });
     }
-    await ctx.db.delete(node);
+    await ctx.db.delete("btreeNode", node);
   },
 });
 

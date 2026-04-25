@@ -69,7 +69,7 @@ async function testItem(
     name: value.name,
     value: value.value,
   });
-  return (await ctx.db.get(id))!;
+  return (await ctx.db.get("testItems", id))!;
 }
 
 describe("TableAggregate", () => {
@@ -323,21 +323,21 @@ describe("TableAggregate", () => {
           name: "first",
           value: 10,
         });
-        const doc1 = await ctx.db.get(id1);
+        const doc1 = await ctx.db.get("testItems", id1);
         await aggregate.insert(ctx, doc1!);
 
         const id2 = await ctx.db.insert("testItems", {
           name: "second",
           value: 20,
         });
-        const doc2 = await ctx.db.get(id2);
+        const doc2 = await ctx.db.get("testItems", id2);
         await aggregate.insert(ctx, doc2!);
 
         const id3 = await ctx.db.insert("testItems", {
           name: "third",
           value: 30,
         });
-        const doc3 = await ctx.db.get(id3);
+        const doc3 = await ctx.db.get("testItems", id3);
         await aggregate.insert(ctx, doc3!);
       });
 
@@ -411,7 +411,7 @@ describe("TableAggregate with namespace", () => {
           url: "photo1.jpg",
           score: 10,
         });
-        const doc1 = await ctx.db.get(id1);
+        const doc1 = await ctx.db.get("photos", id1);
         await aggregateWithNamespace.insert(ctx, doc1!);
 
         const id2 = await ctx.db.insert("photos", {
@@ -419,7 +419,7 @@ describe("TableAggregate with namespace", () => {
           url: "photo2.jpg",
           score: 20,
         });
-        const doc2 = await ctx.db.get(id2);
+        const doc2 = await ctx.db.get("photos", id2);
         await aggregateWithNamespace.insert(ctx, doc2!);
 
         const id3 = await ctx.db.insert("photos", {
@@ -427,7 +427,7 @@ describe("TableAggregate with namespace", () => {
           url: "photo3.jpg",
           score: 30,
         });
-        const doc3 = await ctx.db.get(id3);
+        const doc3 = await ctx.db.get("photos", id3);
         await aggregateWithNamespace.insert(ctx, doc3!);
       });
 
@@ -471,9 +471,9 @@ describe("TableAggregate with namespace", () => {
         const id2 = await ctx.db.insert("photos", doc2);
         const id3 = await ctx.db.insert("photos", doc3);
 
-        const insertedDoc1 = await ctx.db.get(id1);
-        const insertedDoc2 = await ctx.db.get(id2);
-        const insertedDoc3 = await ctx.db.get(id3);
+        const insertedDoc1 = await ctx.db.get("photos", id1);
+        const insertedDoc2 = await ctx.db.get("photos", id2);
+        const insertedDoc3 = await ctx.db.get("photos", id3);
 
         await aggregateWithNamespace.insert(ctx, insertedDoc1!);
         await aggregateWithNamespace.insert(ctx, insertedDoc2!);
@@ -559,7 +559,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of [vacation1, vacation2, vacation3, family1, family2]) {
           const id = await ctx.db.insert("photos", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("photos", id);
           await aggregateWithNamespace.insert(ctx, insertedDoc!);
         }
       });
@@ -612,13 +612,13 @@ describe("TableAggregate with namespace", () => {
           score: 15,
         };
         const vacationId = await ctx.db.insert("photos", vacationDoc);
-        const insertedVacationDoc = await ctx.db.get(vacationId);
+        const insertedVacationDoc = await ctx.db.get("photos", vacationId);
         await aggregateWithNamespace.insert(ctx, insertedVacationDoc!);
 
         // Insert photo in family album with score 25
         const familyDoc = { album: "family", url: "family1.jpg", score: 25 };
         const familyId = await ctx.db.insert("photos", familyDoc);
-        const insertedFamilyDoc = await ctx.db.get(familyId);
+        const insertedFamilyDoc = await ctx.db.get("photos", familyId);
         await aggregateWithNamespace.insert(ctx, insertedFamilyDoc!);
       });
 
@@ -674,7 +674,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of docs) {
           const id = await ctx.db.insert("testItems", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("testItems", id);
           await aggregate.insert(ctx, insertedDoc!);
         }
       });
@@ -708,7 +708,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of docs) {
           const id = await ctx.db.insert("testItems", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("testItems", id);
           await aggregate.insert(ctx, insertedDoc!);
         }
       });
@@ -743,7 +743,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of docs) {
           const id = await ctx.db.insert("testItems", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("testItems", id);
           await aggregate.insert(ctx, insertedDoc!);
         }
       });
@@ -800,7 +800,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of docs) {
           const id = await ctx.db.insert("testItems", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("testItems", id);
           await aggregate.insert(ctx, insertedDoc!);
         }
       });
@@ -839,7 +839,7 @@ describe("TableAggregate with namespace", () => {
 
         for (const doc of docs) {
           const id = await ctx.db.insert("testItems", doc);
-          const insertedDoc = await ctx.db.get(id);
+          const insertedDoc = await ctx.db.get("testItems", id);
           await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
         }
       });
@@ -903,7 +903,7 @@ describe("Bounds with eq", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregate.insert(ctx, insertedDoc!);
       }
     });
@@ -948,7 +948,7 @@ describe("Bounds with eq", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregate.insert(ctx, insertedDoc!);
       }
     });
@@ -995,7 +995,7 @@ describe("Bounds with eq", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
       }
     });
@@ -1036,7 +1036,7 @@ describe("Bounds with eq", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("photos", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("photos", id);
         await aggregateWithNamespace.insert(ctx, insertedDoc!);
       }
     });
@@ -1080,7 +1080,7 @@ describe("Bounds with eq", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregate.insert(ctx, insertedDoc!);
       }
     });
@@ -1136,7 +1136,7 @@ describe("Bounds with prefix on array keys", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
       }
     });
@@ -1192,7 +1192,7 @@ describe("Bounds with prefix on array keys", () => {
 
       for (const doc of docs) {
         const id = await ctx.db.insert("testItems", doc);
-        const insertedDoc = await ctx.db.get(id);
+        const insertedDoc = await ctx.db.get("testItems", id);
         await aggregateWithArrayKeys.insert(ctx, insertedDoc!);
       }
     });

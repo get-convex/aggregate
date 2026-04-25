@@ -20,7 +20,7 @@ async function displayNode(
   node: Id<"btreeNode">,
   depth: number = 0,
 ) {
-  const n = (await db.get(node))!;
+  const n = (await db.get("btreeNode", node))!;
   for (let i = 0; i < n.items.length; i++) {
     if (n.subtrees.length > 0) {
       await displayNode(db, n.subtrees[i], depth + 1);
@@ -50,7 +50,7 @@ async function dumpNode(
   db: DatabaseReader,
   node: Id<"btreeNode">,
 ): Promise<string> {
-  const n = (await db.get(node))!;
+  const n = (await db.get("btreeNode", node))!;
   let s = "[";
   if (n.subtrees.length === 0) {
     s += n.items
@@ -79,9 +79,9 @@ export const inspectNode = query({
       console.log("no tree");
       return;
     }
-    let n = await ctx.db.get(tree.root);
+    let n = await ctx.db.get("btreeNode", tree.root);
     if (args.node) {
-      n = await ctx.db.get(args.node as Id<"btreeNode">);
+      n = await ctx.db.get("btreeNode", args.node as Id<"btreeNode">);
     }
     if (!n) {
       console.log("no node");
