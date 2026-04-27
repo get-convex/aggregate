@@ -46,7 +46,7 @@ export const makeRootLazy = mutation({
       DEFAULT_MAX_NODE_SIZE,
       true,
     );
-    await ctx.db.patch(tree.root, { aggregate: undefined });
+    await ctx.db.patch("btreeNode", tree.root, { aggregate: undefined });
   },
 });
 
@@ -155,8 +155,8 @@ export const clear = mutation({
     let existingRootLazy = true;
     let existingMaxNodeSize = DEFAULT_MAX_NODE_SIZE;
     if (tree) {
-      await ctx.db.delete(tree._id);
-      const root = (await ctx.db.get(tree.root))!;
+      await ctx.db.delete("btree", tree._id);
+      const root = (await ctx.db.get("btreeNode", tree.root))!;
       existingRootLazy = root.aggregate === undefined;
       existingMaxNodeSize = tree.maxNodeSize;
       await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, {

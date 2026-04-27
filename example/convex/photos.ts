@@ -136,7 +136,7 @@ export const resetAll = internalMutation({
   handler: async (ctx) => {
     const batchSize = 1000;
     const docs = await ctx.db.query("photos").take(batchSize);
-    for (const doc of docs) await ctx.db.delete(doc._id);
+    for (const doc of docs) await ctx.db.delete("photos", doc._id);
 
     if (docs.length === batchSize) return "partial_reset";
 

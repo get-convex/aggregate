@@ -73,7 +73,7 @@ export const removeScore = mutationWithTriggers({
     id: v.id("leaderboard"),
   },
   handler: async (ctx, { id }) => {
-    await ctx.db.delete(id);
+    await ctx.db.delete("leaderboard", id);
   },
 });
 
@@ -84,7 +84,7 @@ export const updateScore = mutationWithTriggers({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, {
+    await ctx.db.patch("leaderboard", args.id, {
       name: args.name,
       score: args.score,
     });
@@ -92,6 +92,7 @@ export const updateScore = mutationWithTriggers({
 });
 
 export const countScores = query({
+  args: {},
   handler: async (ctx) => {
     return await aggregateByScore.count(ctx);
   },
@@ -103,7 +104,7 @@ export const scoreAtRank = query({
   },
   handler: async (ctx, { rank }) => {
     const score = await aggregateByScore.at(ctx, rank);
-    return await ctx.db.get(score.id);
+    return await ctx.db.get("leaderboard", score.id);
   },
 });
 
@@ -127,7 +128,7 @@ export const pageOfScores = query({
     });
 
     const scores = await Promise.all(
-      page.page.map((doc) => ctx.db.get(doc.id)),
+      page.page.map((doc) => ctx.db.get("leaderboard", doc.id)),
     );
 
     return scores.filter((d) => d != null);
@@ -176,6 +177,7 @@ export const userHighScore = query({
 });
 
 export const sumNumbers = query({
+  args: {},
   handler: async (ctx) => {
     return await aggregateScoreByUser.sum(ctx);
   },
@@ -232,7 +234,7 @@ export const addMockScores = mutationWithTriggers({
     // Insert all scores and update aggregates
     for (const mockScore of mockScores) {
       const id = await ctx.db.insert("leaderboard", mockScore);
-      const _doc = await ctx.db.get(id);
+      const _doc = await ctx.db.get("leaderboard", id);
     }
 
     return null;
@@ -277,7 +279,7 @@ export const resetAll = internalMutation({
 
     const batchSize = 1000;
     const docs = await ctx.db.query("leaderboard").take(batchSize);
-    for (const doc of docs) await ctx.db.delete(doc._id);
+    for (const doc of docs) await ctx.db.delete("leaderboard", doc._id);
 
     if (docs.length === batchSize) {
       console.log("Leaderboard reset partially complete; more to delete");
