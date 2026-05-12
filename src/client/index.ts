@@ -36,6 +36,43 @@ export type Item<K extends Key, ID extends string> = {
 
 export type { Key, Bound, Bounds };
 
+type BufferedOperation =
+  | {
+      type: "insert";
+      key: any;
+      value: any;
+      summand?: number;
+      namespace?: any;
+    }
+  | {
+      type: "delete";
+      key: any;
+      namespace?: any;
+    }
+  | {
+      type: "replace";
+      currentKey: any;
+      newKey: any;
+      value: any;
+      summand?: number;
+      namespace?: any;
+      newNamespace?: any;
+    }
+  | {
+      type: "deleteIfExists";
+      key: any;
+      namespace?: any;
+    }
+  | {
+      type: "replaceOrInsert";
+      currentKey: any;
+      newKey: any;
+      value: any;
+      summand?: number;
+      namespace?: any;
+      newNamespace?: any;
+    };
+
 /**
  * Write data to be aggregated, and read aggregated data.
  *
@@ -54,7 +91,81 @@ export class Aggregate<
   ID extends string,
   Namespace extends ConvexValue | undefined = undefined,
 > {
+  private isBuffering = false;
+  private currentFlushPromise: Promise<unknown> | null = null;
+  private operationQueue: BufferedOperation[] = [];
+
   constructor(protected component: ComponentApi) {}
+
+  /**
+   * Start buffering write operations. When buffering is enabled, write operations are
+   * queued and sent in a batch when flush() or stopBuffering() is called or when any read
+   * operation is performed.
+   *
+   * Example usage:
+   * ```ts
+   * aggregate.startBuffering();
+   * aggregate.insert(ctx, { key: 1, id: "a" });
+   * aggregate.insert(ctx, { key: 2, id: "b" });
+   * await aggregate.finishBuffering(ctx); // Send all buffered operations
+   * ```
+   */
+  startBuffering(): void {
+    this.isBuffering = true;
+  }
+
+  /**
+   * Stop buffering write operations and flush all buffered operations.
+   * @param ctx - The mutation context, used to flush the buffered operations.
+   */
+  async finishBuffering(ctx: RunMutationCtx): Promise<void> {
+    await this.flush(ctx, { stopBuffering: true });
+  }
+
+  /**
+   * Flush all buffered operations to the database.
+   * This sends all queued write operations in a single batch mutation.
+   * Called automatically before any read operation when buffering is enabled.
+   */
+  async flush(
+    ctx: RunMutationCtx,
+    opts?: { stopBuffering?: boolean },
+  ): Promise<void> {
+    const { stopBuffering = false } = opts ?? {};
+    while (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    // start critical section (no awaiting allowed)
+    if (stopBuffering) {
+      this.isBuffering = false;
+    }
+    if (this.operationQueue.length === 0) {
+      return;
+    }
+    const operations = this.operationQueue;
+    this.operationQueue = [];
+    this.currentFlushPromise = ctx
+      .runMutation(this.component.public.batch, {
+        operations,
+      })
+      .then(() => (this.currentFlushPromise = null));
+    // end critical section
+    await this.currentFlushPromise;
+  }
+
+  private async flushBeforeRead(ctx: RunQueryCtx | RunMutationCtx) {
+    if (this.isBuffering && this.operationQueue.length > 0) {
+      if (!("runMutation" in ctx)) {
+        throw new Error(
+          "Buffered operations found in a query context: " +
+            this.operationQueue.map((op) => op.type).join(", "),
+        );
+      }
+      await this.flush(ctx);
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+  }
 
   /// Aggregate queries.
 
@@ -65,6 +176,7 @@ export class Aggregate<
     ctx: RunQueryCtx,
     ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<number> {
+    await this.flushBeforeRead(ctx);
     const { count } = await ctx.runQuery(
       this.component.btree.aggregateBetween,
       {
@@ -82,6 +194,7 @@ export class Aggregate<
     ctx: RunQueryCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
   ): Promise<number[]> {
+    await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((query) => {
       if (!query) {
         throw new Error("You must pass bounds and/or namespace");
@@ -106,6 +219,7 @@ export class Aggregate<
     ctx: RunQueryCtx,
     ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<number> {
+    await this.flushBeforeRead(ctx);
     const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
       ...boundsToPositions(opts[0]?.bounds),
       namespace: namespaceFromOpts(opts),
@@ -120,6 +234,7 @@ export class Aggregate<
     ctx: RunQueryCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
   ): Promise<number[]> {
+    await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((query) => {
       if (!query) {
         throw new Error("You must pass bounds and/or namespace");
@@ -150,6 +265,7 @@ export class Aggregate<
     offset: number,
     ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
   ): Promise<Item<K, ID>> {
+    await this.flushBeforeRead(ctx);
     if (offset < 0) {
       const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
         offset: -offset - 1,
@@ -175,6 +291,7 @@ export class Aggregate<
       Namespace
     >,
   ): Promise<Item<K, ID>[]> {
+    await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((q) => ({
       offset: q.offset,
       ...boundsToPositions(q.bounds),
@@ -202,6 +319,7 @@ export class Aggregate<
       Namespace
     >
   ): Promise<number> {
+    await this.flushBeforeRead(ctx);
     const { k1, k2 } = boundsToPositions(opts[0]?.bounds);
     if (opts[0]?.order === "desc") {
       return await ctx.runQuery(this.component.btree.offsetUntil, {
@@ -305,6 +423,7 @@ export class Aggregate<
       Namespace
     >
   ): Promise<{ page: Item<K, ID>[]; cursor: string; isDone: boolean }> {
+    await this.flushBeforeRead(ctx);
     const order = opts[0]?.order ?? "asc";
     const pageSize = opts[0]?.pageSize ?? 100;
     const {
@@ -373,12 +492,14 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.insert, {
-      key: keyToPosition(key, id),
-      summand,
-      value: id,
-      namespace,
-    });
+    const args = { key: keyToPosition(key, id), summand, value: id, namespace };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "insert", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.insert, args);
   }
   async _delete(
     ctx: RunMutationCtx,
@@ -386,10 +507,14 @@ export class Aggregate<
     key: K,
     id: ID,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.delete_, {
-      key: keyToPosition(key, id),
-      namespace,
-    });
+    const args = { key: keyToPosition(key, id), namespace };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "delete", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.delete_, args);
   }
   async _replace(
     ctx: RunMutationCtx,
@@ -400,14 +525,21 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.replace, {
+    const args = {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
       summand,
       value: id,
       namespace: currentNamespace,
       newNamespace,
-    });
+    };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "replace", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.replace, args);
   }
   async _insertIfDoesNotExist(
     ctx: RunMutationCtx,
@@ -432,10 +564,20 @@ export class Aggregate<
     key: K,
     id: ID,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.deleteIfExists, {
+    const args = {
       key: keyToPosition(key, id),
       namespace,
-    });
+    };
+    if (this.isBuffering) {
+      this.operationQueue.push({
+        type: "deleteIfExists",
+        ...args,
+      });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.deleteIfExists, args);
   }
   async _replaceOrInsert(
     ctx: RunMutationCtx,
@@ -446,14 +588,21 @@ export class Aggregate<
     id: ID,
     summand?: number,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.replaceOrInsert, {
+    const args = {
       currentKey: keyToPosition(currentKey, id),
       newKey: keyToPosition(newKey, id),
-      summand,
       value: id,
+      summand,
       namespace: currentNamespace,
       newNamespace,
-    });
+    };
+    if (this.isBuffering) {
+      this.operationQueue.push({ type: "replaceOrInsert", ...args });
+      return;
+    } else if (this.currentFlushPromise) {
+      await this.currentFlushPromise;
+    }
+    await ctx.runMutation(this.component.public.replaceOrInsert, args);
   }
 
   /// Initialization and maintenance.
@@ -477,6 +626,7 @@ export class Aggregate<
       Namespace
     >
   ): Promise<void> {
+    await this.flushBeforeRead(ctx);
     await ctx.runMutation(this.component.public.clear, {
       maxNodeSize: opts[0]?.maxNodeSize,
       rootLazy: opts[0]?.rootLazy,
@@ -503,6 +653,7 @@ export class Aggregate<
     cursor?: string,
     pageSize: number = 100,
   ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
+    await this.flushBeforeRead(ctx);
     const {
       page,
       cursor: newCursor,
@@ -542,6 +693,7 @@ export class Aggregate<
     ctx: RunMutationCtx & RunQueryCtx,
     opts?: { maxNodeSize?: number; rootLazy?: boolean },
   ): Promise<void> {
+    await this.flushBeforeRead(ctx);
     for await (const namespace of this.iterNamespaces(ctx)) {
       await this.clear(ctx, { ...opts, namespace });
     }
