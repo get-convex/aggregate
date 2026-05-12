@@ -72,7 +72,7 @@
     "@mantine/emotion": "9.1.1",
     "@mantine/hooks": "9.1.1",
     "@mantine/notifications": "9.1.1",
-    "@tabler/icons-react": "3.43.0",
+    "@tabler/icons-react": "3.44.0",
     "@types/node": "20.19.40",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
