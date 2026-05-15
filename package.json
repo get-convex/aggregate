@@ -73,7 +73,7 @@
     "@mantine/hooks": "9.2.0",
     "@mantine/notifications": "9.2.0",
     "@tabler/icons-react": "3.44.0",
-    "@types/node": "20.19.41",
+    "@types/node": "24.12.4",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "8.59.3",
