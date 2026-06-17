@@ -97,7 +97,7 @@
     "type-route": "1.1.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.60.0",
-    "vite": "8.0.14",
+    "vite": "8.0.16",
     "vitest": "4.1.7"
   },
   "types": "./dist/client/index.d.ts",
