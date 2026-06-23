@@ -59,6 +59,9 @@
   "peerDependencies": {
     "convex": "^1.24.8"
   },
+  "dependencies": {
+    "@convex-dev/batch-worker": "^0.2.0"
+  },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "2.0.0",
     "@convex-dev/migrations": "0.3.5",

@@ -1,3 +1,4 @@
+import { ping, vBatchQueryArgs, vBatchResult } from "@convex-dev/batch-worker";
 import {
   ConvexError,
   convexToJson,
@@ -9,6 +10,8 @@ import {
   type DatabaseReader,
   type DatabaseWriter,
   internalMutation,
+  internalQuery,
+  type MutationCtx,
   query,
 } from "./_generated/server.js";
 import type { Doc, Id } from "./_generated/dataModel.js";
@@ -18,8 +21,9 @@ import {
   type Aggregate,
   type Item,
   itemValidator,
+  type Operation,
 } from "./schema.js";
-import { internal } from "./_generated/api.js";
+import { components, internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;
 export const DEFAULT_MAX_NODE_SIZE = 16;
@@ -41,6 +45,111 @@ function log(s: string) {
     console.log(s);
   }
 }
+
+export async function assertNoPendingOps(ctx: { db: DatabaseReader }) {
+  // Reading establishes the read dependency on pendingOps: an OCC conflict for
+  // mutations, and reactive re-run for queries, once the queue drains.
+  const pending = await ctx.db.query("pendingOps").first();
+  if (pending) {
+    throw new ConvexError({
+      code: "PENDING_OPS",
+      message:
+        "pendingOps is non-empty; use { stale: true } or wait for the queue to drain.",
+    });
+  }
+}
+
+// Max operations applied in a single transaction, so we stay within Convex's
+// per-transaction read/write limits. A batch is applied whole in one
+// transaction, so this caps a batch's size: enqueueOperations and
+// applyOperations reject anything larger, ensuring every batch can be drained.
+const MAX_OPS_PER_BATCH = 100;
+
+// Max operations one worker cycle drains across batches. processBatch applies
+// all of a cycle's batches in a single transaction, so this bounds that
+// transaction; it must be >= MAX_OPS_PER_BATCH so a single batch always fits.
+const MAX_OPS_PER_CYCLE = 100;
+
+// Enqueue a group of operations as one atomic batch for the worker to drain
+// later. A single stale write is just a batch of one op.
+export async function enqueueOperations(
+  ctx: MutationCtx,
+  operations: Operation[],
+) {
+  if (operations.length === 0) {
+    return;
+  }
+  if (operations.length > MAX_OPS_PER_BATCH) {
+    throw new Error(
+      `Cannot enqueue a batch of ${operations.length} operations; the maximum ` +
+        `is ${MAX_OPS_PER_BATCH}. Split the writes across multiple batches.`,
+    );
+  }
+  const batchId = await ctx.db.insert("pendingBatches", {});
+  for (const [position, operation] of operations.entries()) {
+    await ctx.db.insert("pendingOps", { batchId, operation, position });
+  }
+  await ping(ctx, components.batchWorker, {
+    // TODO: explore separate queues by namespace
+    name: "ops",
+    workQuery: internal.btree.getBatch,
+    workerMutation: internal.btree.processBatch,
+  });
+}
+
+export const getBatch = internalQuery({
+  args: vBatchQueryArgs, // { name } — lets one query serve multiple queues
+  returns: vBatchResult(
+    v.object({ batchIds: v.array(v.id("pendingBatches")) }),
+  ),
+  handler: async (ctx) => {
+    // Take as many of the oldest batches as fit in one cycle's op budget. Each
+    // batch is still applied atomically as a unit in processBatch.
+    const batchIds: Id<"pendingBatches">[] = [];
+    let opCount = 0;
+    for await (const batch of ctx.db.query("pendingBatches")) {
+      const ops = await ctx.db
+        .query("pendingOps")
+        .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
+        .collect();
+      if (batchIds.length > 0 && opCount + ops.length > MAX_OPS_PER_CYCLE) {
+        break;
+      }
+      batchIds.push(batch._id);
+      opCount += ops.length;
+      if (opCount >= MAX_OPS_PER_CYCLE) {
+        break;
+      }
+    }
+    if (batchIds.length === 0) {
+      return { kind: "idle" as const };
+    }
+    return { kind: "work" as const, batch: { batchIds } };
+  },
+});
+
+export const processBatch = internalMutation({
+  args: { batchIds: v.array(v.id("pendingBatches")) },
+  handler: async (ctx, { batchIds }) => {
+    // Multiple batches per cycle, but each batch's operations are applied
+    // together as an ordered unit so an individual batch is never split.
+    for (const batchId of batchIds) {
+      const ops = await ctx.db
+        .query("pendingOps")
+        .withIndex("by_batch", (q) => q.eq("batchId", batchId))
+        .collect();
+      await applyOperations(
+        ctx,
+        ops.map((o) => o.operation),
+      );
+      for (const op of ops) {
+        await ctx.db.delete("pendingOps", op._id);
+      }
+      await ctx.db.delete("pendingBatches", batchId);
+    }
+    // Returning nothing re-runs immediately to drain any remaining batches.
+  },
+});
 
 export async function insertHandler(
   ctx: { db: DatabaseWriter },
@@ -112,9 +221,141 @@ export async function deleteHandler(
   }
 }
 
+export async function replaceHandler(
+  ctx: { db: DatabaseWriter },
+  args: {
+    currentKey: Key;
+    newKey: Key;
+    value: Value;
+    summand?: number;
+    namespace?: Namespace;
+    newNamespace?: Namespace;
+  },
+  treeArg?: Doc<"btree">,
+  newTreeArg?: Doc<"btree">,
+) {
+  await deleteHandler(
+    ctx,
+    { key: args.currentKey, namespace: args.namespace },
+    treeArg,
+  );
+  await insertHandler(
+    ctx,
+    {
+      key: args.newKey,
+      value: args.value,
+      summand: args.summand,
+      namespace: args.newNamespace,
+    },
+    newTreeArg,
+  );
+}
+
+export async function deleteIfExistsHandler(
+  ctx: { db: DatabaseWriter },
+  args: { key: Key; namespace?: Namespace },
+  treeArg?: Doc<"btree">,
+) {
+  try {
+    await deleteHandler(ctx, args, treeArg);
+  } catch (e) {
+    if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
+      return;
+    }
+    throw e;
+  }
+}
+
+export async function replaceOrInsertHandler(
+  ctx: { db: DatabaseWriter },
+  args: {
+    currentKey: Key;
+    newKey: Key;
+    value: Value;
+    summand?: number;
+    namespace?: Namespace;
+    newNamespace?: Namespace;
+  },
+  treeArg?: Doc<"btree">,
+  newTreeArg?: Doc<"btree">,
+) {
+  try {
+    await deleteHandler(
+      ctx,
+      { key: args.currentKey, namespace: args.namespace },
+      treeArg,
+    );
+  } catch (e) {
+    if (!(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")) {
+      throw e;
+    }
+  }
+  await insertHandler(
+    ctx,
+    {
+      key: args.newKey,
+      value: args.value,
+      summand: args.summand,
+      namespace: args.newNamespace,
+    },
+    newTreeArg,
+  );
+}
+
+// Apply a list of operations. Shared by the synchronous `batch` mutation and the
+// worker's `processBatch`. Each handler fetches its own tree at execution time
+// rather than reusing a cached doc: any operation can patch `btree.root` (a root
+// split on insert, a root collapse on delete), which would leave a cached
+// Doc<"btree"> pointing at a detached node for later ops.
+export async function applyOperations(
+  ctx: { db: DatabaseWriter },
+  operations: Operation[],
+) {
+  if (operations.length > MAX_OPS_PER_BATCH) {
+    throw new Error(
+      `Cannot apply a batch of ${operations.length} operations in one ` +
+        `transaction; the maximum is ${MAX_OPS_PER_BATCH}.`,
+    );
+  }
+  for (const op of operations) {
+    switch (op.type) {
+      case "insert": {
+        const { type: _, ...args } = op;
+        await insertHandler(ctx, args);
+        break;
+      }
+      case "delete": {
+        const { type: _, ...args } = op;
+        await deleteHandler(ctx, args);
+        break;
+      }
+      case "replace": {
+        const { type: _, ...args } = op;
+        await replaceHandler(ctx, args);
+        break;
+      }
+      case "deleteIfExists": {
+        const { type: _, ...args } = op;
+        await deleteIfExistsHandler(ctx, args);
+        break;
+      }
+      case "replaceOrInsert": {
+        const { type: _, ...args } = op;
+        await replaceOrInsertHandler(ctx, args);
+        break;
+      }
+      default:
+        op satisfies never;
+    }
+  }
+}
+
 export const validate = query({
-  args: { namespace: v.optional(v.any()) },
-  handler: validateTree,
+  args: { namespace: v.optional(v.any()), stale: v.optional(v.boolean()) },
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return validateTree(ctx, args);
+  },
 });
 
 export async function validateTree(
@@ -313,9 +554,13 @@ export const aggregateBetween = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: aggregate,
-  handler: aggregateBetweenHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return aggregateBetweenHandler(ctx, args);
+  },
 });
 
 async function aggregateBetweenInNode(
@@ -351,9 +596,16 @@ export async function getHandler(
 }
 
 export const get = query({
-  args: { key: v.any(), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
+  },
   returns: v.union(v.null(), itemValidator),
-  handler: getHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return getHandler(ctx, args);
+  },
 });
 
 async function getInNode(
@@ -385,9 +637,13 @@ export const atOffset = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: itemValidator,
-  handler: atOffsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return atOffsetHandler(ctx, args);
+  },
 });
 
 export async function atOffsetHandler(
@@ -413,9 +669,13 @@ export const atNegativeOffset = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: itemValidator,
-  handler: atNegativeOffsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return atNegativeOffsetHandler(ctx, args);
+  },
 });
 
 export async function atNegativeOffsetHandler(
@@ -460,9 +720,13 @@ export const offset = query({
     key: v.any(),
     k1: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.number(),
-  handler: offsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return offsetHandler(ctx, args);
+  },
 });
 
 export async function offsetUntilHandler(
@@ -484,9 +748,13 @@ export const offsetUntil = query({
     key: v.any(),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.number(),
-  handler: offsetUntilHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return offsetUntilHandler(ctx, args);
+  },
 });
 
 async function deleteFromNode(
@@ -1017,13 +1285,17 @@ export const paginate = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.object({
     page: v.array(itemValidator),
     cursor: v.string(),
     isDone: v.boolean(),
   }),
-  handler: paginateHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return paginateHandler(ctx, args);
+  },
 });
 
 export async function paginateHandler(
@@ -1132,13 +1404,17 @@ export const paginateNamespaces = query({
   args: {
     limit: v.number(),
     cursor: v.optional(v.string()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.object({
     page: v.array(v.any()),
     cursor: v.string(),
     isDone: v.boolean(),
   }),
-  handler: paginateNamespacesHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return paginateNamespacesHandler(ctx, args);
+  },
 });
 
 export async function paginateNamespacesHandler(
@@ -1178,9 +1454,13 @@ export const aggregateBetweenBatch = query({
         namespace: v.optional(v.any()),
       }),
     ),
+    stale: v.optional(v.boolean()),
   },
   returns: v.array(aggregate),
-  handler: aggregateBetweenBatchHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return aggregateBetweenBatchHandler(ctx, args);
+  },
 });
 
 export async function aggregateBetweenBatchHandler(
@@ -1202,9 +1482,13 @@ export const atOffsetBatch = query({
         namespace: v.optional(v.any()),
       }),
     ),
+    stale: v.optional(v.boolean()),
   },
   returns: v.array(itemValidator),
-  handler: atOffsetBatchHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOps(ctx);
+    return atOffsetBatchHandler(ctx, args);
+  },
 });
 
 // Differs from atOffset in that it handles negative offsets.

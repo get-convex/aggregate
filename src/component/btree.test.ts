@@ -1,11 +1,14 @@
-import { describe, expect, test } from "vitest";
-import { convexTest } from "convex-test";
-import schema, { type Item } from "./schema.js";
+import { describe, expect, test, vi } from "vitest";
+import { convexTest, type TestConvex } from "convex-test";
+import batchWorkerTest from "@convex-dev/batch-worker/test";
+import schema, { type Item, type Operation } from "./schema.js";
+import type { DatabaseWriter } from "./_generated/server.js";
 import { modules } from "./setup.test.js";
 import { test as fcTest, fc } from "@fast-check/vitest";
 import {
   atOffsetHandler,
   aggregateBetweenHandler,
+  assertNoPendingOps,
   deleteHandler,
   getHandler,
   insertHandler,
@@ -19,6 +22,7 @@ import {
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
 } from "./btree.js";
+import { api, internal } from "./_generated/api.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
 import { ConvexError, convexToJson, jsonToConvex } from "convex/values";
@@ -793,4 +797,193 @@ describe("btree matches simpler impl", () => {
       });
     },
   );
+});
+
+describe("stale / pendingOps", () => {
+  // The batch-worker is a child component; register it so `enqueue`'s ping has
+  // somewhere to land and the worker can drive getBatch/processBatch.
+  function setupTest(): TestConvex<typeof schema> {
+    const t = convexTest(schema, modules);
+    batchWorkerTest.register(t);
+    return t;
+  }
+
+  // Seed a batch directly, returning its id, so processBatch/getBatch can be
+  // unit-tested in isolation without driving the worker loop.
+  async function enqueueBatch(
+    ctx: { db: DatabaseWriter },
+    operations: Operation[],
+  ) {
+    const batchId = await ctx.db.insert("pendingBatches", {});
+    for (const [position, operation] of operations.entries()) {
+      await ctx.db.insert("pendingOps", { batchId, operation, position });
+    }
+    return batchId;
+  }
+
+  test("enqueue pings the worker, which drains the queue", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setupTest();
+      await t.run(async (ctx) => {
+        await getOrCreateTree(ctx.db, undefined, 4, false);
+      });
+      await t.mutation(api.public.enqueue, {
+        operations: [
+          { type: "insert", key: 1, value: "a" },
+          { type: "insert", key: 2, value: "b" },
+          { type: "delete", key: 1 },
+        ],
+      });
+      // The worker was pinged but hasn't run yet, so the queue is non-empty.
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("pendingBatches").first()).not.toBeNull();
+      });
+      // Drive the worker loop to completion.
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+        expect(await ctx.db.query("pendingOps").first()).toBeNull();
+        // 1 was inserted then deleted; 2 remains.
+        expect(await getHandler(ctx, { key: 1 })).toBeNull();
+        expect(await getHandler(ctx, { key: 2 })).toEqual({
+          k: 2,
+          v: "b",
+          s: 0,
+        });
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("enqueue drains multiple batches across worker cycles", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setupTest();
+      await t.run(async (ctx) => {
+        await getOrCreateTree(ctx.db, undefined, 4, false);
+      });
+      // Each enqueue call is its own transaction, so each becomes its own
+      // batch. 120 ops total exceeds MAX_OPS_PER_CYCLE (100), so the worker
+      // needs more than one cycle to drain them all.
+      const batchSizes = [40, 40, 40];
+      let key = 0;
+      for (const size of batchSizes) {
+        const operations = Array.from({ length: size }, () => ({
+          type: "insert" as const,
+          key: key++,
+          value: `v${key}`,
+        }));
+        await t.mutation(api.public.enqueue, { operations });
+      }
+      // All three batches are queued before the worker runs.
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("pendingBatches").collect()).toHaveLength(3);
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+        expect(await ctx.db.query("pendingOps").first()).toBeNull();
+        const { count } = await aggregateBetweenHandler(ctx, {});
+        expect(count).toEqual(120);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("assertNoPendingOps throws iff pendingOps is non-empty", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      // Empty queue: no throw.
+      await assertNoPendingOps(ctx);
+      await enqueueBatch(ctx, [{ type: "delete", key: 1 }]);
+      await expect(assertNoPendingOps(ctx)).rejects.toThrow(/pendingOps/);
+    });
+  });
+
+  test("processBatch applies a batch atomically and drains it", async () => {
+    const t = setupTest();
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [
+        { type: "insert", key: 1, value: "a" },
+        { type: "insert", key: 2, value: "b" },
+        { type: "delete", key: 1 },
+      ]);
+    });
+    await t.mutation(internal.btree.processBatch, { batchIds: [batchId] });
+    await t.run(async (ctx) => {
+      // Batch and its ops are drained.
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+      expect(await ctx.db.query("pendingOps").first()).toBeNull();
+      // 1 was inserted then deleted; 2 remains.
+      expect(await getHandler(ctx, { key: 1 })).toBeNull();
+      expect(await getHandler(ctx, { key: 2 })).toEqual({ k: 2, v: "b", s: 0 });
+    });
+  });
+
+  test("processBatch drains multiple batches in one cycle", async () => {
+    const t = setupTest();
+    const batchIds = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      const a = await enqueueBatch(ctx, [{ type: "insert", key: 1, value: "a" }]);
+      const b = await enqueueBatch(ctx, [
+        { type: "insert", key: 2, value: "b" },
+        { type: "insert", key: 3, value: "c" },
+      ]);
+      return [a, b];
+    });
+    await t.mutation(internal.btree.processBatch, { batchIds });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+      expect(await ctx.db.query("pendingOps").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(3);
+    });
+  });
+
+  test("processBatch tolerates a deleteIfExists of a missing key", async () => {
+    const t = setupTest();
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [{ type: "deleteIfExists", key: 99 }]);
+    });
+    // Does not throw; batch drains.
+    await t.mutation(internal.btree.processBatch, { batchIds: [batchId] });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+    });
+  });
+
+  test("processBatch surfaces a missing-key plain delete", async () => {
+    const t = setupTest();
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [{ type: "delete", key: 99 }]);
+    });
+    await expect(
+      t.mutation(internal.btree.processBatch, { batchIds: [batchId] }),
+    ).rejects.toThrow();
+  });
+
+  test("read query guards on pendingOps unless stale", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await enqueueBatch(ctx, [{ type: "insert", key: 3, value: "c" }]);
+    });
+    // Non-stale read throws while the queue is non-empty.
+    await expect(t.query(api.btree.aggregateBetween, {})).rejects.toThrow(
+      /pendingOps/,
+    );
+    // Stale read skips the guard and returns the current (stale) tree state.
+    const { count } = await t.query(api.btree.aggregateBetween, {
+      stale: true,
+    });
+    expect(count).toEqual(2);
+  });
 });
