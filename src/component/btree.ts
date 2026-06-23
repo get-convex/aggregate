@@ -42,6 +42,17 @@ function log(s: string) {
   }
 }
 
+export async function assertNoPendingOperations(ctx: { db: DatabaseReader }) {
+  const pending = await ctx.db.query("pendingOperations").first();
+  if (pending) {
+    throw new ConvexError({
+      code: "PENDING_OPERATIONS",
+      message:
+        "Cannot synchronously read or write to the aggregate while there are async updates enqueued.",
+    });
+  }
+}
+
 export async function insertHandler(
   ctx: { db: DatabaseWriter },
   args: { key: Key; value: Value; summand?: number; namespace?: Namespace },
@@ -170,8 +181,11 @@ export async function replaceOrInsertHandler(
 }
 
 export const validate = query({
-  args: { namespace: v.optional(v.any()) },
-  handler: validateTree,
+  args: { namespace: v.optional(v.any()), stale: v.optional(v.boolean()) },
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return validateTree(ctx, args);
+  },
 });
 
 export async function validateTree(
@@ -370,9 +384,13 @@ export const aggregateBetween = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: aggregate,
-  handler: aggregateBetweenHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return aggregateBetweenHandler(ctx, args);
+  },
 });
 
 async function aggregateBetweenInNode(
@@ -408,9 +426,16 @@ export async function getHandler(
 }
 
 export const get = query({
-  args: { key: v.any(), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
+  },
   returns: v.union(v.null(), itemValidator),
-  handler: getHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return getHandler(ctx, args);
+  },
 });
 
 async function getInNode(
@@ -442,9 +467,13 @@ export const atOffset = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: itemValidator,
-  handler: atOffsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return atOffsetHandler(ctx, args);
+  },
 });
 
 export async function atOffsetHandler(
@@ -470,9 +499,13 @@ export const atNegativeOffset = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: itemValidator,
-  handler: atNegativeOffsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return atNegativeOffsetHandler(ctx, args);
+  },
 });
 
 export async function atNegativeOffsetHandler(
@@ -517,9 +550,13 @@ export const offset = query({
     key: v.any(),
     k1: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.number(),
-  handler: offsetHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return offsetHandler(ctx, args);
+  },
 });
 
 export async function offsetUntilHandler(
@@ -541,9 +578,13 @@ export const offsetUntil = query({
     key: v.any(),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.number(),
-  handler: offsetUntilHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return offsetUntilHandler(ctx, args);
+  },
 });
 
 async function deleteFromNode(
@@ -1074,13 +1115,17 @@ export const paginate = query({
     k1: v.optional(v.any()),
     k2: v.optional(v.any()),
     namespace: v.optional(v.any()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.object({
     page: v.array(itemValidator),
     cursor: v.string(),
     isDone: v.boolean(),
   }),
-  handler: paginateHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return paginateHandler(ctx, args);
+  },
 });
 
 export async function paginateHandler(
@@ -1189,13 +1234,17 @@ export const paginateNamespaces = query({
   args: {
     limit: v.number(),
     cursor: v.optional(v.string()),
+    stale: v.optional(v.boolean()),
   },
   returns: v.object({
     page: v.array(v.any()),
     cursor: v.string(),
     isDone: v.boolean(),
   }),
-  handler: paginateNamespacesHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return paginateNamespacesHandler(ctx, args);
+  },
 });
 
 export async function paginateNamespacesHandler(
@@ -1235,9 +1284,13 @@ export const aggregateBetweenBatch = query({
         namespace: v.optional(v.any()),
       }),
     ),
+    stale: v.optional(v.boolean()),
   },
   returns: v.array(aggregate),
-  handler: aggregateBetweenBatchHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return aggregateBetweenBatchHandler(ctx, args);
+  },
 });
 
 export async function aggregateBetweenBatchHandler(
@@ -1259,9 +1312,13 @@ export const atOffsetBatch = query({
         namespace: v.optional(v.any()),
       }),
     ),
+    stale: v.optional(v.boolean()),
   },
   returns: v.array(itemValidator),
-  handler: atOffsetBatchHandler,
+  handler: async (ctx, { stale, ...args }) => {
+    if (!stale) await assertNoPendingOperations(ctx);
+    return atOffsetBatchHandler(ctx, args);
+  },
 });
 
 // Differs from atOffset in that it handles negative offsets.
