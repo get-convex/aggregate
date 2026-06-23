@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server.js";
 import {
+  assertNoPendingCommits,
   DEFAULT_MAX_NODE_SIZE,
   deleteHandler,
   deleteIfExistsHandler,
@@ -61,14 +62,20 @@ export const insert = mutation({
     namespace: v.optional(v.any()),
   },
   returns: v.null(),
-  handler: insertHandler,
+  handler: async (ctx, args) => {
+    await assertNoPendingCommits(ctx);
+    await insertHandler(ctx, args);
+  },
 });
 
 // delete is a keyword, hence the underscore.
 export const delete_ = mutation({
   args: { key: v.any(), namespace: v.optional(v.any()) },
   returns: v.null(),
-  handler: deleteHandler,
+  handler: async (ctx, args) => {
+    await assertNoPendingCommits(ctx);
+    await deleteHandler(ctx, args);
+  },
 });
 
 export const replace = mutation({
@@ -81,12 +88,18 @@ export const replace = mutation({
     newNamespace: v.optional(v.any()),
   },
   returns: v.null(),
-  handler: replaceHandler,
+  handler: async (ctx, args) => {
+    await assertNoPendingCommits(ctx);
+    await replaceHandler(ctx, args);
+  },
 });
 
 export const deleteIfExists = mutation({
   args: { key: v.any(), namespace: v.optional(v.any()) },
-  handler: deleteIfExistsHandler,
+  handler: async (ctx, args) => {
+    await assertNoPendingCommits(ctx);
+    await deleteIfExistsHandler(ctx, args);
+  },
 });
 
 export const replaceOrInsert = mutation({
@@ -98,7 +111,10 @@ export const replaceOrInsert = mutation({
     namespace: v.optional(v.any()),
     newNamespace: v.optional(v.any()),
   },
-  handler: replaceOrInsertHandler,
+  handler: async (ctx, args) => {
+    await assertNoPendingCommits(ctx);
+    await replaceOrInsertHandler(ctx, args);
+  },
 });
 
 /**
@@ -115,6 +131,7 @@ export const clear = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { maxNodeSize, rootLazy, namespace }) => {
+    await assertNoPendingCommits(ctx);
     const tree = await getTree(ctx.db, namespace);
     let existingRootLazy = true;
     let existingMaxNodeSize = DEFAULT_MAX_NODE_SIZE;

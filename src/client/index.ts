@@ -100,6 +100,7 @@ export class Aggregate<
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
+        stale: opts[0]?.stale,
       },
       opts[0]?.stale,
     );
@@ -127,6 +128,7 @@ export class Aggregate<
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
+        stale: opts?.stale,
       },
       opts?.stale,
     );
@@ -149,6 +151,7 @@ export class Aggregate<
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
+        stale: opts[0]?.stale,
       },
       opts[0]?.stale,
     );
@@ -176,6 +179,7 @@ export class Aggregate<
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
+        stale: opts?.stale,
       },
       opts?.stale,
     );
@@ -206,6 +210,7 @@ export class Aggregate<
           offset: -offset - 1,
           namespace: namespaceFromOpts(opts),
           ...boundsToPositions(opts[0]?.bounds),
+          stale: opts[0]?.stale,
         },
         opts[0]?.stale,
       );
@@ -218,6 +223,7 @@ export class Aggregate<
         offset,
         namespace: namespaceFromOpts(opts),
         ...boundsToPositions(opts[0]?.bounds),
+        stale: opts[0]?.stale,
       },
       opts[0]?.stale,
     );
@@ -245,6 +251,7 @@ export class Aggregate<
       this.component.btree.atOffsetBatch,
       {
         queries: queryArgs,
+        stale: opts?.stale,
       },
       opts?.stale,
     );
@@ -284,6 +291,7 @@ export class Aggregate<
           }),
           k2,
           namespace: namespaceFromOpts(opts),
+          stale: opts[0]?.stale,
         },
         opts[0]?.stale,
       );
@@ -299,6 +307,7 @@ export class Aggregate<
         }),
         k1,
         namespace: namespaceFromOpts(opts),
+        stale: opts[0]?.stale,
       },
       opts[0]?.stale,
     );
@@ -429,6 +438,7 @@ export class Aggregate<
         cursor: opts[0]?.cursor,
         order,
         limit: pageSize,
+        stale: opts[0]?.stale,
       },
       opts[0]?.stale,
     );
@@ -638,6 +648,7 @@ export class Aggregate<
       {
         cursor,
         limit: pageSize,
+        stale,
       },
       stale,
     );
