@@ -1,5 +1,8 @@
 import type {
   DocumentByName,
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
@@ -28,6 +31,42 @@ export type ActionCtx = Pick<
   GenericActionCtx<GenericDataModel>,
   "runQuery" | "runMutation" | "runAction"
 >;
+
+// A `stale: true` read reads from a snapshot, which is only possible from a
+// mutation (via `runQuery(..., { useStaleSnapshot: true })`) or an action (whose
+// `runQuery` already reads a fresh snapshot per call). Both have `runMutation`,
+// which a plain `QueryCtx` lacks — so passing `stale: true` from a query is a
+// compile error.
+export type StaleReadCtx = MutationCtx | ActionCtx;
+
+// Any ctx a read can run from. Read impls and helpers accept this; the public
+// overloads narrow it (QueryCtx for the default path, StaleReadCtx for stale).
+export type AnyReadCtx = QueryCtx | MutationCtx | ActionCtx;
+
+// Only a mutation ctx's `runQuery` accepts `{ useStaleSnapshot }`: a query ctx
+// lacks `runMutation`, and an action ctx has `runAction` (its `runQuery` is
+// already a fresh snapshot per call and takes no options).
+function isMutationCtx(ctx: AnyReadCtx): ctx is MutationCtx {
+  return "runMutation" in ctx && !("runAction" in ctx);
+}
+
+// Runs a component query, optionally against a stale snapshot. `stale` is passed
+// through to the query (so its handler skips the pendingOps guard) and, on a
+// mutation ctx, triggers a stale-snapshot read.
+async function runQuery<
+  Query extends FunctionReference<"query", "internal" | "public">,
+>(
+  ctx: AnyReadCtx,
+  query: Query,
+  args: FunctionArgs<Query>,
+  stale: boolean | undefined,
+): Promise<FunctionReturnType<Query>> {
+  const argsWithStale = { ...args, stale };
+  if (stale && isMutationCtx(ctx)) {
+    return ctx.runQuery(query, argsWithStale, { useStaleSnapshot: true });
+  }
+  return ctx.runQuery(query, argsWithStale);
+}
 
 export type Item<K extends Key, ID extends string> = {
   key: K;
@@ -93,6 +132,9 @@ export class Aggregate<
   Namespace extends ConvexValue | undefined = undefined,
 > {
   private isBuffering = false;
+  // Whether the active buffer enqueues to the stale queue (true) or flushes
+  // synchronously (false). A stale write into a non-stale buffer throws.
+  private bufferStale = false;
   private currentFlushPromise: Promise<unknown> | null = null;
   private operationQueue: BufferedOperation[] = [];
 
@@ -110,9 +152,14 @@ export class Aggregate<
    * aggregate.insert(ctx, { key: 2, id: "b" });
    * await aggregate.finishBuffering(ctx); // Send all buffered operations
    * ```
+   *
+   * Pass `{ stale: true }` to enqueue the buffered operations to the async queue
+   * on flush instead of applying them synchronously. While a non-stale buffer is
+   * active, a write with `stale: true` throws.
    */
-  startBuffering(): void {
+  startBuffering(opts?: { stale?: boolean }): void {
     this.isBuffering = true;
+    this.bufferStale = opts?.stale ?? false;
   }
 
   /**
@@ -129,7 +176,7 @@ export class Aggregate<
    * Called automatically before any read operation when buffering is enabled.
    */
   async flush(
-    ctx: MutationCtx,
+    ctx: MutationCtx | ActionCtx,
     opts?: { stopBuffering?: boolean },
   ): Promise<void> {
     const { stopBuffering = false } = opts ?? {};
@@ -137,24 +184,27 @@ export class Aggregate<
       await this.currentFlushPromise;
     }
     // start critical section (no awaiting allowed)
+    const stale = this.bufferStale;
     if (stopBuffering) {
       this.isBuffering = false;
+      this.bufferStale = false;
     }
     if (this.operationQueue.length === 0) {
       return;
     }
     const operations = this.operationQueue;
     this.operationQueue = [];
+    const flushMutation = stale
+      ? this.component.public.enqueue
+      : this.component.public.batch;
     this.currentFlushPromise = ctx
-      .runMutation(this.component.public.batch, {
-        operations,
-      })
+      .runMutation(flushMutation, { operations })
       .then(() => (this.currentFlushPromise = null));
     // end critical section
     await this.currentFlushPromise;
   }
 
-  private async flushBeforeRead(ctx: QueryCtx | MutationCtx) {
+  private async flushBeforeRead(ctx: AnyReadCtx) {
     if (this.isBuffering && this.operationQueue.length > 0) {
       if (!("runMutation" in ctx)) {
         throw new Error(
@@ -168,22 +218,48 @@ export class Aggregate<
     }
   }
 
+  // If buffering, queue the op and return true (caller returns early). A stale
+  // write into a non-stale buffer is a mode mismatch and throws.
+  private bufferOp(op: BufferedOperation, stale?: boolean): boolean {
+    if (!this.isBuffering) {
+      return false;
+    }
+    if (stale && !this.bufferStale) {
+      throw new Error(
+        "Cannot perform a stale write in a non-stale buffer; " +
+          "start buffering with { stale: true }.",
+      );
+    }
+    this.operationQueue.push(op);
+    return true;
+  }
+
   /// Aggregate queries.
 
   /**
    * Counts items between the given bounds.
    */
+  count(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number>;
+  count(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number>;
   async count(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<number> {
     await this.flushBeforeRead(ctx);
-    const { count } = await ctx.runQuery(
+    const { count } = await runQuery(
+      ctx,
       this.component.btree.aggregateBetween,
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
       },
+      opts[0]?.stale,
     );
     return count;
   }
@@ -191,9 +267,20 @@ export class Aggregate<
   /**
    * Batch version of count() - counts items for multiple bounds in a single call.
    */
-  async countBatch(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+  countBatch(
+    ctx: AnyReadCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: false },
+  ): Promise<number[]>;
+  countBatch(
+    ctx: StaleReadCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts: { stale: true },
+  ): Promise<number[]>;
+  async countBatch(
+    ctx: AnyReadCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: boolean },
   ): Promise<number[]> {
     await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((query) => {
@@ -204,11 +291,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.stale,
     );
     return results.map((result: { count: number }) => result.count);
   }
@@ -216,24 +305,48 @@ export class Aggregate<
   /**
    * Adds up the sumValue of items between the given bounds.
    */
+  sum(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number>;
+  sum(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<number>;
   async sum(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<number> {
     await this.flushBeforeRead(ctx);
-    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
-      ...boundsToPositions(opts[0]?.bounds),
-      namespace: namespaceFromOpts(opts),
-    });
+    const { sum } = await runQuery(
+      ctx,
+      this.component.btree.aggregateBetween,
+      {
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
+      },
+      opts[0]?.stale,
+    );
     return sum;
   }
 
   /**
    * Batch version of sum() - sums items for multiple bounds in a single call.
    */
-  async sumBatch(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+  sumBatch(
+    ctx: AnyReadCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: false },
+  ): Promise<number[]>;
+  sumBatch(
+    ctx: StaleReadCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts: { stale: true },
+  ): Promise<number[]>;
+  async sumBatch(
+    ctx: AnyReadCtx,
+    queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: boolean },
   ): Promise<number[]> {
     await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((query) => {
@@ -244,11 +357,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.stale,
     );
     return results.map((result: { sum: number }) => result.sum);
   }
@@ -261,36 +376,74 @@ export class Aggregate<
    * If offset is negative, it counts from the end of the list, so at(-1) is the
    * item with the largest key within the bounds.
    */
-  async at(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+  at(
+    ctx: AnyReadCtx,
     offset: number,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID>>;
+  at(
+    ctx: StaleReadCtx,
+    offset: number,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID>>;
+  async at(
+    ctx: AnyReadCtx,
+    offset: number,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<Item<K, ID>> {
     await this.flushBeforeRead(ctx);
+    const stale = opts[0]?.stale;
     if (offset < 0) {
-      const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
-        offset: -offset - 1,
-        namespace: namespaceFromOpts(opts),
-        ...boundsToPositions(opts[0]?.bounds),
-      });
+      const item = await runQuery(
+        ctx,
+        this.component.btree.atNegativeOffset,
+        {
+          offset: -offset - 1,
+          namespace: namespaceFromOpts(opts),
+          ...boundsToPositions(opts[0]?.bounds),
+        },
+        stale,
+      );
       return btreeItemToAggregateItem(item);
     }
-    const item = await ctx.runQuery(this.component.btree.atOffset, {
-      offset,
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-    });
+    const item = await runQuery(
+      ctx,
+      this.component.btree.atOffset,
+      {
+        offset,
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+      },
+      stale,
+    );
     return btreeItemToAggregateItem(item);
   }
   /**
    * Batch version of at() - returns items at multiple offsets in a single call.
    */
-  async atBatch(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+  atBatch(
+    ctx: AnyReadCtx,
     queries: NamespacedOptsBatch<
       { offset: number; bounds?: Bounds<K, ID> },
       Namespace
     >,
+    opts?: { stale?: false },
+  ): Promise<Item<K, ID>[]>;
+  atBatch(
+    ctx: StaleReadCtx,
+    queries: NamespacedOptsBatch<
+      { offset: number; bounds?: Bounds<K, ID> },
+      Namespace
+    >,
+    opts: { stale: true },
+  ): Promise<Item<K, ID>[]>;
+  async atBatch(
+    ctx: AnyReadCtx,
+    queries: NamespacedOptsBatch<
+      { offset: number; bounds?: Bounds<K, ID> },
+      Namespace
+    >,
+    opts?: { stale?: boolean },
   ): Promise<Item<K, ID>[]> {
     await this.flushBeforeRead(ctx);
     const queryArgs = queries.map((q) => ({
@@ -299,9 +452,14 @@ export class Aggregate<
       namespace: namespaceFromArg(q),
     }));
 
-    const results = await ctx.runQuery(this.component.btree.atOffsetBatch, {
-      queries: queryArgs,
-    });
+    const results = await runQuery(
+      ctx,
+      this.component.btree.atOffsetBatch,
+      {
+        queries: queryArgs,
+      },
+      opts?.stale,
+    );
 
     return results.map(btreeItemToAggregateItem<K, ID>);
   }
@@ -312,38 +470,65 @@ export class Aggregate<
    * - key >= the given key if `order` is "asc" (default)
    * - key <= the given key if `order` is "desc"
    */
+  indexOf(
+    ctx: AnyReadCtx,
+    key: K,
+    ...opts: NamespacedReadOpts<
+      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      Namespace
+    >
+  ): Promise<number>;
+  indexOf(
+    ctx: StaleReadCtx,
+    key: K,
+    ...opts: NamespacedStaleReadOpts<
+      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      Namespace
+    >
+  ): Promise<number>;
   async indexOf(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     key: K,
     ...opts: NamespacedOpts<
-      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc"; stale?: boolean },
       Namespace
     >
   ): Promise<number> {
     await this.flushBeforeRead(ctx);
     const { k1, k2 } = boundsToPositions(opts[0]?.bounds);
+    const stale = opts[0]?.stale;
     if (opts[0]?.order === "desc") {
-      return await ctx.runQuery(this.component.btree.offsetUntil, {
-        key: boundToPosition("upper", {
-          key,
-          id: opts[0]?.id,
-          inclusive: true,
-        }),
-        k2,
-        namespace: namespaceFromOpts(opts),
-      });
+      return await runQuery(
+        ctx,
+        this.component.btree.offsetUntil,
+        {
+          key: boundToPosition("upper", {
+            key,
+            id: opts[0]?.id,
+            inclusive: true,
+          }),
+          k2,
+          namespace: namespaceFromOpts(opts),
+        },
+        stale,
+      );
     }
-    return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id: opts[0]?.id, inclusive: true }),
-      k1,
-      namespace: namespaceFromOpts(opts),
-    });
+    return await runQuery(
+      ctx,
+      this.component.btree.offset,
+      {
+        key: boundToPosition("lower", { key, id: opts[0]?.id, inclusive: true }),
+        k1,
+        namespace: namespaceFromOpts(opts),
+      },
+      stale,
+    );
   }
   /**
    * @deprecated Use `indexOf` instead.
    */
   async offsetOf(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     key: K,
     namespace: Namespace,
     id?: ID,
@@ -355,7 +540,7 @@ export class Aggregate<
    * @deprecated Use `indexOf` instead.
    */
   async offsetUntil(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     key: K,
     namespace: Namespace,
     id?: ID,
@@ -367,59 +552,133 @@ export class Aggregate<
   /**
    * Gets the minimum item within the given bounds.
    */
+  min(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
+  min(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
   async min(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const { page } = await this.paginate(ctx, {
-      namespace: namespaceFromOpts(opts),
-      bounds: opts[0]?.bounds,
-      order: "asc",
-      pageSize: 1,
-    });
+    const { page } = await this.firstPage(ctx, "asc", opts);
     return page[0] ?? null;
   }
   /**
    * Gets the maximum item within the given bounds.
    */
+  max(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
+  max(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
   async max(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const { page } = await this.paginate(ctx, {
+    const { page } = await this.firstPage(ctx, "desc", opts);
+    return page[0] ?? null;
+  }
+  // Shared by min/max: a single-item page in the given order, forwarding stale to
+  // the right paginate overload.
+  private firstPage(
+    ctx: AnyReadCtx,
+    order: "asc" | "desc",
+    opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>,
+  ): Promise<{ page: Item<K, ID>[]; cursor: string; isDone: boolean }> {
+    const args = {
       namespace: namespaceFromOpts(opts),
       bounds: opts[0]?.bounds,
-      order: "desc",
+      order,
       pageSize: 1,
-    });
-    return page[0] ?? null;
+    } as { namespace: Namespace; bounds?: Bounds<K, ID>; order: "asc" | "desc"; pageSize: number };
+    if (opts[0]?.stale) {
+      return this.paginate(ctx as StaleReadCtx, { ...args, stale: true });
+    }
+    return this.paginate(ctx, args);
   }
   /**
    * Gets a uniformly random item within the given bounds.
    */
+  random(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
+  random(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+  ): Promise<Item<K, ID> | null>;
   async random(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID>; stale?: boolean }, Namespace>
   ): Promise<Item<K, ID> | null> {
-    const count = await this.count(ctx, ...opts);
+    if (opts[0]?.stale) {
+      const staleCtx = ctx as StaleReadCtx;
+      const staleOpts = opts as NamespacedStaleReadOpts<
+        { bounds?: Bounds<K, ID> },
+        Namespace
+      >;
+      const count = await this.count(staleCtx, ...staleOpts);
+      if (count === 0) {
+        return null;
+      }
+      const index = Math.floor(Math.random() * count);
+      return await this.at(staleCtx, index, ...staleOpts);
+    }
+    const nonStaleOpts = opts as NamespacedReadOpts<
+      { bounds?: Bounds<K, ID> },
+      Namespace
+    >;
+    const count = await this.count(ctx, ...nonStaleOpts);
     if (count === 0) {
       return null;
     }
     const index = Math.floor(Math.random() * count);
-    return await this.at(ctx, index, ...opts);
+    return await this.at(ctx, index, ...nonStaleOpts);
   }
   /**
    * Get a page of items between the given bounds, with a cursor to paginate.
    * Use `iter` to iterate over all items within the bounds.
    */
+  paginate(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<
+      {
+        bounds?: Bounds<K, ID>;
+        cursor?: string;
+        order?: "asc" | "desc";
+        pageSize?: number;
+      },
+      Namespace
+    >
+  ): Promise<{ page: Item<K, ID>[]; cursor: string; isDone: boolean }>;
+  paginate(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<
+      {
+        bounds?: Bounds<K, ID>;
+        cursor?: string;
+        order?: "asc" | "desc";
+        pageSize?: number;
+      },
+      Namespace
+    >
+  ): Promise<{ page: Item<K, ID>[]; cursor: string; isDone: boolean }>;
   async paginate(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     ...opts: NamespacedOpts<
       {
         bounds?: Bounds<K, ID>;
         cursor?: string;
         order?: "asc" | "desc";
         pageSize?: number;
+        stale?: boolean;
       },
       Namespace
     >
@@ -431,13 +690,18 @@ export class Aggregate<
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginate, {
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-      cursor: opts[0]?.cursor,
-      order,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginate,
+      {
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+        cursor: opts[0]?.cursor,
+        order,
+        limit: pageSize,
+      },
+      opts[0]?.stale,
+    );
     return {
       page: page.map(btreeItemToAggregateItem<K, ID>),
       cursor: newCursor,
@@ -452,10 +716,29 @@ export class Aggregate<
    * }
    * ```
    */
-  async *iter(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<
+  iter(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedReadOpts<
       { bounds?: Bounds<K, ID>; order?: "asc" | "desc"; pageSize?: number },
+      Namespace
+    >
+  ): AsyncGenerator<Item<K, ID>, void, undefined>;
+  iter(
+    ctx: StaleReadCtx,
+    ...opts: NamespacedStaleReadOpts<
+      { bounds?: Bounds<K, ID>; order?: "asc" | "desc"; pageSize?: number },
+      Namespace
+    >
+  ): AsyncGenerator<Item<K, ID>, void, undefined>;
+  async *iter(
+    ctx: AnyReadCtx,
+    ...opts: NamespacedOpts<
+      {
+        bounds?: Bounds<K, ID>;
+        order?: "asc" | "desc";
+        pageSize?: number;
+        stale?: boolean;
+      },
       Namespace
     >
   ): AsyncGenerator<Item<K, ID>, void, undefined> {
@@ -463,20 +746,27 @@ export class Aggregate<
     const pageSize = opts[0]?.pageSize ?? 100;
     const bounds = opts[0]?.bounds;
     const namespace = namespaceFromOpts(opts);
+    const stale = opts[0]?.stale;
     let isDone = false;
     let cursor: string | undefined = undefined;
     while (!isDone) {
+      const args = { namespace, bounds, cursor, order, pageSize } as {
+        namespace: Namespace;
+        bounds?: Bounds<K, ID>;
+        cursor?: string;
+        order: "asc" | "desc";
+        pageSize: number;
+      };
       const {
         page,
         cursor: newCursor,
         isDone: newIsDone,
-      } = await this.paginate(ctx, {
-        namespace,
-        bounds,
-        cursor,
-        order,
-        pageSize,
-      });
+      }: { page: Item<K, ID>[]; cursor: string; isDone: boolean } = stale
+        ? await this.paginate(ctx as StaleReadCtx, {
+            ...args,
+            stale: true,
+          })
+        : await this.paginate(ctx, args);
       for (const item of page) {
         yield item;
       }
@@ -492,30 +782,42 @@ export class Aggregate<
     key: K,
     id: ID,
     summand?: number,
+    stale?: boolean,
   ): Promise<void> {
     const args = { key: keyToPosition(key, id), summand, value: id, namespace };
-    if (this.isBuffering) {
-      this.operationQueue.push({ type: "insert", ...args });
+    const op = { type: "insert" as const, ...args };
+    if (this.bufferOp(op, stale)) {
       return;
-    } else if (this.currentFlushPromise) {
+    }
+    if (this.currentFlushPromise) {
       await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.insert, args);
+    if (stale) {
+      await ctx.runMutation(this.component.public.enqueue, { operations: [op] });
+    } else {
+      await ctx.runMutation(this.component.public.insert, args);
+    }
   }
   async _delete(
     ctx: MutationCtx | ActionCtx,
     namespace: Namespace,
     key: K,
     id: ID,
+    stale?: boolean,
   ): Promise<void> {
     const args = { key: keyToPosition(key, id), namespace };
-    if (this.isBuffering) {
-      this.operationQueue.push({ type: "delete", ...args });
+    const op = { type: "delete" as const, ...args };
+    if (this.bufferOp(op, stale)) {
       return;
-    } else if (this.currentFlushPromise) {
+    }
+    if (this.currentFlushPromise) {
       await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.delete_, args);
+    if (stale) {
+      await ctx.runMutation(this.component.public.enqueue, { operations: [op] });
+    } else {
+      await ctx.runMutation(this.component.public.delete_, args);
+    }
   }
   async _replace(
     ctx: MutationCtx | ActionCtx,
@@ -525,6 +827,7 @@ export class Aggregate<
     newKey: K,
     id: ID,
     summand?: number,
+    stale?: boolean,
   ): Promise<void> {
     const args = {
       currentKey: keyToPosition(currentKey, id),
@@ -534,13 +837,18 @@ export class Aggregate<
       namespace: currentNamespace,
       newNamespace,
     };
-    if (this.isBuffering) {
-      this.operationQueue.push({ type: "replace", ...args });
+    const op = { type: "replace" as const, ...args };
+    if (this.bufferOp(op, stale)) {
       return;
-    } else if (this.currentFlushPromise) {
+    }
+    if (this.currentFlushPromise) {
       await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.replace, args);
+    if (stale) {
+      await ctx.runMutation(this.component.public.enqueue, { operations: [op] });
+    } else {
+      await ctx.runMutation(this.component.public.replace, args);
+    }
   }
   async _insertIfDoesNotExist(
     ctx: MutationCtx | ActionCtx,
@@ -548,6 +856,7 @@ export class Aggregate<
     key: K,
     id: ID,
     summand?: number,
+    stale?: boolean,
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
@@ -557,6 +866,7 @@ export class Aggregate<
       key,
       id,
       summand,
+      stale,
     );
   }
   async _deleteIfExists(
@@ -564,21 +874,24 @@ export class Aggregate<
     namespace: Namespace,
     key: K,
     id: ID,
+    stale?: boolean,
   ): Promise<void> {
     const args = {
       key: keyToPosition(key, id),
       namespace,
     };
-    if (this.isBuffering) {
-      this.operationQueue.push({
-        type: "deleteIfExists",
-        ...args,
-      });
+    const op = { type: "deleteIfExists" as const, ...args };
+    if (this.bufferOp(op, stale)) {
       return;
-    } else if (this.currentFlushPromise) {
+    }
+    if (this.currentFlushPromise) {
       await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.deleteIfExists, args);
+    if (stale) {
+      await ctx.runMutation(this.component.public.enqueue, { operations: [op] });
+    } else {
+      await ctx.runMutation(this.component.public.deleteIfExists, args);
+    }
   }
   async _replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
@@ -588,6 +901,7 @@ export class Aggregate<
     newKey: K,
     id: ID,
     summand?: number,
+    stale?: boolean,
   ): Promise<void> {
     const args = {
       currentKey: keyToPosition(currentKey, id),
@@ -597,13 +911,18 @@ export class Aggregate<
       namespace: currentNamespace,
       newNamespace,
     };
-    if (this.isBuffering) {
-      this.operationQueue.push({ type: "replaceOrInsert", ...args });
+    const op = { type: "replaceOrInsert" as const, ...args };
+    if (this.bufferOp(op, stale)) {
       return;
-    } else if (this.currentFlushPromise) {
+    }
+    if (this.currentFlushPromise) {
       await this.currentFlushPromise;
     }
-    await ctx.runMutation(this.component.public.replaceOrInsert, args);
+    if (stale) {
+      await ctx.runMutation(this.component.public.enqueue, { operations: [op] });
+    } else {
+      await ctx.runMutation(this.component.public.replaceOrInsert, args);
+    }
   }
 
   /// Initialization and maintenance.
@@ -652,20 +971,38 @@ export class Aggregate<
     await ctx.runMutation(this.component.public.makeRootLazy, { namespace });
   }
 
+  paginateNamespaces(
+    ctx: AnyReadCtx,
+    cursor?: string,
+    pageSize?: number,
+    opts?: { stale?: false },
+  ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }>;
+  paginateNamespaces(
+    ctx: StaleReadCtx,
+    cursor: string | undefined,
+    pageSize: number | undefined,
+    opts: { stale: true },
+  ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }>;
   async paginateNamespaces(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     cursor?: string,
     pageSize: number = 100,
+    opts?: { stale?: boolean },
   ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
     await this.flushBeforeRead(ctx);
     const {
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginateNamespaces, {
-      cursor,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginateNamespaces,
+      {
+        cursor,
+        limit: pageSize,
+      },
+      opts?.stale,
+    );
     return {
       page: page as Namespace[],
       cursor: newCursor,
@@ -673,9 +1010,20 @@ export class Aggregate<
     };
   }
 
+  iterNamespaces(
+    ctx: AnyReadCtx,
+    pageSize?: number,
+    opts?: { stale?: false },
+  ): AsyncGenerator<Namespace, void, undefined>;
+  iterNamespaces(
+    ctx: StaleReadCtx,
+    pageSize: number | undefined,
+    opts: { stale: true },
+  ): AsyncGenerator<Namespace, void, undefined>;
   async *iterNamespaces(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     pageSize: number = 100,
+    opts?: { stale?: boolean },
   ): AsyncGenerator<Namespace, void, undefined> {
     let isDone = false;
     let cursor: string | undefined = undefined;
@@ -684,7 +1032,14 @@ export class Aggregate<
         page,
         cursor: newCursor,
         isDone: newIsDone,
-      } = await this.paginateNamespaces(ctx, cursor, pageSize);
+      }: { page: Namespace[]; cursor: string; isDone: boolean } = opts?.stale
+        ? await this.paginateNamespaces(
+            ctx as StaleReadCtx,
+            cursor,
+            pageSize,
+            { stale: true },
+          )
+        : await this.paginateNamespaces(ctx, cursor, pageSize);
       for (const item of page) {
         yield item ?? (undefined as Namespace);
       }
@@ -751,7 +1106,7 @@ export class DirectAggregate<
   async insert(
     ctx: MutationCtx | ActionCtx,
     args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"]; sumValue?: number },
+      { key: T["Key"]; id: T["Id"]; sumValue?: number; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
@@ -761,6 +1116,7 @@ export class DirectAggregate<
       args.key,
       args.id,
       args.sumValue,
+      args.stale,
     );
   }
   /**
@@ -770,11 +1126,17 @@ export class DirectAggregate<
   async delete(
     ctx: MutationCtx | ActionCtx,
     args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
+      { key: T["Key"]; id: T["Id"]; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
-    await this._delete(ctx, namespaceFromArg(args), args.key, args.id);
+    await this._delete(
+      ctx,
+      namespaceFromArg(args),
+      args.key,
+      args.id,
+      args.stale,
+    );
   }
   /**
    * Update an existing item in the data structure.
@@ -788,7 +1150,7 @@ export class DirectAggregate<
       DirectAggregateNamespace<T>
     >,
     newItem: NamespacedArgs<
-      { key: T["Key"]; sumValue?: number },
+      { key: T["Key"]; sumValue?: number; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
@@ -800,6 +1162,7 @@ export class DirectAggregate<
       newItem.key,
       currentItem.id,
       newItem.sumValue,
+      newItem.stale,
     );
   }
   /**
@@ -813,7 +1176,7 @@ export class DirectAggregate<
   async insertIfDoesNotExist(
     ctx: MutationCtx | ActionCtx,
     args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"]; sumValue?: number },
+      { key: T["Key"]; id: T["Id"]; sumValue?: number; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
@@ -823,16 +1186,23 @@ export class DirectAggregate<
       args.key,
       args.id,
       args.sumValue,
+      args.stale,
     );
   }
   async deleteIfExists(
     ctx: MutationCtx | ActionCtx,
     args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
+      { key: T["Key"]; id: T["Id"]; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
-    await this._deleteIfExists(ctx, namespaceFromArg(args), args.key, args.id);
+    await this._deleteIfExists(
+      ctx,
+      namespaceFromArg(args),
+      args.key,
+      args.id,
+      args.stale,
+    );
   }
   async replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
@@ -841,7 +1211,7 @@ export class DirectAggregate<
       DirectAggregateNamespace<T>
     >,
     newItem: NamespacedArgs<
-      { key: T["Key"]; sumValue?: number },
+      { key: T["Key"]; sumValue?: number; stale?: boolean },
       DirectAggregateNamespace<T>
     >,
   ): Promise<void> {
@@ -853,6 +1223,7 @@ export class DirectAggregate<
       newItem.key,
       currentItem.id,
       newItem.sumValue,
+      newItem.stale,
     );
   }
 }
@@ -918,6 +1289,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   async insert(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._insert(
       ctx,
@@ -925,23 +1297,27 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc),
+      opts?.stale,
     );
   }
   async delete(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._delete(
       ctx,
       this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
+      opts?.stale,
     );
   }
   async replace(
     ctx: MutationCtx | ActionCtx,
     oldDoc: TableAggregateDocument<T>,
     newDoc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._replace(
       ctx,
@@ -951,11 +1327,13 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc),
+      opts?.stale,
     );
   }
   async insertIfDoesNotExist(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
@@ -963,23 +1341,27 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc),
+      opts?.stale,
     );
   }
   async deleteIfExists(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
       this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
+      opts?.stale,
     );
   }
   async replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
     oldDoc: TableAggregateDocument<T>,
     newDoc: TableAggregateDocument<T>,
+    opts?: { stale?: boolean },
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
@@ -989,6 +1371,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc),
+      opts?.stale,
     );
   }
   /**
@@ -1000,7 +1383,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
    * - key <= the given doc's key if `order` is "desc"
    */
   async indexOfDoc(
-    ctx: QueryCtx | MutationCtx | ActionCtx,
+    ctx: AnyReadCtx,
     doc: TableAggregateDocument<T>,
     opts?: {
       id?: TableAggregateId<T>;
@@ -1094,6 +1477,17 @@ export type NamespacedOpts<Opts, Namespace> =
 
 export type NamespacedOptsBatch<Opts, Namespace> = Array<
   undefined extends Namespace ? Opts : { namespace: Namespace } & Opts
+>;
+
+// Read-method option helpers. The non-stale overload forbids `stale: true` (so it
+// can't be paired with a plain query ctx), while the stale overload requires it.
+export type NamespacedReadOpts<Opts, Namespace> = NamespacedOpts<
+  Opts & { stale?: false },
+  Namespace
+>;
+export type NamespacedStaleReadOpts<Opts, Namespace> = NamespacedOpts<
+  Opts & { stale: true },
+  Namespace
 >;
 
 function namespaceFromArg<Namespace>(

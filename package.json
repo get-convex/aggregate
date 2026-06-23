@@ -60,6 +60,7 @@
     "convex": "^1.24.8"
   },
   "devDependencies": {
+    "@convex-dev/batch-worker": "^0.2.0",
     "@convex-dev/eslint-plugin": "2.0.0",
     "@convex-dev/migrations": "0.3.5",
     "@edge-runtime/vm": "5.0.0",

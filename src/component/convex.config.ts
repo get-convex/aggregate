@@ -1,3 +1,7 @@
 import { defineComponent } from "convex/server";
+import batchWorker from "@convex-dev/batch-worker/convex.config.js";
 
-export default defineComponent("aggregate");
+const component = defineComponent("aggregate");
+component.use(batchWorker)
+
+export default component;

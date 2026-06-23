@@ -29,6 +29,48 @@ export const aggregate = v.object({
 
 export type Aggregate = Infer<typeof aggregate>;
 
+// A single aggregate write operation. Shared by the synchronous `batch` mutation
+// and the stale queue (pendingOps), so both paths speak one operation model.
+export const vOperation = v.union(
+  v.object({
+    type: v.literal("insert"),
+    key: v.any(),
+    value: v.any(),
+    summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+  }),
+  v.object({
+    type: v.literal("delete"),
+    key: v.any(),
+    namespace: v.optional(v.any()),
+  }),
+  v.object({
+    type: v.literal("replace"),
+    currentKey: v.any(),
+    newKey: v.any(),
+    value: v.any(),
+    summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+    newNamespace: v.optional(v.any()),
+  }),
+  v.object({
+    type: v.literal("deleteIfExists"),
+    key: v.any(),
+    namespace: v.optional(v.any()),
+  }),
+  v.object({
+    type: v.literal("replaceOrInsert"),
+    currentKey: v.any(),
+    newKey: v.any(),
+    value: v.any(),
+    summand: v.optional(v.number()),
+    namespace: v.optional(v.any()),
+    newNamespace: v.optional(v.any()),
+  }),
+);
+
+export type Operation = Infer<typeof vOperation>;
+
 export default defineSchema({
   // One per namespace
   btree: defineTable({
@@ -41,4 +83,11 @@ export default defineSchema({
     subtrees: v.array(v.id("btreeNode")),
     aggregate: v.optional(aggregate),
   }),
+  // One row per group of operations enqueued together (stale mode). Drained
+  // atomically by the worker, one batch per iteration.
+  pendingBatches: defineTable({}),
+  pendingOps: defineTable({
+    batchId: v.id("pendingBatches"),
+    operation: vOperation,
+  }).index("by_batch", ["batchId"]),
 });

@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import schema, { type Item } from "./schema.js";
+import schema, { type Item, type Operation } from "./schema.js";
+import type { DatabaseWriter } from "./_generated/server.js";
 import { modules } from "./setup.test.js";
 import { test as fcTest, fc } from "@fast-check/vitest";
 import {
   atOffsetHandler,
   aggregateBetweenHandler,
+  assertNoPendingOps,
   deleteHandler,
   getHandler,
   insertHandler,
@@ -19,6 +21,7 @@ import {
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
 } from "./btree.js";
+import { api, internal } from "./_generated/api.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
 import { ConvexError, convexToJson, jsonToConvex } from "convex/values";
@@ -793,4 +796,113 @@ describe("btree matches simpler impl", () => {
       });
     },
   );
+});
+
+describe("stale / pendingOps", () => {
+  // Enqueue a batch of operations directly (bypassing enqueueOperations, which
+  // would ping the batch-worker component).
+  async function enqueueBatch(
+    ctx: { db: DatabaseWriter },
+    operations: Operation[],
+  ) {
+    const batchId = await ctx.db.insert("pendingBatches", {});
+    for (const operation of operations) {
+      await ctx.db.insert("pendingOps", { batchId, operation });
+    }
+    return batchId;
+  }
+
+  test("assertNoPendingOps throws iff pendingOps is non-empty", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      // Empty queue: no throw.
+      await assertNoPendingOps(ctx);
+      await enqueueBatch(ctx, [{ type: "delete", key: 1 }]);
+      await expect(assertNoPendingOps(ctx)).rejects.toThrow(/pendingOps/);
+    });
+  });
+
+  test("processBatch applies a batch atomically and drains it", async () => {
+    const t = convexTest(schema, modules);
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [
+        { type: "insert", key: 1, value: "a" },
+        { type: "insert", key: 2, value: "b" },
+        { type: "delete", key: 1 },
+      ]);
+    });
+    await t.mutation(internal.btree.processBatch, { batchIds: [batchId] });
+    await t.run(async (ctx) => {
+      // Batch and its ops are drained.
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+      expect(await ctx.db.query("pendingOps").first()).toBeNull();
+      // 1 was inserted then deleted; 2 remains.
+      expect(await getHandler(ctx, { key: 1 })).toBeNull();
+      expect(await getHandler(ctx, { key: 2 })).toEqual({ k: 2, v: "b", s: 0 });
+    });
+  });
+
+  test("processBatch drains multiple batches in one cycle", async () => {
+    const t = convexTest(schema, modules);
+    const batchIds = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      const a = await enqueueBatch(ctx, [{ type: "insert", key: 1, value: "a" }]);
+      const b = await enqueueBatch(ctx, [
+        { type: "insert", key: 2, value: "b" },
+        { type: "insert", key: 3, value: "c" },
+      ]);
+      return [a, b];
+    });
+    await t.mutation(internal.btree.processBatch, { batchIds });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+      expect(await ctx.db.query("pendingOps").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(3);
+    });
+  });
+
+  test("processBatch tolerates a deleteIfExists of a missing key", async () => {
+    const t = convexTest(schema, modules);
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [{ type: "deleteIfExists", key: 99 }]);
+    });
+    // Does not throw; batch drains.
+    await t.mutation(internal.btree.processBatch, { batchIds: [batchId] });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingBatches").first()).toBeNull();
+    });
+  });
+
+  test("processBatch surfaces a missing-key plain delete", async () => {
+    const t = convexTest(schema, modules);
+    const batchId = await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      return await enqueueBatch(ctx, [{ type: "delete", key: 99 }]);
+    });
+    await expect(
+      t.mutation(internal.btree.processBatch, { batchIds: [batchId] }),
+    ).rejects.toThrow();
+  });
+
+  test("read query guards on pendingOps unless stale", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await enqueueBatch(ctx, [{ type: "insert", key: 3, value: "c" }]);
+    });
+    // Non-stale read throws while the queue is non-empty.
+    await expect(t.query(api.btree.aggregateBetween, {})).rejects.toThrow(
+      /pendingOps/,
+    );
+    // Stale read skips the guard and returns the current (stale) tree state.
+    const { count } = await t.query(api.btree.aggregateBetween, {
+      stale: true,
+    });
+    expect(count).toEqual(2);
+  });
 });

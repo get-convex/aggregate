@@ -27,28 +27,43 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       aggregateBetween: FunctionReference<
         "query",
         "internal",
-        { k1?: any; k2?: any; namespace?: any },
+        { k1?: any; k2?: any; namespace?: any; stale?: boolean },
         { count: number; sum: number },
         Name
       >;
       aggregateBetweenBatch: FunctionReference<
         "query",
         "internal",
-        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        {
+          queries: Array<{ k1?: any; k2?: any; namespace?: any }>;
+          stale?: boolean;
+        },
         Array<{ count: number; sum: number }>,
         Name
       >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
-        { k1?: any; k2?: any; namespace?: any; offset: number },
+        {
+          k1?: any;
+          k2?: any;
+          namespace?: any;
+          offset: number;
+          stale?: boolean;
+        },
         { k: any; s: number; v: any },
         Name
       >;
       atOffset: FunctionReference<
         "query",
         "internal",
-        { k1?: any; k2?: any; namespace?: any; offset: number },
+        {
+          k1?: any;
+          k2?: any;
+          namespace?: any;
+          offset: number;
+          stale?: boolean;
+        },
         { k: any; s: number; v: any },
         Name
       >;
@@ -62,6 +77,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             namespace?: any;
             offset: number;
           }>;
+          stale?: boolean;
         },
         Array<{ k: any; s: number; v: any }>,
         Name
@@ -69,21 +85,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       get: FunctionReference<
         "query",
         "internal",
-        { key: any; namespace?: any },
+        { key: any; namespace?: any; stale?: boolean },
         null | { k: any; s: number; v: any },
         Name
       >;
       offset: FunctionReference<
         "query",
         "internal",
-        { k1?: any; key: any; namespace?: any },
+        { k1?: any; key: any; namespace?: any; stale?: boolean },
         number,
         Name
       >;
       offsetUntil: FunctionReference<
         "query",
         "internal",
-        { k2?: any; key: any; namespace?: any },
+        { k2?: any; key: any; namespace?: any; stale?: boolean },
         number,
         Name
       >;
@@ -97,6 +113,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           limit: number;
           namespace?: any;
           order: "asc" | "desc";
+          stale?: boolean;
         },
         {
           cursor: string;
@@ -108,14 +125,14 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       paginateNamespaces: FunctionReference<
         "query",
         "internal",
-        { cursor?: string; limit: number },
+        { cursor?: string; limit: number; stale?: boolean },
         { cursor: string; isDone: boolean; page: Array<any> },
         Name
       >;
       validate: FunctionReference<
         "query",
         "internal",
-        { namespace?: any },
+        { namespace?: any; stale?: boolean },
         any,
         Name
       >;
@@ -226,6 +243,43 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         { key: any; namespace?: any },
         any,
+        Name
+      >;
+      enqueue: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          operations: Array<
+            | {
+                key: any;
+                namespace?: any;
+                summand?: number;
+                type: "insert";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "delete" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replace";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replaceOrInsert";
+                value: any;
+              }
+          >;
+        },
+        null,
         Name
       >;
       init: FunctionReference<

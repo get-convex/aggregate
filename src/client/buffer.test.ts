@@ -47,3 +47,22 @@ test("buffer flush in mutation context", async () => {
     await aggregate.finishBuffering(ctx);
   });
 });
+
+test("stale write in a non-stale buffer throws", async () => {
+  const t = setupTest();
+  const aggregate = new DirectAggregate<{ Key: number; Id: string }>(
+    components.aggregate,
+  );
+  await t.run(async (ctx) => {
+    aggregate.startBuffering(); // non-stale buffer
+    await expect(
+      aggregate.insert(ctx, { key: 1, id: "a", stale: true }),
+    ).rejects.toThrow(/stale write/);
+  });
+});
+// Note: the end-to-end stale flush path (client flush -> public.batch(stale) ->
+// enqueueOperations -> ping) isn't exercised here because `ping` invokes the
+// nested `aggregate/batchWorker` component, which convex-test can't easily
+// register for a compiled node_modules component. The enqueue row shape and the
+// worker drain are covered by the component-level `stale / pendingOps` tests in
+// btree.test.ts.
