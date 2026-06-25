@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as batchedWrites from "../batchedWrites.js";
 import type * as btree from "../btree.js";
 import type * as crons from "../crons.js";
 import type * as leaderboard from "../leaderboard.js";
@@ -23,6 +24,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  batchedWrites: typeof batchedWrites;
   btree: typeof btree;
   crons: typeof crons;
   leaderboard: typeof leaderboard;
@@ -65,5 +67,6 @@ export declare const components: {
   photos: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"photos">;
   stats: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"stats">;
   btreeAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"btreeAggregate">;
+  batchedWrites: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"batchedWrites">;
   migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
 };

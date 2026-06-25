@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Enables buffering writes for performance when using triggers
+
 ## 0.2.2
 
 - Update ctx types for convex@1.41+
