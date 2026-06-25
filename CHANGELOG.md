@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Update ctx types for convex@1.41+
+
 ## 0.2.1
 
 - Allow passing { bounds: { eq: key }}, supporting non-array keys for counts
