@@ -60,6 +60,7 @@
     "convex": "^1.24.8"
   },
   "devDependencies": {
+    "@convex-dev/batch-worker": "^0.2.0",
     "@convex-dev/eslint-plugin": "2.0.0",
     "@convex-dev/migrations": "0.3.5",
     "@edge-runtime/vm": "5.0.0",
@@ -82,7 +83,7 @@
     "@vitest/coverage-v8": "4.1.7",
     "@xyflow/react": "12.10.2",
     "chokidar-cli": "3.0.0",
-    "convex": "1.39.1",
+    "convex": "1.42.1",
     "convex-helpers": "0.1.118",
     "convex-test": "0.0.53",
     "eslint": "9.39.4",
