@@ -1,5 +1,8 @@
 import type {
   DocumentByName,
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
@@ -28,6 +31,34 @@ export type ActionCtx = Pick<
   GenericActionCtx<GenericDataModel>,
   "runQuery" | "runMutation" | "runAction"
 >;
+
+function isMutationCtx(
+  ctx: QueryCtx | MutationCtx | ActionCtx,
+): ctx is MutationCtx {
+  return "runMutation" in ctx && !("runAction" in ctx);
+}
+
+// Helper function to run one of the component's queries.
+async function runQuery<
+  Query extends FunctionReference<"query", "internal" | "public">,
+>(
+  ctx: QueryCtx | MutationCtx | ActionCtx,
+  query: Query,
+  args: FunctionArgs<Query>,
+  lazy?: boolean,
+): Promise<FunctionReturnType<Query>> {
+  if (isMutationCtx(ctx)) {
+    // Run lazy reads with `useStaleSnapshot` in mutations to avoid OCC conflicts.
+    return await ctx.runQuery(
+      query,
+      args,
+      lazy ? { useStaleSnapshot: true } : undefined,
+    );
+  }
+  // `lazy` is ignored in actions and queries, where all reads may be stale.
+  // We will throw an error in queries if there are pending operations that have not been applied.
+  return await ctx.runQuery(query, args);
+}
 
 export type Item<K extends Key, ID extends string> = {
   key: K;
@@ -64,14 +95,19 @@ export class Aggregate<
    */
   async count(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; lazy?: boolean },
+      Namespace
+    >
   ): Promise<number> {
-    const { count } = await ctx.runQuery(
+    const { count } = await runQuery(
+      ctx,
       this.component.btree.aggregateBetween,
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
       },
+      opts[0]?.lazy,
     );
     return count;
   }
@@ -82,6 +118,7 @@ export class Aggregate<
   async countBatch(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { lazy?: boolean },
   ): Promise<number[]> {
     const queryArgs = queries.map((query) => {
       if (!query) {
@@ -91,11 +128,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.lazy,
     );
     return results.map((result: { count: number }) => result.count);
   }
@@ -105,12 +144,20 @@ export class Aggregate<
    */
   async sum(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; lazy?: boolean },
+      Namespace
+    >
   ): Promise<number> {
-    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
-      ...boundsToPositions(opts[0]?.bounds),
-      namespace: namespaceFromOpts(opts),
-    });
+    const { sum } = await runQuery(
+      ctx,
+      this.component.btree.aggregateBetween,
+      {
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
+      },
+      opts[0]?.lazy,
+    );
     return sum;
   }
 
@@ -120,6 +167,7 @@ export class Aggregate<
   async sumBatch(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { lazy?: boolean },
   ): Promise<number[]> {
     const queryArgs = queries.map((query) => {
       if (!query) {
@@ -129,11 +177,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.lazy,
     );
     return results.map((result: { sum: number }) => result.sum);
   }
@@ -149,21 +199,34 @@ export class Aggregate<
   async at(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     offset: number,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; lazy?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID>> {
     if (offset < 0) {
-      const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
-        offset: -offset - 1,
-        namespace: namespaceFromOpts(opts),
-        ...boundsToPositions(opts[0]?.bounds),
-      });
+      const item = await runQuery(
+        ctx,
+        this.component.btree.atNegativeOffset,
+        {
+          offset: -offset - 1,
+          namespace: namespaceFromOpts(opts),
+          ...boundsToPositions(opts[0]?.bounds),
+        },
+        opts[0]?.lazy,
+      );
       return btreeItemToAggregateItem(item);
     }
-    const item = await ctx.runQuery(this.component.btree.atOffset, {
-      offset,
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-    });
+    const item = await runQuery(
+      ctx,
+      this.component.btree.atOffset,
+      {
+        offset,
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+      },
+      opts[0]?.lazy,
+    );
     return btreeItemToAggregateItem(item);
   }
   /**
@@ -175,6 +238,7 @@ export class Aggregate<
       { offset: number; bounds?: Bounds<K, ID> },
       Namespace
     >,
+    opts?: { lazy?: boolean },
   ): Promise<Item<K, ID>[]> {
     const queryArgs = queries.map((q) => ({
       offset: q.offset,
@@ -182,9 +246,14 @@ export class Aggregate<
       namespace: namespaceFromArg(q),
     }));
 
-    const results = await ctx.runQuery(this.component.btree.atOffsetBatch, {
-      queries: queryArgs,
-    });
+    const results = await runQuery(
+      ctx,
+      this.component.btree.atOffsetBatch,
+      {
+        queries: queryArgs,
+      },
+      opts?.lazy,
+    );
 
     return results.map(btreeItemToAggregateItem<K, ID>);
   }
@@ -199,27 +268,46 @@ export class Aggregate<
     ctx: QueryCtx | MutationCtx | ActionCtx,
     key: K,
     ...opts: NamespacedOpts<
-      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      {
+        id?: ID;
+        bounds?: Bounds<K, ID>;
+        order?: "asc" | "desc";
+        lazy?: boolean;
+      },
       Namespace
     >
   ): Promise<number> {
     const { k1, k2 } = boundsToPositions(opts[0]?.bounds);
     if (opts[0]?.order === "desc") {
-      return await ctx.runQuery(this.component.btree.offsetUntil, {
-        key: boundToPosition("upper", {
+      return await runQuery(
+        ctx,
+        this.component.btree.offsetUntil,
+        {
+          key: boundToPosition("upper", {
+            key,
+            id: opts[0]?.id,
+            inclusive: true,
+          }),
+          k2,
+          namespace: namespaceFromOpts(opts),
+        },
+        opts[0]?.lazy,
+      );
+    }
+    return await runQuery(
+      ctx,
+      this.component.btree.offset,
+      {
+        key: boundToPosition("lower", {
           key,
           id: opts[0]?.id,
           inclusive: true,
         }),
-        k2,
+        k1,
         namespace: namespaceFromOpts(opts),
-      });
-    }
-    return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id: opts[0]?.id, inclusive: true }),
-      k1,
-      namespace: namespaceFromOpts(opts),
-    });
+      },
+      opts[0]?.lazy,
+    );
   }
   /**
    * @deprecated Use `indexOf` instead.
@@ -230,8 +318,15 @@ export class Aggregate<
     namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>,
+    lazy?: boolean,
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds, order: "asc", namespace });
+    return this.indexOf(ctx, key, {
+      id,
+      bounds,
+      order: "asc",
+      namespace,
+      lazy,
+    });
   }
   /**
    * @deprecated Use `indexOf` instead.
@@ -242,8 +337,15 @@ export class Aggregate<
     namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>,
+    lazy?: boolean,
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds, order: "desc", namespace });
+    return this.indexOf(ctx, key, {
+      id,
+      bounds,
+      order: "desc",
+      namespace,
+      lazy,
+    });
   }
 
   /**
@@ -251,13 +353,17 @@ export class Aggregate<
    */
   async min(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; lazy?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
       bounds: opts[0]?.bounds,
       order: "asc",
       pageSize: 1,
+      lazy: opts[0]?.lazy,
     });
     return page[0] ?? null;
   }
@@ -266,13 +372,17 @@ export class Aggregate<
    */
   async max(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; lazy?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
       bounds: opts[0]?.bounds,
       order: "desc",
       pageSize: 1,
+      lazy: opts[0]?.lazy,
     });
     return page[0] ?? null;
   }
@@ -302,6 +412,7 @@ export class Aggregate<
         cursor?: string;
         order?: "asc" | "desc";
         pageSize?: number;
+        lazy?: boolean;
       },
       Namespace
     >
@@ -312,13 +423,18 @@ export class Aggregate<
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginate, {
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-      cursor: opts[0]?.cursor,
-      order,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginate,
+      {
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+        cursor: opts[0]?.cursor,
+        order,
+        limit: pageSize,
+      },
+      opts[0]?.lazy,
+    );
     return {
       page: page.map(btreeItemToAggregateItem<K, ID>),
       cursor: newCursor,
@@ -336,7 +452,11 @@ export class Aggregate<
   async *iter(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     ...opts: NamespacedOpts<
-      { bounds?: Bounds<K, ID>; order?: "asc" | "desc"; pageSize?: number },
+      {
+        bounds?: Bounds<K, ID>;
+        order?: "asc" | "desc";
+        pageSize?: number;
+      },
       Namespace
     >
   ): AsyncGenerator<Item<K, ID>, void, undefined> {
@@ -506,15 +626,21 @@ export class Aggregate<
     ctx: QueryCtx | MutationCtx | ActionCtx,
     cursor?: string,
     pageSize: number = 100,
+    lazy?: boolean,
   ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
     const {
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginateNamespaces, {
-      cursor,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginateNamespaces,
+      {
+        cursor,
+        limit: pageSize,
+      },
+      lazy,
+    );
     return {
       page: page as Namespace[],
       cursor: newCursor,
@@ -854,6 +980,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       id?: TableAggregateId<T>;
       bounds?: Bounds<T["Key"], TableAggregateId<T>>;
       order?: "asc" | "desc";
+      lazy?: boolean;
     },
   ): Promise<number> {
     const key = this.options.sortKey(doc);
