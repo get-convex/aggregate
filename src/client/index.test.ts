@@ -1212,3 +1212,27 @@ describe("Bounds with prefix on array keys", () => {
     expect(sumPrefix20).toBe(20);
   });
 });
+
+describe("stale reads", () => {
+  test("a stale read does not see writes made in the current transaction", async () => {
+    const t = setupTest();
+    const { aggregate } = createAggregates();
+
+    const count = await t.run(async (ctx) => {
+      await aggregate.insert(ctx, await testItem(ctx, { name: "a", value: 1 }));
+      return await aggregate.count(ctx, { stale: true });
+    });
+    expect(count).toBe(0);
+  });
+
+  test("a non-stale read does see writes made in the current transaction", async () => {
+    const t = setupTest();
+    const { aggregate } = createAggregates();
+
+    const count = await t.run(async (ctx) => {
+      await aggregate.insert(ctx, await testItem(ctx, { name: "a", value: 1 }));
+      return await aggregate.count(ctx);
+    });
+    expect(count).toBe(1);
+  });
+});
