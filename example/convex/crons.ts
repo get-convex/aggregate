@@ -1,13 +1,49 @@
 import { cronJobs } from "convex/server";
+import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+
+const BENCH_RESET_RETRY_MS = 1_000;
+/**
+ * Bounded like `bench.advanceSuite`, and for the same reason: the drain relies
+ * on the batch worker's monitor waking it, and a stopped worker never would.
+ */
+const BENCH_RESET_MAX_ATTEMPTS = 120;
+
+/**
+ * Retries `bench.resetAll` until the aggregate's queue drains, since
+ * `assertNoPendingOperations` makes its `clear` throw while operations are
+ * pending. Waiting on the worker makes no progress of its own, so this backs
+ * off between attempts instead of rescheduling immediately.
+ */
+export const finishBenchReset = internalMutation({
+  args: { attempt: v.optional(v.number()) },
+  handler: async (ctx, { attempt = 0 }) => {
+    if ((await ctx.runMutation(internal.bench.resetAll)) !== "partial_reset") {
+      console.log("Bench reset complete");
+      return null;
+    }
+    if (attempt >= BENCH_RESET_MAX_ATTEMPTS) {
+      console.error("Giving up on bench reset; the queue never drained");
+      return null;
+    }
+    await ctx.scheduler.runAfter(
+      BENCH_RESET_RETRY_MS,
+      internal.crons.finishBenchReset,
+      { attempt: attempt + 1 },
+    );
+    return null;
+  },
+});
 
 export const resetAndSeed = internalMutation({
   args: {},
   handler: async (ctx) => {
     console.log("Starting daily data reset...");
 
-    // Reset each module sequentially; bail early and reschedule if any aren't done yet
+    // Reset each module sequentially; bail early and reschedule if any aren't done yet.
+    // Every `partial_reset` below means a full delete batch landed, so each
+    // iteration of the chain makes progress.
     if (
       (await ctx.runMutation(internal.leaderboard.resetAll)) === "partial_reset"
     ) {
@@ -31,6 +67,16 @@ export const resetAndSeed = internalMutation({
     if ((await ctx.runMutation(internal.btree.resetAll)) === "partial_reset") {
       await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
       return null;
+    }
+
+    // Bench goes last and never bails out of this chain: its reset can be stuck
+    // behind a draining queue, and nothing below touches the bench tables.
+    if ((await ctx.runMutation(internal.bench.resetAll)) === "partial_reset") {
+      await ctx.scheduler.runAfter(
+        BENCH_RESET_RETRY_MS,
+        internal.crons.finishBenchReset,
+        { attempt: 1 },
+      );
     }
 
     await ctx.runMutation(api.leaderboard.addMockScores, { count: 500 });
