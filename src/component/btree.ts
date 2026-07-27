@@ -1,7 +1,10 @@
+import { ping, vBatchQueryArgs, vBatchResult } from "@convex-dev/batch-worker";
 import {
   ConvexError,
   convexToJson,
   type Value as ConvexValue,
+  getConvexSize,
+  type Infer,
   jsonToConvex,
   v,
 } from "convex/values";
@@ -9,8 +12,11 @@ import {
   type DatabaseReader,
   type DatabaseWriter,
   internalMutation,
+  internalQuery,
+  type MutationCtx,
   query,
 } from "./_generated/server.js";
+import type { TransactionMetrics } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel.js";
 import { compareValues } from "./compare.js";
 import {
@@ -18,8 +24,10 @@ import {
   type Aggregate,
   type Item,
   itemValidator,
+  type Operation,
+  vOperation,
 } from "./schema.js";
-import { internal } from "./_generated/api.js";
+import { components, internal } from "./_generated/api.js";
 
 const BTREE_DEBUG = false;
 export const DEFAULT_MAX_NODE_SIZE = 16;
@@ -49,6 +57,265 @@ export async function assertNoPendingCommits(ctx: { db: DatabaseReader }) {
       code: "PENDING_COMMITS",
       message:
         "Cannot synchronously read or write to the aggregate while there are async updates enqueued.",
+    });
+  }
+}
+
+const READ_LIMIT_BYTES = 16 * 1024 * 1024;
+// How many bytes of queued-ops payload one worker cycle will pull in. A single
+// commit can't exceed Convex's ~1 MiB document limit, so at least one commit
+// always fits.
+const BATCH_MAX_BYTES = READ_LIMIT_BYTES / 4;
+// And how many commits, however small. Bounds the rows getBatch reads — a queue
+// of tiny commits stays far under the byte budget — and keeps the batch small
+// enough that processBatch has a chance of draining it in one cycle.
+const BATCH_MAX_COMMITS = 64;
+
+export const OPS_WORKER_NAME = "ops";
+
+// The most operations one enqueuing transaction may accumulate into its commit.
+// A commit is applied as a unit inside a single sub-transaction, so an unbounded
+// one would grow past what any transaction can apply and be dead-lettered whole.
+// This also keeps the pendingCommits document well clear of the 1 MiB limit.
+export const MAX_OPERATIONS_PER_COMMIT = 500;
+
+export async function enqueueOperation(ctx: MutationCtx, operation: Operation) {
+  const mine = await ctx.db
+    .query("pendingCommits")
+    .withIndex("by_commitTs", (q) =>
+      q.eq("commitTs", ctx.db.vars.commitTs),
+    )
+    .first();
+  if (mine) {
+    if (mine.operations.length >= MAX_OPERATIONS_PER_COMMIT) {
+      throw new ConvexError({
+        code: "TOO_MANY_OPERATIONS",
+        message: `A single mutation may enqueue at most ${MAX_OPERATIONS_PER_COMMIT} aggregate operations. Split the write across several mutations.`,
+      });
+    }
+    await ctx.db.patch("pendingCommits", mine._id, {
+      operations: [...mine.operations, operation],
+    });
+  } else {
+    await ctx.db.insert("pendingCommits", {
+      commitTs: ctx.db.vars.commitTs,
+      operations: [operation],
+    });
+  }
+  await ping(ctx, components.batchWorker, {
+    // TODO: explore separate queues by namespace
+    name: OPS_WORKER_NAME,
+    workQuery: internal.btree.getBatch,
+    workerMutation: internal.btree.processBatch,
+  });
+}
+
+// The largest commitTs the worker has processed, or undefined before it has
+// drained anything.
+export async function getLatestCommitTs(ctx: {
+  db: DatabaseReader;
+}): Promise<bigint | undefined> {
+  const state = await ctx.db.query("workerState").unique();
+  return state?.latestCommitTs;
+}
+
+const vPendingCommit = v.object({
+  id: v.id("pendingCommits"),
+  commitTs: v.int64(),
+  operations: v.array(vOperation),
+});
+type PendingCommit = Infer<typeof vPendingCommit>;
+
+export const getBatch = internalQuery({
+  args: vBatchQueryArgs,
+  returns: vBatchResult(v.object({ commits: v.array(vPendingCommit) })),
+  handler: async (ctx) => {
+    const cursor = await getLatestCommitTs(ctx);
+    const rows = ctx.db
+      .query("pendingCommits")
+      .withIndex("by_commitTs", (q) =>
+        cursor === undefined ? q : q.gt("commitTs", cursor),
+      );
+    // Accumulate whole commits until adding the next would push this cycle past
+    // either budget — payload bytes, or commits. processBatch may apply fewer
+    // than we hand it if the transaction runs low on headroom; whatever it leaves
+    // behind comes back on the next cycle.
+    const commits: PendingCommit[] = [];
+    let bytes = 0;
+    for await (const row of rows) {
+      if (typeof row.commitTs !== "bigint") {
+        console.warn(
+          `[aggregate] pendingCommits ${row._id} has an unresolved commitTs; skipping it. This should be impossible.`,
+        );
+        continue;
+      }
+      const rowBytes = getConvexSize(row);
+      if (
+        commits.length > 0 &&
+        (bytes + rowBytes > BATCH_MAX_BYTES ||
+          commits.length >= BATCH_MAX_COMMITS)
+      ) {
+        break;
+      }
+      commits.push({
+        id: row._id,
+        commitTs: row.commitTs,
+        operations: row.operations,
+      });
+      bytes += rowBytes;
+    }
+    if (commits.length === 0) {
+      return { kind: "idle" as const };
+    }
+    return { kind: "work" as const, batch: { commits } };
+  },
+});
+
+export const applyCommit = internalMutation({
+  args: { operations: v.array(vOperation) },
+  returns: v.null(),
+  handler: async (ctx, { operations }) => {
+    await applyOperations(ctx, operations);
+  },
+});
+
+// The limits processBatch shares with the commits it applies. Execution time and
+// heap aren't in this set — nothing bounds those — but the btree work a commit
+// does is dominated by document reads and writes, so these track it closely.
+const SHARED_LIMITS = [
+  "bytesRead",
+  "bytesWritten",
+  "databaseQueries",
+  "documentsRead",
+  "documentsWritten",
+] as const;
+
+export type SharedLimit = (typeof SHARED_LIMITS)[number];
+
+// The documents in the reserve below that aren't commit-sized — a workerState
+// row, the loop's worker and state rows, the args of the loop's own reschedule —
+// are all well under a KiB. Rather than track them, round generously: this is
+// 0.4% of a 16 MiB budget.
+const RESERVE_SLACK_BYTES = 64 * 1024;
+
+// Budget kept back from the commit being applied, for everything outside it:
+// processBatch's own bookkeeping — recording a failure, advancing the cursor —
+// and the batch worker's loop mutation, whose transaction this one runs inside,
+// rescheduling itself afterwards.
+//
+// This is the only headroom the cycle keeps, so it errs generous. A commit is
+// capped at what's left minus this, and a nested transaction can't spend past
+// its cap, so the reserve survives even a commit that fails having used all of
+// what it was given.
+function reserveOutsideCommit(limit: SharedLimit, commitBytes: number): number {
+  switch (limit) {
+    // Re-reading the commit's row to dead-letter it.
+    case "bytesRead":
+      return commitBytes + RESERVE_SLACK_BYTES;
+    // The dead-letter insert and the pendingCommits delete each write a
+    // commit-sized document.
+    case "bytesWritten":
+      return 2 * commitBytes + RESERVE_SLACK_BYTES;
+    // The workerState lookup, plus the loop's own queries.
+    case "databaseQueries":
+      return 8;
+    // The workerState row, plus the loop's own reads.
+    case "documentsRead":
+      return 8;
+    // The dead-letter insert, the pendingCommits delete, the workerState patch,
+    // and the loop's own bookkeeping.
+    case "documentsWritten":
+      return 8;
+  }
+}
+
+/**
+ * How much of this transaction one commit may use: what's left, less
+ * {@link reserveOutsideCommit}.
+ *
+ * A cap can come out zero or negative, meaning the reserve is all that's left.
+ * {@link hasBudgetForCommit} is what rejects those.
+ */
+export function budgetForCommit(
+  metrics: TransactionMetrics,
+  commitBytes: number,
+): Record<SharedLimit, number> {
+  const limits = {} as Record<SharedLimit, number>;
+  for (const limit of SHARED_LIMITS) {
+    limits[limit] =
+      metrics[limit].remaining - reserveOutsideCommit(limit, commitBytes);
+  }
+  return limits;
+}
+
+/**
+ * Whether the caps {@link budgetForCommit} produced leave the commit anything to
+ * spend. If not, this transaction is down to its reserve and the commit has to
+ * wait for a fresh one.
+ */
+export function hasBudgetForCommit(
+  limits: Record<SharedLimit, number>,
+): boolean {
+  return SHARED_LIMITS.every((limit) => limits[limit] > 0);
+}
+
+export const processBatch = internalMutation({
+  args: { commits: v.array(vPendingCommit) },
+  handler: async (ctx, { commits }) => {
+    let lastProcessed: bigint | undefined;
+    for (const [index, commit] of commits.entries()) {
+      const limits = budgetForCommit(
+        await ctx.meta.getTransactionMetrics(),
+        getConvexSize(commit.operations),
+      );
+      // Nothing left to give: applying the commit here would fail it for no
+      // reason, so leave it queued and let the worker come back for it. The
+      // first commit of a batch always has budget — BATCH_MAX_BYTES caps what
+      // getBatch reads at a quarter of the read limit — so a batch can never
+      // come back untouched and be retried forever.
+      if (!hasBudgetForCommit(limits)) {
+        break;
+      }
+      try {
+        await ctx.runMutation(
+          internal.btree.applyCommit,
+          { operations: commit.operations },
+          { transactionLimits: limits },
+        );
+      } catch (e) {
+        // We can only move the first commit to the dead-letter queue. Later
+        // commits may have failed due to exceeding transaction limits, but
+        // they could potentially succeed if they were retried with higher
+        // limits available.
+        if (index > 0) {
+          break;
+        }
+        const error = String(e);
+        console.error(
+          `[aggregate] dead-lettering ${commit.operations.length} operation(s) from commitTs ${commit.commitTs}: ${error}`,
+        );
+        await ctx.db.insert("deadLetterCommits", {
+          commitTs: commit.commitTs,
+          operations: commit.operations,
+          error,
+        });
+      }
+      await ctx.db.delete("pendingCommits", commit.id);
+      lastProcessed = commit.commitTs;
+    }
+    if (lastProcessed !== undefined) {
+      await updateLatestCommitTs(ctx, lastProcessed);
+    }
+  },
+});
+
+async function updateLatestCommitTs(ctx: { db: DatabaseWriter }, commitTs: bigint) {
+  const state = await ctx.db.query("workerState").unique();
+  if (state === null) {
+    await ctx.db.insert("workerState", { latestCommitTs: commitTs });
+  } else if (commitTs > state.latestCommitTs) {
+    await ctx.db.patch("workerState", state._id, {
+      latestCommitTs: commitTs,
     });
   }
 }
@@ -178,6 +445,48 @@ export async function replaceOrInsertHandler(
     summand: args.summand,
     namespace: args.newNamespace,
   });
+}
+
+// Apply a list of operations in order. Used by the worker's `processBatch` to
+// drain enqueued async writes. Each handler fetches its own tree at execution
+// time rather than reusing a cached doc: any operation can patch `btree.root` (a
+// root split on insert, a root collapse on delete), which would leave a cached
+// Doc<"btree"> pointing at a detached node for later ops.
+export async function applyOperations(
+  ctx: { db: DatabaseWriter },
+  operations: Operation[],
+) {
+  for (const op of operations) {
+    switch (op.type) {
+      case "insert": {
+        const { type: _, ...args } = op;
+        await insertHandler(ctx, args);
+        break;
+      }
+      case "delete": {
+        const { type: _, ...args } = op;
+        await deleteHandler(ctx, args);
+        break;
+      }
+      case "replace": {
+        const { type: _, ...args } = op;
+        await replaceHandler(ctx, args);
+        break;
+      }
+      case "deleteIfExists": {
+        const { type: _, ...args } = op;
+        await deleteIfExistsHandler(ctx, args);
+        break;
+      }
+      case "replaceOrInsert": {
+        const { type: _, ...args } = op;
+        await replaceOrInsertHandler(ctx, args);
+        break;
+      }
+      default:
+        op satisfies never;
+    }
+  }
 }
 
 export const validate = query({

@@ -1,10 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
-import schema, { type Item } from "./schema.js";
+import schema, { type Item, type Operation } from "./schema.js";
+import type { DatabaseWriter } from "./_generated/server.js";
+import type { TransactionMetrics } from "convex/server";
 import { modules } from "./setup.test.js";
 import { test as fcTest, fc } from "@fast-check/vitest";
 import {
   atOffsetHandler,
+  budgetForCommit,
+  hasBudgetForCommit,
   aggregateBetweenHandler,
   assertNoPendingCommits,
   deleteHandler,
@@ -19,8 +23,9 @@ import {
   paginateHandler,
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
+  type SharedLimit,
 } from "./btree.js";
-import { api } from "./_generated/api.js";
+import { api, internal } from "./_generated/api.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
 import { ConvexError, convexToJson, jsonToConvex } from "convex/values";
@@ -802,6 +807,127 @@ describe("stale / pendingCommits", () => {
     return convexTest(schema, modules);
   }
 
+  // Seed a pendingCommits row directly with an explicit commitTs — the bigint
+  // the backend would resolve `db.vars.commitTs` to. All the ops in one call
+  // share a commit, in array order, mirroring one enqueuing transaction.
+  // (The real `enqueue` path can't be unit-tested: convex-test doesn't provide
+  // `db.vars.commitTs`.)
+  async function seedCommit(
+    ctx: { db: DatabaseWriter },
+    commitTs: bigint,
+    operations: Operation[],
+  ) {
+    await ctx.db.insert("pendingCommits", { commitTs, operations });
+  }
+
+  // A fresh transaction's metrics — every limit wide open — with specific limits
+  // overridden to whatever the case under test needs.
+  function metricsWith(
+    overrides: Partial<TransactionMetrics>,
+  ): TransactionMetrics {
+    const wideOpen = (limit: number) => ({ used: 0, remaining: limit });
+    return {
+      bytesRead: wideOpen(16 * 1024 * 1024),
+      bytesWritten: wideOpen(16 * 1024 * 1024),
+      databaseQueries: wideOpen(4_096),
+      documentsRead: wideOpen(32_000),
+      documentsWritten: wideOpen(16_000),
+      functionsScheduled: wideOpen(1_000),
+      scheduledFunctionArgsBytes: wideOpen(16 * 1024 * 1024),
+      ...overrides,
+    };
+  }
+
+  // Caps as `budgetForCommit` would return them, wide open unless overridden.
+  function limitsWith(overrides: Partial<Record<SharedLimit, number>>) {
+    return {
+      bytesRead: 16 * 1024 * 1024,
+      bytesWritten: 16 * 1024 * 1024,
+      databaseQueries: 4_096,
+      documentsRead: 32_000,
+      documentsWritten: 16_000,
+      ...overrides,
+    };
+  }
+
+  // Drive the worker's query/mutation pair to completion the way the batch
+  // worker would, without needing `db.vars.commitTs`. Returns the cycle count.
+  async function drain(t: TestConvex<typeof schema>): Promise<number> {
+    let cycles = 0;
+    for (;;) {
+      const result = await t.query(internal.btree.getBatch, { name: "ops" });
+      if (result.kind !== "work") break;
+      await t.mutation(internal.btree.processBatch, {
+        commits: result.batch.commits,
+      });
+      cycles++;
+      if (cycles > 1000) throw new Error("drain did not converge");
+    }
+    return cycles;
+  }
+
+  test("drain applies queued ops (in enqueue order) and empties the queue", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      // One transaction's worth of ops share a commitTs and a row; array order
+      // is enqueue order, so the delete of key 1 lands after its insert.
+      await seedCommit(ctx, 1n, [
+        { type: "insert", key: 1, value: "a" },
+        { type: "insert", key: 2, value: "b" },
+        { type: "delete", key: 1 },
+      ]);
+    });
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      expect(await getHandler(ctx, { key: 1 })).toBeNull();
+      expect(await getHandler(ctx, { key: 2 })).toEqual({ k: 2, v: "b", s: 0 });
+      // The cursor advanced to the drained commitTs.
+      const state = await ctx.db.query("workerState").unique();
+      expect(state?.latestCommitTs).toEqual(1n);
+    });
+  });
+
+  test("drain of ops across several commitTs values applies them all", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await seedCommit(ctx, 1n, [{ type: "insert", key: 1, value: "a" }]);
+      await seedCommit(ctx, 2n, [
+        { type: "insert", key: 2, value: "b" },
+        { type: "insert", key: 3, value: "c" },
+      ]);
+    });
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(3);
+    });
+  });
+
+  test("a single transaction's many ops all drain (flattened in order)", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      // One transaction = one row holding all its ops. The whole row is applied
+      // in a cycle, its operations replayed in array order.
+      const operations: Operation[] = Array.from({ length: 120 }, (_, i) => ({
+        type: "insert" as const,
+        key: i,
+        value: `v${i}`,
+      }));
+      await seedCommit(ctx, 1n, operations);
+    });
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(120);
+    });
+  });
+
   test("assertNoPendingCommits throws iff pendingCommits is non-empty", async () => {
     const t = setupTest();
     await t.run(async (ctx) => {
@@ -811,6 +937,98 @@ describe("stale / pendingCommits", () => {
         operations: [{ type: "delete", key: 1 }],
       });
       await expect(assertNoPendingCommits(ctx)).rejects.toThrow(/PENDING_COMMITS/);
+    });
+  });
+
+  test("processBatch dead-letters a missing-key plain delete", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await seedCommit(ctx, 1n, [{ type: "delete", key: 99 }]);
+    });
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      const dead = await ctx.db.query("deadLetterCommits").collect();
+      expect(dead).toHaveLength(1);
+      expect(dead[0].commitTs).toEqual(1n);
+      expect(dead[0].operations).toEqual([{ type: "delete", key: 99 }]);
+      expect(dead[0].error).toMatch(/DELETE_MISSING_KEY/);
+    });
+  });
+
+  test("a failing op rolls back its whole commit, and later commits still apply", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      // One transaction: two good inserts followed by a delete of a key that
+      // was never there. The commit fails as a unit, so neither insert survives.
+      await seedCommit(ctx, 1n, [
+        { type: "insert", key: 1, value: "a" },
+        { type: "insert", key: 2, value: "b" },
+        { type: "delete", key: 99 },
+      ]);
+      // A later, independent transaction is unaffected by the bad one.
+      await seedCommit(ctx, 2n, [{ type: "insert", key: 3, value: "c" }]);
+    });
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      expect(await getHandler(ctx, { key: 1 })).toBeNull();
+      expect(await getHandler(ctx, { key: 2 })).toBeNull();
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(1);
+      const dead = await ctx.db.query("deadLetterCommits").collect();
+      expect(dead).toHaveLength(1);
+      expect(dead[0].operations).toHaveLength(3);
+      // The cursor still advanced past both commits.
+      const state = await ctx.db.query("workerState").unique();
+      expect(state?.latestCommitTs).toEqual(2n);
+      await validateTree(ctx, {});
+    });
+  });
+
+  test("a commit that fails mid-batch is retried before being dead-lettered", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await seedCommit(ctx, 1n, [{ type: "insert", key: 1, value: "a" }]);
+      // Fails, but not first in the batch — it could be failing only because
+      // commit 1n already used part of this transaction, so it stays queued.
+      await seedCommit(ctx, 2n, [{ type: "delete", key: 99 }]);
+      await seedCommit(ctx, 3n, [{ type: "insert", key: 3, value: "c" }]);
+    });
+
+    // First cycle: 1n applies, 2n fails and ends the cycle, so 3n is untouched.
+    const first = await t.query(internal.btree.getBatch, { name: "ops" });
+    expect(first.kind).toEqual("work");
+    if (first.kind !== "work") return;
+    expect(first.batch.commits).toHaveLength(3);
+    await t.mutation(internal.btree.processBatch, {
+      commits: first.batch.commits,
+    });
+    await t.run(async (ctx) => {
+      expect(
+        (await ctx.db.query("pendingCommits").collect()).map((c) => c.commitTs),
+      ).toEqual([2n, 3n]);
+      expect(await ctx.db.query("deadLetterCommits").first()).toBeNull();
+      expect((await ctx.db.query("workerState").unique())?.latestCommitTs).toEqual(
+        1n,
+      );
+    });
+
+    // 2n comes back first in the next batch, fails again on a fresh
+    // transaction, and is dead-lettered — and 3n still gets applied.
+    await drain(t);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      const dead = await ctx.db.query("deadLetterCommits").collect();
+      expect(dead).toHaveLength(1);
+      expect(dead[0].commitTs).toEqual(2n);
+      expect(await getHandler(ctx, { key: 1 })).toEqual({ k: 1, v: "a", s: 0 });
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      await validateTree(ctx, {});
     });
   });
 
@@ -835,4 +1053,155 @@ describe("stale / pendingCommits", () => {
     });
     expect(count).toEqual(2);
   });
+
+  test("processBatch stops a cycle short once transaction headroom runs low", async () => {
+    // Enforce a write budget far smaller than the whole batch needs. getBatch
+    // hands processBatch all 100 commits (their payload is only a few KB, well
+    // under the byte budget); processBatch has to notice it's running out of room
+    // and leave the rest for the next cycle rather than blow the limit — which
+    // would abort the cycle, be retried forever, and wedge the queue.
+    //
+    // One insert per commit into a default-width tree, so a commit writes about
+    // four documents — fewer than reserveOutsideCommit keeps back. convex-test
+    // ignores the per-commit `transactionLimits`, so a commit here can overrun
+    // the cap it was given; keeping commits smaller than the reserve is what
+    // stops that from eating the headroom the cycle needs to finish up.
+    const t = convexTest({
+      schema,
+      modules,
+      // convex-test types this field as `Partial<TransactionMetrics>`, but the
+      // values it actually reads are plain limit numbers.
+      transactionLimits: { documentsWritten: 150 } as never,
+    });
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 16, false);
+      for (let txn = 0; txn < 100; txn++) {
+        await seedCommit(ctx, BigInt(txn + 1), [
+          { type: "insert", key: txn, value: `v${txn}` },
+        ]);
+      }
+    });
+
+    // A full batch comes back — it's processBatch that has to ration it.
+    const result = await t.query(internal.btree.getBatch, { name: "ops" });
+    expect(result.kind).toEqual("work");
+    if (result.kind !== "work") return;
+    expect(result.batch.commits).toHaveLength(64);
+
+    // Everything still drains, just across many cycles, and nothing fails.
+    const cycles = await drain(t);
+    expect(cycles).toBeGreaterThan(1);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      expect(await ctx.db.query("deadLetterCommits").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(100);
+      await validateTree(ctx, {});
+    });
+  });
+
+  test("getBatch caps commits per cycle, not just bytes", async () => {
+    // 100 tiny commits: their combined payload is nowhere near the byte budget,
+    // so without a count cap getBatch would read every row in the queue.
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      for (let txn = 0; txn < 100; txn++) {
+        await seedCommit(ctx, BigInt(txn + 1), [
+          { type: "insert", key: txn, value: `v${txn}` },
+        ]);
+      }
+    });
+
+    const result = await t.query(internal.btree.getBatch, { name: "ops" });
+    expect(result.kind).toEqual("work");
+    if (result.kind !== "work") return;
+    expect(result.batch.commits).toHaveLength(64);
+
+    // Still drains everything, just across more cycles.
+    const cycles = await drain(t);
+    expect(cycles).toBeGreaterThan(1);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("pendingCommits").first()).toBeNull();
+      expect(await ctx.db.query("deadLetterCommits").first()).toBeNull();
+      const { count } = await aggregateBetweenHandler(ctx, {});
+      expect(count).toEqual(100);
+    });
+  });
+
+  test("budgetForCommit caps a commit below the reserve it keeps back", () => {
+    const limits = budgetForCommit(
+      metricsWith({
+        bytesRead: { used: 1_000, remaining: 4_000_000 },
+        bytesWritten: { used: 2_000, remaining: 4_000_000 },
+        databaseQueries: { used: 10, remaining: 4_000 },
+        documentsRead: { used: 20, remaining: 30_000 },
+        documentsWritten: { used: 30, remaining: 15_000 },
+      }),
+      100_000,
+    );
+    // Every cap is strictly below what's left of the outer transaction, by
+    // enough to write the dead-letter row and clean up after a failure.
+    const slack = 64 * 1024;
+    expect(limits.bytesWritten).toEqual(4_000_000 - 2 * 100_000 - slack);
+    expect(limits.bytesRead).toEqual(4_000_000 - 100_000 - slack);
+    expect(limits.documentsWritten).toEqual(15_000 - 8);
+    expect(limits.documentsRead).toEqual(30_000 - 8);
+    expect(limits.databaseQueries).toEqual(4_000 - 8);
+  });
+
+  test("hasBudgetForCommit once the reserve is all that's left", () => {
+    // Every cap positive: there's something to give the commit.
+    expect(hasBudgetForCommit(limitsWith({}))).toBe(true);
+    // The reserve is all that's left of the write budget, so the cap comes out
+    // negative. A commit run under it would fail no matter what it did.
+    const write = budgetForCommit(
+      metricsWith({ bytesWritten: { used: 15_000_000, remaining: 1_000 } }),
+      1_000_000,
+    );
+    expect(write.bytesWritten).toBeLessThan(0);
+    expect(hasBudgetForCommit(write)).toBe(false);
+    // One exhausted limit is enough to stop, even with the rest wide open.
+    const docs = budgetForCommit(
+      metricsWith({ documentsWritten: { used: 15_994, remaining: 6 } }),
+      0,
+    );
+    expect(docs.documentsWritten).toBeLessThan(0);
+    expect(hasBudgetForCommit(docs)).toBe(false);
+    // A cap of exactly zero is nothing to spend, so it's rejected too.
+    expect(hasBudgetForCommit(limitsWith({ documentsWritten: 0 }))).toBe(false);
+  });
+
+  test("a first commit always has budget", () => {
+    // The most the parent can have spent before the first commit of a batch:
+    // getBatch read a full BATCH_MAX_BYTES of commits and 64 rows, and the
+    // commit itself is as large as one can be. Even then every cap is positive,
+    // so a batch always makes progress and can't be retried forever.
+    const limits = budgetForCommit(
+      metricsWith({
+        bytesRead: { used: 4 * 1024 * 1024, remaining: 12 * 1024 * 1024 },
+        documentsRead: { used: 70, remaining: 31_930 },
+        databaseQueries: { used: 16, remaining: 4_080 },
+      }),
+      1024 * 1024,
+    );
+    expect(hasBudgetForCommit(limits)).toBe(true);
+  });
+
+  // Whether a commit too large to apply is dead-lettered while the cycle
+  // survives can't be unit-tested: convex-test enforces only the top-level
+  // transaction's limits and ignores the per-`runMutation` `transactionLimits`
+  // option, so exceeding a sub-transaction's cap there also poisons the outer
+  // transaction. Verify it against a backend that enforces nested limits.
+  test.skip("processBatch dead-letters a commit that exceeds its sub-transaction limits", () => {});
+
+  // The enqueue path (public.enqueue -> enqueueOperation -> db.vars.commitTs)
+  // can't run under convex-test, which doesn't resolve late-bound commit
+  // timestamps. Verify it against a backend that supports db.vars.commitTs.
+  test.skip("enqueue writes a pendingCommits row keyed by the commit timestamp", () => {});
+
+  // Same reason: the MAX_OPERATIONS_PER_COMMIT guard only fires on the second
+  // and later enqueues within one transaction, which is exactly the path that
+  // needs db.vars.commitTs to find the commit it's appending to.
+  test.skip("enqueue rejects the 501st operation in one transaction", () => {});
 });

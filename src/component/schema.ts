@@ -85,4 +85,14 @@ export default defineSchema({
     commitTs: v.commitTs(),
     operations: v.array(vOperation),
   }).index("by_commitTs", ["commitTs"]),
+  // Commits whose operations threw while being applied.
+  deadLetterCommits: defineTable({
+    commitTs: v.int64(),
+    operations: v.array(vOperation),
+    error: v.string(),
+  }),
+  // Singleton row holding the largest commitTs the worker has processed.
+  workerState: defineTable({
+    latestCommitTs: v.int64(),
+  }),
 });

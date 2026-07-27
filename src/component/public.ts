@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_NODE_SIZE,
   deleteHandler,
   deleteIfExistsHandler,
+  enqueueOperation,
   getOrCreateTree,
   getTree,
   insertHandler,
@@ -12,6 +13,7 @@ import {
   replaceOrInsertHandler,
 } from "./btree.js";
 import { internal } from "./_generated/api.js";
+import { vOperation } from "./schema.js";
 
 export const init = mutation({
   args: {
@@ -114,6 +116,16 @@ export const replaceOrInsert = mutation({
   handler: async (ctx, args) => {
     await assertNoPendingCommits(ctx);
     await replaceOrInsertHandler(ctx, args);
+  },
+});
+
+export const enqueue = mutation({
+  args: {
+    operation: vOperation,
+  },
+  returns: v.null(),
+  handler: async (ctx, { operation }) => {
+    await enqueueOperation(ctx, operation);
   },
 });
 

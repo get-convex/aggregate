@@ -10,6 +10,7 @@ import type {
   TableNamesInDataModel,
 } from "convex/server";
 import type { Key } from "../component/btree.js";
+import type { Operation } from "../component/schema.js";
 import {
   type Position,
   positionToKey,
@@ -81,6 +82,13 @@ export class Aggregate<
   Namespace extends ConvexValue | undefined = undefined,
 > {
   constructor(protected component: ComponentApi) {}
+
+  private async _enqueue(
+    ctx: MutationCtx | ActionCtx,
+    operation: Operation,
+  ): Promise<void> {
+    await ctx.runMutation(this.component.public.enqueue, { operation });
+  }
 
   /// Aggregate queries.
 
@@ -503,9 +511,21 @@ export class Aggregate<
     key: K,
     id: ID,
     summand?: number,
+    opts?: { async?: boolean },
   ): Promise<void> {
+    const position = keyToPosition(key, id);
+    if (opts?.async) {
+      await this._enqueue(ctx, {
+        type: "insert",
+        key: position,
+        value: id,
+        summand,
+        namespace,
+      });
+      return;
+    }
     await ctx.runMutation(this.component.public.insert, {
-      key: keyToPosition(key, id),
+      key: position,
       summand,
       value: id,
       namespace,
@@ -516,9 +536,15 @@ export class Aggregate<
     namespace: Namespace,
     key: K,
     id: ID,
+    opts?: { async?: boolean },
   ): Promise<void> {
+    const position = keyToPosition(key, id);
+    if (opts?.async) {
+      await this._enqueue(ctx, { type: "delete", key: position, namespace });
+      return;
+    }
     await ctx.runMutation(this.component.public.delete_, {
-      key: keyToPosition(key, id),
+      key: position,
       namespace,
     });
   }
@@ -530,10 +556,25 @@ export class Aggregate<
     newKey: K,
     id: ID,
     summand?: number,
+    opts?: { async?: boolean },
   ): Promise<void> {
+    const currentPosition = keyToPosition(currentKey, id);
+    const newPosition = keyToPosition(newKey, id);
+    if (opts?.async) {
+      await this._enqueue(ctx, {
+        type: "replace",
+        currentKey: currentPosition,
+        newKey: newPosition,
+        value: id,
+        summand,
+        namespace: currentNamespace,
+        newNamespace,
+      });
+      return;
+    }
     await ctx.runMutation(this.component.public.replace, {
-      currentKey: keyToPosition(currentKey, id),
-      newKey: keyToPosition(newKey, id),
+      currentKey: currentPosition,
+      newKey: newPosition,
       summand,
       value: id,
       namespace: currentNamespace,
@@ -546,6 +587,7 @@ export class Aggregate<
     key: K,
     id: ID,
     summand?: number,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
@@ -555,6 +597,7 @@ export class Aggregate<
       key,
       id,
       summand,
+      opts,
     );
   }
   async _deleteIfExists(
@@ -562,9 +605,19 @@ export class Aggregate<
     namespace: Namespace,
     key: K,
     id: ID,
+    opts?: { async?: boolean },
   ): Promise<void> {
+    const position = keyToPosition(key, id);
+    if (opts?.async) {
+      await this._enqueue(ctx, {
+        type: "deleteIfExists",
+        key: position,
+        namespace,
+      });
+      return;
+    }
     await ctx.runMutation(this.component.public.deleteIfExists, {
-      key: keyToPosition(key, id),
+      key: position,
       namespace,
     });
   }
@@ -576,10 +629,25 @@ export class Aggregate<
     newKey: K,
     id: ID,
     summand?: number,
+    opts?: { async?: boolean },
   ): Promise<void> {
+    const currentPosition = keyToPosition(currentKey, id);
+    const newPosition = keyToPosition(newKey, id);
+    if (opts?.async) {
+      await this._enqueue(ctx, {
+        type: "replaceOrInsert",
+        currentKey: currentPosition,
+        newKey: newPosition,
+        value: id,
+        summand,
+        namespace: currentNamespace,
+        newNamespace,
+      });
+      return;
+    }
     await ctx.runMutation(this.component.public.replaceOrInsert, {
-      currentKey: keyToPosition(currentKey, id),
-      newKey: keyToPosition(newKey, id),
+      currentKey: currentPosition,
+      newKey: newPosition,
       summand,
       value: id,
       namespace: currentNamespace,
@@ -740,6 +808,7 @@ export class DirectAggregate<
       { key: T["Key"]; id: T["Id"]; sumValue?: number },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._insert(
       ctx,
@@ -747,6 +816,7 @@ export class DirectAggregate<
       args.key,
       args.id,
       args.sumValue,
+      opts,
     );
   }
   /**
@@ -759,8 +829,9 @@ export class DirectAggregate<
       { key: T["Key"]; id: T["Id"] },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
-    await this._delete(ctx, namespaceFromArg(args), args.key, args.id);
+    await this._delete(ctx, namespaceFromArg(args), args.key, args.id, opts);
   }
   /**
    * Update an existing item in the data structure.
@@ -777,6 +848,7 @@ export class DirectAggregate<
       { key: T["Key"]; sumValue?: number },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._replace(
       ctx,
@@ -786,6 +858,7 @@ export class DirectAggregate<
       newItem.key,
       currentItem.id,
       newItem.sumValue,
+      opts,
     );
   }
   /**
@@ -802,6 +875,7 @@ export class DirectAggregate<
       { key: T["Key"]; id: T["Id"]; sumValue?: number },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
@@ -809,6 +883,7 @@ export class DirectAggregate<
       args.key,
       args.id,
       args.sumValue,
+      opts,
     );
   }
   async deleteIfExists(
@@ -817,8 +892,15 @@ export class DirectAggregate<
       { key: T["Key"]; id: T["Id"] },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
-    await this._deleteIfExists(ctx, namespaceFromArg(args), args.key, args.id);
+    await this._deleteIfExists(
+      ctx,
+      namespaceFromArg(args),
+      args.key,
+      args.id,
+      opts,
+    );
   }
   async replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
@@ -830,6 +912,7 @@ export class DirectAggregate<
       { key: T["Key"]; sumValue?: number },
       DirectAggregateNamespace<T>
     >,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
@@ -839,6 +922,7 @@ export class DirectAggregate<
       newItem.key,
       currentItem.id,
       newItem.sumValue,
+      opts,
     );
   }
 }
@@ -904,6 +988,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   async insert(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._insert(
       ctx,
@@ -911,23 +996,27 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc),
+      opts,
     );
   }
   async delete(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._delete(
       ctx,
       this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
+      opts,
     );
   }
   async replace(
     ctx: MutationCtx | ActionCtx,
     oldDoc: TableAggregateDocument<T>,
     newDoc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._replace(
       ctx,
@@ -937,11 +1026,13 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc),
+      opts,
     );
   }
   async insertIfDoesNotExist(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._insertIfDoesNotExist(
       ctx,
@@ -949,23 +1040,27 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
       this.options.sumValue?.(doc),
+      opts,
     );
   }
   async deleteIfExists(
     ctx: MutationCtx | ActionCtx,
     doc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._deleteIfExists(
       ctx,
       this.options.namespace?.(doc),
       this.options.sortKey(doc),
       doc._id as TableAggregateId<T>,
+      opts,
     );
   }
   async replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
     oldDoc: TableAggregateDocument<T>,
     newDoc: TableAggregateDocument<T>,
+    opts?: { async?: boolean },
   ): Promise<void> {
     await this._replaceOrInsert(
       ctx,
@@ -975,6 +1070,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       this.options.sortKey(newDoc),
       newDoc._id as TableAggregateId<T>,
       this.options.sumValue?.(newDoc),
+      opts,
     );
   }
   /**
