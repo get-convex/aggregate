@@ -835,4 +835,98 @@ describe("stale / pendingOperations", () => {
     });
     expect(count).toEqual(2);
   });
+
+  // `includeWorker: false` throughout: `initConvexTest` registers the batch
+  // worker, but a benchmark poller wants the cheap version, and that's the path
+  // worth covering.
+  describe("queueStats", () => {
+    test("reports an empty queue", async () => {
+      const t = initConvexTest();
+      expect(
+        await t.query(api.public.queueStats, { includeWorker: false }),
+      ).toMatchObject({
+        rows: 0,
+        operations: 0,
+        truncated: false,
+        oldestCommitTs: null,
+        newestObservedCommitTs: null,
+        worker: null,
+      });
+    });
+
+    test("counts rows and operations, and tracks the commitTs range", async () => {
+      const t = initConvexTest();
+      const first = await enqueue(t, { type: "insert", key: 1, value: "a" });
+      await enqueue(
+        t,
+        { type: "insert", key: 2, value: "b" },
+        { type: "insert", key: 3, value: "c" },
+      );
+      const last = await enqueue(t, { type: "delete", key: 1 });
+      const stats = await t.query(api.public.queueStats, {
+        includeWorker: false,
+      });
+      expect(stats).toMatchObject({
+        rows: 3,
+        operations: 4,
+        truncated: false,
+        oldestCommitTs: first,
+        newestObservedCommitTs: last,
+      });
+      expect(stats.bytes).toBeGreaterThan(0);
+    });
+
+    test("counts down as the worker drains a commit part way", async () => {
+      // The queue shrinks operation by operation, not just row by row: a commit
+      // the cycle can't finish keeps its row, holding only what's left to apply.
+      const t = initConvexTest({
+        transactionLimits: { documentsWritten: 100 },
+      });
+      await t.run(async (ctx) => {
+        await getOrCreateTree(ctx.db, undefined, 4, false);
+      });
+      await enqueue(
+        t,
+        ...Array.from({ length: 30 }, (_, i) => ({
+          type: "insert" as const,
+          key: i,
+          value: `v${i}`,
+        })),
+      );
+      const before = await t.query(api.public.queueStats, {
+        includeWorker: false,
+      });
+      expect(before).toMatchObject({ rows: 1, operations: 30 });
+
+      const batch = await t.query(internal.btree.getBatch, {
+        name: OPS_WORKER_NAME,
+      });
+      assert(batch.kind === "work");
+      await t.mutation(internal.btree.processBatch, {
+        commits: batch.batch.commits,
+      });
+      const after = await t.query(api.public.queueStats, {
+        includeWorker: false,
+      });
+      expect(after.rows).toEqual(1);
+      expect(after.operations).toBeGreaterThan(0);
+      expect(after.operations).toBeLessThan(30);
+    });
+
+    test("bounds the scan and reports truncation", async () => {
+      const t = initConvexTest();
+      for (let i = 1; i <= 5; i++) {
+        await enqueue(t, { type: "insert", key: i, value: `v${i}` });
+      }
+      const stats = await t.query(api.public.queueStats, {
+        limit: 2,
+        includeWorker: false,
+      });
+      expect(stats).toMatchObject({
+        rows: 2,
+        operations: 2,
+        truncated: true,
+      });
+    });
+  });
 });

@@ -7,7 +7,13 @@ export const resetAndSeed = internalMutation({
   handler: async (ctx) => {
     console.log("Starting daily data reset...");
 
-    // Reset each module sequentially; bail early and reschedule if any aren't done yet
+    // Reset each module sequentially; bail early and reschedule if any aren't done yet.
+    // Bench goes first: while its queue is draining, `assertNoPendingCommits` blocks
+    // its own reset, so give it the most chances to finish.
+    if ((await ctx.runMutation(internal.bench.resetAll)) === "partial_reset") {
+      await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
+      return null;
+    }
     if (
       (await ctx.runMutation(internal.leaderboard.resetAll)) === "partial_reset"
     ) {

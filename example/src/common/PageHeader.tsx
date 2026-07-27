@@ -4,7 +4,7 @@ import { CodeLinkButton } from "./CodeLinkButton";
 
 interface PageHeaderProps {
   title: string;
-  description: string;
+  description?: string;
   icon: ReactNode;
   filename: string;
 }
@@ -24,9 +24,11 @@ export function PageHeader({
         </Title>
       </Group>
 
-      <Text c="gray.6" ta="center" size="lg">
-        {description}
-      </Text>
+      {description && (
+        <Text c="gray.6" ta="center" size="lg">
+          {description}
+        </Text>
+      )}
       <CodeLinkButton filename={filename} />
     </Stack>
   );

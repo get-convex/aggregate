@@ -736,6 +736,20 @@ processes the queued writes.
 Note that you cannot mix the queued mode with the non-queued mode. If there are
 any writes queued, a non-stale read or non-async write will throw an error.
 
+To observe the queue and wait for it to empty:
+
+```ts
+const { rows, operations, worker } = await aggregate.queueStats(ctx);
+// rows/operations are bounded counts (default: first 128 queued transactions);
+// `truncated` tells you there are more. `worker` is "idle" | "running" |
+// "stopped" | null.
+```
+
+The `example/` app has a **Benchmark** page that runs this path against the
+synchronous one under four contention scenarios and charts queue depth, write
+latency, and time to consistency. See
+[`example/convex/bench.ts`](./example/convex/bench.ts).
+
 Found a bug? Feature request?
 [File it here](https://github.com/get-convex/aggregate/issues).
 

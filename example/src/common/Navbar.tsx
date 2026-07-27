@@ -6,6 +6,7 @@ import {
   IconArrowsShuffle,
   IconChartPie,
   IconBinaryTree,
+  IconGauge,
 } from "@tabler/icons-react";
 import { routes, useRoute } from "../routes";
 
@@ -53,6 +54,13 @@ export function Navbar() {
         leftSection={<IconBinaryTree size={20} />}
         active={route.name === "btree"}
         onClick={() => routes.btree().push()}
+        c="white"
+      />
+      <NavLink
+        label="Benchmark"
+        leftSection={<IconGauge size={20} />}
+        active={route.name === "bench"}
+        onClick={() => routes.bench().push()}
         c="white"
       />
     </Stack>

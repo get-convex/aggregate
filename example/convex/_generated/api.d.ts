@@ -8,12 +8,15 @@
  * @module
  */
 
+import type * as bench from "../bench.js";
 import type * as btree from "../btree.js";
 import type * as crons from "../crons.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
 import type * as shuffle from "../shuffle.js";
 import type * as stats from "../stats.js";
+import type * as utils_benchMath from "../utils/benchMath.js";
+import type * as utils_benchTypes from "../utils/benchTypes.js";
 import type * as utils_resetStatus from "../utils/resetStatus.js";
 
 import type {
@@ -23,12 +26,15 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  bench: typeof bench;
   btree: typeof btree;
   crons: typeof crons;
   leaderboard: typeof leaderboard;
   photos: typeof photos;
   shuffle: typeof shuffle;
   stats: typeof stats;
+  "utils/benchMath": typeof utils_benchMath;
+  "utils/benchTypes": typeof utils_benchTypes;
   "utils/resetStatus": typeof utils_resetStatus;
 }>;
 
@@ -65,5 +71,7 @@ export declare const components: {
   photos: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"photos">;
   stats: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"stats">;
   btreeAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"btreeAggregate">;
+  benchAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"benchAggregate">;
   migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
+  staticHosting: import("@convex-dev/static-hosting/_generated/component.js").ComponentApi<"staticHosting">;
 };

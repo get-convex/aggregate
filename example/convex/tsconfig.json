@@ -1,7 +1,10 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "skipLibCheck": false
+    // convex-helpers' DatabaseWriterWithTriggers doesn't implement `db.vars`,
+    // which convex 1.43.0-alpha added to GenericDatabaseWriter. Re-enable the
+    // lib check once convex-helpers ships against a release that has it.
+    "skipLibCheck": true
   },
   "include": ["."],
   "exclude": ["_generated"]

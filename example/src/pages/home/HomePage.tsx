@@ -6,6 +6,7 @@ import {
   IconArrowsShuffle,
   IconChartPie,
   IconBinaryTree,
+  IconGauge,
 } from "@tabler/icons-react";
 import { routes } from "../../routes";
 import { CommonAppShell } from "@/common/CommonAppShell";
@@ -123,6 +124,26 @@ export function HomePage() {
               </Group>
               <Text size="sm" c="gray.4">
                 Visualize the B-tree structure as it evolves
+              </Text>
+            </Stack>
+          </Card>
+
+          <Card
+            bg="dark.7"
+            p="lg"
+            style={{ minWidth: 200, cursor: "pointer" }}
+            onClick={() => routes.bench().push()}
+            className="hover-card"
+          >
+            <Stack gap="md">
+              <Group gap="sm">
+                <IconGauge size={24} color="cyan" />
+                <Title order={3} c="white">
+                  Benchmark
+                </Title>
+              </Group>
+              <Text size="sm" c="gray.4">
+                Queued vs eager writes under contention
               </Text>
             </Stack>
           </Card>

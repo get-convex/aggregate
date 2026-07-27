@@ -4,6 +4,7 @@ import { PhotosPage } from "./pages/photos/PhotosPage";
 import { ShufflePage } from "./pages/shuffle/ShufflePage";
 import { StatsPage } from "./pages/stats/StatsPage";
 import { BTreePage } from "./pages/btree/BTreePage";
+import { BenchPage } from "./pages/bench/BenchPage";
 import { useRoute } from "./routes";
 import { exhaustiveCheck } from "./utils/utils";
 
@@ -16,6 +17,7 @@ export default function App() {
   if (route.name === "shuffle") return <ShufflePage />;
   if (route.name === "stats") return <StatsPage />;
   if (route.name === "btree") return <BTreePage />;
+  if (route.name === "bench") return <BenchPage />;
 
   if (route.name == false) return <HomePage />;
 

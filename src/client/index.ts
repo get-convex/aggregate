@@ -61,6 +61,21 @@ export type Item<K extends Key, ID extends string> = {
   sumValue: number;
 };
 
+/** State of the async-write queue. See {@link Aggregate.queueStats}. */
+export type QueueStats = {
+  /** Queued transactions observed (at most `limit`). */
+  rows: number;
+  /** Operations across those transactions. */
+  operations: number;
+  /** Approximate queued bytes across those transactions. */
+  bytes: number;
+  /** More rows exist beyond what was counted; the counts are lower bounds. */
+  truncated: boolean;
+  oldestCommitTs: bigint | null;
+  newestObservedCommitTs: bigint | null;
+  worker: "idle" | "running" | "stopped" | null;
+};
+
 export type { Key, Bound, Bounds };
 
 /**
@@ -700,6 +715,35 @@ export class Aggregate<
     await ctx.runMutation(this.component.public.makeRootLazy, { namespace });
   }
 
+  /**
+   * Inspect the async-write queue: how many operations enqueued by `async: true`
+   * writes are still waiting to be applied, and whether the background worker
+   * is running.
+   *
+   * Bounded, so it stays cheap on a deep queue: it looks at up to `limit`
+   * queued rows (default 128, max 1024) and sets `truncated` when there are
+   * more, in which case the counts are lower bounds. One transaction can hold
+   * several rows, so `limit` bounds rows, not transactions.
+   *
+   * Pass `stale: true` from a mutation to read from a stale snapshot. That's the
+   * right choice for a poller: it avoids taking a read dependency on the queue,
+   * so it won't conflict with concurrent enqueues.
+   *
+   * While the queue is non-empty, every non-stale read and every write throws
+   * `ConvexError({ code: "PENDING_OPERATIONS" })` — use this to wait for a drain.
+   */
+  async queueStats(
+    ctx: QueryCtx | MutationCtx | ActionCtx,
+    opts?: { limit?: number; includeWorker?: boolean; stale?: boolean },
+  ): Promise<QueueStats> {
+    return await runQuery(
+      ctx,
+      this.component.public.queueStats,
+      { limit: opts?.limit, includeWorker: opts?.includeWorker },
+      opts?.stale,
+    );
+  }
+
   async paginateNamespaces(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     cursor?: string,
@@ -1098,9 +1142,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     });
   }
 
-  trigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  trigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc, opts);
@@ -1112,9 +1156,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  idempotentTrigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insertIfDoesNotExist(ctx, change.newDoc, opts);
