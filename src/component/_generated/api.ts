@@ -12,6 +12,7 @@ import type * as btree from "../btree.js";
 import type * as compare from "../compare.js";
 import type * as inspect from "../inspect.js";
 import type * as public_ from "../public.js";
+import type * as worker from "../worker.js";
 
 import type {
   ApiFromModules,
@@ -25,6 +26,7 @@ const fullApi: ApiFromModules<{
   compare: typeof compare;
   inspect: typeof inspect;
   public: typeof public_;
+  worker: typeof worker;
 }> = anyApi as any;
 
 /**
@@ -53,4 +55,6 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  batchWorker: import("@convex-dev/batch-worker/_generated/component.js").ComponentApi<"batchWorker">;
+};

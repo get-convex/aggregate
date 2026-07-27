@@ -85,4 +85,9 @@ export default defineSchema({
     commitTs: v.commitTs(),
     operations: v.array(vOperation),
   }).index("by_commitTs", ["commitTs"]),
+  deadLetterOperations: defineTable({
+    commitTs: v.int64(),
+    operation: vOperation,
+    error: v.string(),
+  }),
 });
