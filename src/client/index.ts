@@ -61,6 +61,23 @@ export type Item<K extends Key, ID extends string> = {
   sumValue: number;
 };
 
+/** State of the async-write queue. See {@link Aggregate.pendingCommits}. */
+export type PendingCommitsStats = {
+  /** Queued transactions observed (at most `limit`). */
+  rows: number;
+  /** Operations across those transactions. */
+  operations: number;
+  /** Approximate queued bytes across those transactions. */
+  bytes: number;
+  /** More rows exist beyond what was counted; the counts are lower bounds. */
+  truncated: boolean;
+  oldestCommitTs: bigint | null;
+  newestObservedCommitTs: bigint | null;
+  /** The largest commitTs the worker has drained past. */
+  lastDrainedCommitTs: bigint | null;
+  worker: "idle" | "running" | "stopped" | null;
+};
+
 export type { Key, Bound, Bounds };
 
 /**
@@ -698,6 +715,34 @@ export class Aggregate<
     namespace: Namespace,
   ): Promise<void> {
     await ctx.runMutation(this.component.public.makeRootLazy, { namespace });
+  }
+
+  /**
+   * Inspect the async-write queue: how many operations enqueued by `async: true`
+   * writes are still waiting to be applied, and whether the background worker
+   * is running.
+   *
+   * Bounded, so it stays cheap on a deep queue: it looks at up to `limit`
+   * queued transactions (default 128, max 1024) and sets `truncated` when there
+   * are more, in which case the counts are lower bounds.
+   *
+   * Pass `stale: true` from a mutation to read from a stale snapshot. That's the
+   * right choice for a poller: it avoids taking a read dependency on the queue,
+   * so it won't conflict with concurrent enqueues.
+   *
+   * While the queue is non-empty, every non-stale read and every write throws
+   * `ConvexError({ code: "PENDING_COMMITS" })` — use this to wait for a drain.
+   */
+  async pendingCommits(
+    ctx: QueryCtx | MutationCtx | ActionCtx,
+    opts?: { limit?: number; includeWorker?: boolean; stale?: boolean },
+  ): Promise<PendingCommitsStats> {
+    return await runQuery(
+      ctx,
+      this.component.public.pendingCommitsStats,
+      { limit: opts?.limit, includeWorker: opts?.includeWorker },
+      opts?.stale,
+    );
   }
 
   async paginateNamespaces(

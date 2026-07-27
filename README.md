@@ -732,8 +732,22 @@ read, every write, and `clear` throws
 `ConvexError({ code: "PENDING_COMMITS" })`. Mixing modes therefore isn't possible:
 wait for a drain before going back to synchronous operations.
 
+To observe the queue and wait for it to empty:
+
+```ts
+const { rows, operations, worker } = await aggregate.pendingCommits(ctx);
+// rows/operations are bounded counts (default: first 128 queued transactions);
+// `truncated` tells you there are more. `worker` is "idle" | "running" |
+// "stopped" | null.
+```
+
 Note that `TableAggregate.trigger()` does not forward options, so trigger-driven
 writes are always eager. Call the write methods directly to queue.
+
+The `example/` app has a **Benchmark** page that runs this path against the
+synchronous one under four contention scenarios and charts queue depth, write
+latency, and time to consistency. See
+[`example/convex/bench.ts`](./example/convex/bench.ts).
 
 Found a bug? Feature request?
 [File it here](https://github.com/get-convex/aggregate/issues).

@@ -265,6 +265,22 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
+      pendingCommitsStats: FunctionReference<
+        "query",
+        "internal",
+        { includeWorker?: boolean; limit?: number },
+        {
+          bytes: number;
+          lastDrainedCommitTs: bigint | null;
+          newestObservedCommitTs: bigint | null;
+          oldestCommitTs: bigint | null;
+          operations: number;
+          rows: number;
+          truncated: boolean;
+          worker: "idle" | "running" | "stopped" | null;
+        },
+        Name
+      >;
       replace: FunctionReference<
         "mutation",
         "internal",

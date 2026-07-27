@@ -15,6 +15,13 @@
   half of a transaction's queued writes. Each queued commit is applied in its own
   sub-transaction, and a commit that throws is rolled back, recorded in a dead
   letter queue with its error, and logged; later commits still drain.
+- Add `aggregate.pendingCommits(ctx)` for inspecting the queued-write backlog and
+  the background worker's status. Bounded, with a `truncated` flag, so it stays
+  cheap on a deep queue.
+- `@convex-dev/aggregate/test`'s `register` now also registers the nested batch
+  worker component, so tests can read queue status.
+- Example app: a Benchmark page comparing queued (async) writes against eager
+  writes across four contention scenarios.
 
 ## 0.2.2
 

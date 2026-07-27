@@ -1195,6 +1195,88 @@ describe("stale / pendingCommits", () => {
   // transaction. Verify it against a backend that enforces nested limits.
   test.skip("processBatch dead-letters a commit that exceeds its sub-transaction limits", () => {});
 
+  // `includeWorker: false` throughout: `@convex-dev/aggregate/test`'s `register`
+  // doesn't register the nested batchWorker component, so proxying its status
+  // would throw here.
+  describe("pendingCommitsStats", () => {
+    test("reports an empty queue", async () => {
+      const t = setupTest();
+      expect(
+        await t.query(api.public.pendingCommitsStats, { includeWorker: false }),
+      ).toMatchObject({
+        rows: 0,
+        operations: 0,
+        truncated: false,
+        oldestCommitTs: null,
+        newestObservedCommitTs: null,
+        lastDrainedCommitTs: null,
+        worker: null,
+      });
+    });
+
+    test("counts rows and operations, and tracks the commitTs range", async () => {
+      const t = setupTest();
+      await t.run(async (ctx) => {
+        await seedCommit(ctx, 1n, [{ type: "insert", key: 1, value: "a" }]);
+        await seedCommit(ctx, 2n, [
+          { type: "insert", key: 2, value: "b" },
+          { type: "insert", key: 3, value: "c" },
+        ]);
+        await seedCommit(ctx, 3n, [{ type: "delete", key: 1 }]);
+      });
+      const stats = await t.query(api.public.pendingCommitsStats, {
+        includeWorker: false,
+      });
+      expect(stats).toMatchObject({
+        rows: 3,
+        operations: 4,
+        truncated: false,
+        oldestCommitTs: 1n,
+        newestObservedCommitTs: 3n,
+      });
+      expect(stats.bytes).toBeGreaterThan(0);
+    });
+
+    test("bounds the scan and reports truncation", async () => {
+      const t = setupTest();
+      await t.run(async (ctx) => {
+        for (let i = 1; i <= 5; i++) {
+          await seedCommit(ctx, BigInt(i), [
+            { type: "insert", key: i, value: `v${i}` },
+          ]);
+        }
+      });
+      expect(
+        await t.query(api.public.pendingCommitsStats, {
+          limit: 2,
+          includeWorker: false,
+        }),
+      ).toMatchObject({
+        rows: 2,
+        operations: 2,
+        truncated: true,
+        oldestCommitTs: 1n,
+        newestObservedCommitTs: 2n,
+      });
+    });
+
+    test("exposes the drain cursor once the worker has drained", async () => {
+      const t = setupTest();
+      await t.run(async (ctx) => {
+        await getOrCreateTree(ctx.db, undefined, 4, false);
+        await seedCommit(ctx, 7n, [{ type: "insert", key: 1, value: "a" }]);
+      });
+      await drain(t);
+      expect(
+        await t.query(api.public.pendingCommitsStats, { includeWorker: false }),
+      ).toMatchObject({
+        rows: 0,
+        operations: 0,
+        lastDrainedCommitTs: 7n,
+      });
+    });
+  });
+
   // The enqueue path (public.enqueue -> enqueueOperation -> db.vars.commitTs)
   // can't run under convex-test, which doesn't resolve late-bound commit
   // timestamps. Verify it against a backend that supports db.vars.commitTs.
