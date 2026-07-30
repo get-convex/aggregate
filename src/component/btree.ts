@@ -106,6 +106,69 @@ export async function deleteHandler(
   }
 }
 
+export async function replaceHandler(
+  ctx: { db: DatabaseWriter },
+  args: {
+    currentKey: Key;
+    newKey: Key;
+    value: Value;
+    summand?: number;
+    namespace?: Namespace;
+    newNamespace?: Namespace;
+  },
+) {
+  await deleteHandler(ctx, { key: args.currentKey, namespace: args.namespace });
+  await insertHandler(ctx, {
+    key: args.newKey,
+    value: args.value,
+    summand: args.summand,
+    namespace: args.newNamespace,
+  });
+}
+
+export async function deleteIfExistsHandler(
+  ctx: { db: DatabaseWriter },
+  args: { key: Key; namespace?: Namespace },
+) {
+  try {
+    await deleteHandler(ctx, args);
+  } catch (e) {
+    if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
+      return;
+    }
+    throw e;
+  }
+}
+
+export async function replaceOrInsertHandler(
+  ctx: { db: DatabaseWriter },
+  args: {
+    currentKey: Key;
+    newKey: Key;
+    value: Value;
+    summand?: number;
+    namespace?: Namespace;
+    newNamespace?: Namespace;
+  },
+) {
+  try {
+    await deleteHandler(ctx, {
+      key: args.currentKey,
+      namespace: args.namespace,
+    });
+  } catch (e) {
+    if (!(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")) {
+      throw e;
+    }
+  }
+  await insertHandler(ctx, {
+    key: args.newKey,
+    value: args.value,
+    summand: args.summand,
+    namespace: args.newNamespace,
+  });
+}
+
 export const validate = query({
   args: { namespace: v.optional(v.any()) },
   handler: validateTree,
