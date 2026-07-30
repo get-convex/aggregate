@@ -708,6 +708,34 @@ default of 16, that means each write updates some document that accumulates
 all other writes, and reads may spuriously rerun 1/16th of the time. To increase
 `maxNodeSize`, run `aggregate.clear(ctx, maxNodeSize)` and start over.
 
+### Queued writes
+
+If your use-case can tolerate eventual consistency (slightly stale reads), you
+can use the **queued** mode of the aggregate. Instead of modifying your
+aggregate synchronously in the same transaction, you can set an optional `async`
+flag on writes to the aggregate to queue the update to run asynchronously. For
+reading the aggregate, setting the `stale` flag allows you to read from a stale
+snapshot of the aggregate, avoiding database conflicts.
+
+```ts
+// Enqueue instead of applying synchronously.
+await aggregate.insert(ctx, { key, id, sumValue }, { async: true });
+
+// Read from a stale snapshot of the aggregate.
+const count = await aggregate.count(ctx, { stale: true });
+```
+
+In the queued mode, writes stop contending on shared B-tree nodes as a
+[Batch Worker](https://github.com/get-convex/batch-worker) serializes updates to
+the aggregate. This should significantly improve performance for workloads with
+many concurrent writers. The trade-off is that you will not be able to read your
+queued writes to the aggregate in the same transaction. Queries that use stale
+reads are still reactive to changes to the aggregate as the Batch Worker
+processes the queued writes.
+
+Note that you cannot mix the queued mode with the non-queued mode. If there are
+any writes queued, a non-stale read or non-async write will throw an error.
+
 Found a bug? Feature request?
 [File it here](https://github.com/get-convex/aggregate/issues).
 
