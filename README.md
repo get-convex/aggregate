@@ -708,6 +708,33 @@ default of 16, that means each write updates some document that accumulates
 all other writes, and reads may spuriously rerun 1/16th of the time. To increase
 `maxNodeSize`, run `aggregate.clear(ctx, maxNodeSize)` and start over.
 
+### Queued (async) writes
+
+Writes take an optional `async` flag and reads take an optional `stale` flag.
+With `async: true`, a write doesn't touch the B-tree at all — it appends the
+operation to a queue, which a background worker drains in batches. Writes stop
+contending on shared tree nodes, at the cost of the aggregate being eventually
+consistent.
+
+```ts
+// Enqueue instead of applying synchronously.
+await aggregate.insert(ctx, { key, id, sumValue }, { async: true });
+
+// Reads must opt in too while the queue is non-empty.
+const count = await aggregate.count(ctx, { stale: true });
+```
+
+Inside a mutation, a stale read runs against a stale snapshot, so it doesn't
+conflict with concurrent enqueues.
+
+**The queue is exclusive.** While any operation is queued, every *non-stale*
+read, every write, and `clear` throws
+`ConvexError({ code: "PENDING_COMMITS" })`. Mixing modes therefore isn't possible:
+wait for a drain before going back to synchronous operations.
+
+Note that `TableAggregate.trigger()` does not forward options, so trigger-driven
+writes are always eager. Call the write methods directly to queue.
+
 Found a bug? Feature request?
 [File it here](https://github.com/get-convex/aggregate/issues).
 
