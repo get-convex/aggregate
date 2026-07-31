@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "2.0.0",
-    "@convex-dev/migrations": "0.3.5",
+    "@convex-dev/migrations": "0.3.6",
     "@edge-runtime/vm": "5.0.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
