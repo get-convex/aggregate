@@ -1,11 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import schema, { type Item } from "./schema.js";
 import { modules } from "./setup.test.js";
 import { test as fcTest, fc } from "@fast-check/vitest";
 import {
   atOffsetHandler,
   aggregateBetweenHandler,
+  assertNoPendingOperations,
   deleteHandler,
   getHandler,
   insertHandler,
@@ -19,6 +20,7 @@ import {
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
 } from "./btree.js";
+import { api } from "./_generated/api.js";
 import { compareValues } from "./compare.js";
 import { arbitraryValue } from "./arbitrary.helpers.js";
 import { ConvexError, convexToJson, jsonToConvex } from "convex/values";
@@ -793,4 +795,44 @@ describe("btree matches simpler impl", () => {
       });
     },
   );
+});
+
+describe("stale / pendingOperations", () => {
+  function setupTest(): TestConvex<typeof schema> {
+    return convexTest(schema, modules);
+  }
+
+  test("assertNoPendingOperations throws iff pendingOperations is non-empty", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await assertNoPendingOperations(ctx);
+      await ctx.db.insert("pendingOperations", {
+        commitTs: 1n,
+        operations: [{ type: "delete", key: 1 }],
+      });
+      await expect(assertNoPendingOperations(ctx)).rejects.toThrow(/PENDING_OPERATIONS/);
+    });
+  });
+
+  test("read query guards on pendingOperations unless stale", async () => {
+    const t = setupTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await insertHandler(ctx, { key: 1, value: "a" });
+      await insertHandler(ctx, { key: 2, value: "b" });
+      await ctx.db.insert("pendingOperations", {
+        commitTs: 1n,
+        operations: [{ type: "insert", key: 3, value: "c" }],
+      });
+    });
+    // Non-stale read throws while the queue is non-empty.
+    await expect(t.query(api.btree.aggregateBetween, {})).rejects.toThrow(
+      /PENDING_OPERATIONS/,
+    );
+    // Stale read skips the guard and returns the current tree state.
+    const { count } = await t.query(api.btree.aggregateBetween, {
+      stale: true,
+    });
+    expect(count).toEqual(2);
+  });
 });
