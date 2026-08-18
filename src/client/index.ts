@@ -1,5 +1,8 @@
 import type {
   DocumentByName,
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
@@ -19,15 +22,37 @@ import {
 import type { GenericId, Value as ConvexValue } from "convex/values";
 import type { ComponentApi } from "../component/_generated/component.js";
 
-export type QueryCtx = Pick<GenericQueryCtx<GenericDataModel>, "runQuery">;
+export type QueryCtx = Pick<
+  GenericQueryCtx<GenericDataModel>,
+  "runQuery" | "meta"
+>;
 export type MutationCtx = Pick<
   GenericMutationCtx<GenericDataModel>,
-  "runQuery" | "runMutation"
+  "runQuery" | "runMutation" | "meta"
 >;
 export type ActionCtx = Pick<
   GenericActionCtx<GenericDataModel>,
-  "runQuery" | "runMutation" | "runAction"
+  "runQuery" | "runMutation" | "runAction" | "meta"
 >;
+
+// Helper function to run one of the component's queries.
+async function runQuery<
+  Query extends FunctionReference<"query", "internal" | "public">,
+>(
+  ctx: QueryCtx | MutationCtx | ActionCtx,
+  query: Query,
+  args: FunctionArgs<Query>,
+  stale?: boolean,
+): Promise<FunctionReturnType<Query>> {
+  if (stale && (await ctx.meta.getFunctionMetadata()).type === "mutation") {
+    // Run stale reads with `useStaleSnapshot` in mutations to avoid OCC conflicts.
+    return await (ctx as MutationCtx).runQuery(query, args, {
+      useStaleSnapshot: true,
+    });
+  }
+  // Actions and queries do not have a `useStaleSnapshot` option.
+  return await ctx.runQuery(query, args);
+}
 
 export type Item<K extends Key, ID extends string> = {
   key: K;
@@ -64,14 +89,19 @@ export class Aggregate<
    */
   async count(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<number> {
-    const { count } = await ctx.runQuery(
+    const { count } = await runQuery(
+      ctx,
       this.component.btree.aggregateBetween,
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
       },
+      opts[0]?.stale,
     );
     return count;
   }
@@ -82,6 +112,7 @@ export class Aggregate<
   async countBatch(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: boolean },
   ): Promise<number[]> {
     const queryArgs = queries.map((query) => {
       if (!query) {
@@ -91,11 +122,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.stale,
     );
     return results.map((result: { count: number }) => result.count);
   }
@@ -105,12 +138,20 @@ export class Aggregate<
    */
   async sum(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<number> {
-    const { sum } = await ctx.runQuery(this.component.btree.aggregateBetween, {
-      ...boundsToPositions(opts[0]?.bounds),
-      namespace: namespaceFromOpts(opts),
-    });
+    const { sum } = await runQuery(
+      ctx,
+      this.component.btree.aggregateBetween,
+      {
+        ...boundsToPositions(opts[0]?.bounds),
+        namespace: namespaceFromOpts(opts),
+      },
+      opts[0]?.stale,
+    );
     return sum;
   }
 
@@ -120,6 +161,7 @@ export class Aggregate<
   async sumBatch(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     queries: NamespacedOptsBatch<{ bounds?: Bounds<K, ID> }, Namespace>,
+    opts?: { stale?: boolean },
   ): Promise<number[]> {
     const queryArgs = queries.map((query) => {
       if (!query) {
@@ -129,11 +171,13 @@ export class Aggregate<
       const { k1, k2 } = boundsToPositions(query.bounds);
       return { k1, k2, namespace };
     });
-    const results = await ctx.runQuery(
+    const results = await runQuery(
+      ctx,
       this.component.btree.aggregateBetweenBatch,
       {
         queries: queryArgs,
       },
+      opts?.stale,
     );
     return results.map((result: { sum: number }) => result.sum);
   }
@@ -149,21 +193,34 @@ export class Aggregate<
   async at(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     offset: number,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID>> {
     if (offset < 0) {
-      const item = await ctx.runQuery(this.component.btree.atNegativeOffset, {
-        offset: -offset - 1,
-        namespace: namespaceFromOpts(opts),
-        ...boundsToPositions(opts[0]?.bounds),
-      });
+      const item = await runQuery(
+        ctx,
+        this.component.btree.atNegativeOffset,
+        {
+          offset: -offset - 1,
+          namespace: namespaceFromOpts(opts),
+          ...boundsToPositions(opts[0]?.bounds),
+        },
+        opts[0]?.stale,
+      );
       return btreeItemToAggregateItem(item);
     }
-    const item = await ctx.runQuery(this.component.btree.atOffset, {
-      offset,
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-    });
+    const item = await runQuery(
+      ctx,
+      this.component.btree.atOffset,
+      {
+        offset,
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+      },
+      opts[0]?.stale,
+    );
     return btreeItemToAggregateItem(item);
   }
   /**
@@ -175,6 +232,7 @@ export class Aggregate<
       { offset: number; bounds?: Bounds<K, ID> },
       Namespace
     >,
+    opts?: { stale?: boolean },
   ): Promise<Item<K, ID>[]> {
     const queryArgs = queries.map((q) => ({
       offset: q.offset,
@@ -182,9 +240,14 @@ export class Aggregate<
       namespace: namespaceFromArg(q),
     }));
 
-    const results = await ctx.runQuery(this.component.btree.atOffsetBatch, {
-      queries: queryArgs,
-    });
+    const results = await runQuery(
+      ctx,
+      this.component.btree.atOffsetBatch,
+      {
+        queries: queryArgs,
+      },
+      opts?.stale,
+    );
 
     return results.map(btreeItemToAggregateItem<K, ID>);
   }
@@ -199,27 +262,46 @@ export class Aggregate<
     ctx: QueryCtx | MutationCtx | ActionCtx,
     key: K,
     ...opts: NamespacedOpts<
-      { id?: ID; bounds?: Bounds<K, ID>; order?: "asc" | "desc" },
+      {
+        id?: ID;
+        bounds?: Bounds<K, ID>;
+        order?: "asc" | "desc";
+        stale?: boolean;
+      },
       Namespace
     >
   ): Promise<number> {
     const { k1, k2 } = boundsToPositions(opts[0]?.bounds);
     if (opts[0]?.order === "desc") {
-      return await ctx.runQuery(this.component.btree.offsetUntil, {
-        key: boundToPosition("upper", {
+      return await runQuery(
+        ctx,
+        this.component.btree.offsetUntil,
+        {
+          key: boundToPosition("upper", {
+            key,
+            id: opts[0]?.id,
+            inclusive: true,
+          }),
+          k2,
+          namespace: namespaceFromOpts(opts),
+        },
+        opts[0]?.stale,
+      );
+    }
+    return await runQuery(
+      ctx,
+      this.component.btree.offset,
+      {
+        key: boundToPosition("lower", {
           key,
           id: opts[0]?.id,
           inclusive: true,
         }),
-        k2,
+        k1,
         namespace: namespaceFromOpts(opts),
-      });
-    }
-    return await ctx.runQuery(this.component.btree.offset, {
-      key: boundToPosition("lower", { key, id: opts[0]?.id, inclusive: true }),
-      k1,
-      namespace: namespaceFromOpts(opts),
-    });
+      },
+      opts[0]?.stale,
+    );
   }
   /**
    * @deprecated Use `indexOf` instead.
@@ -230,8 +312,15 @@ export class Aggregate<
     namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>,
+    stale?: boolean,
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds, order: "asc", namespace });
+    return this.indexOf(ctx, key, {
+      id,
+      bounds,
+      order: "asc",
+      namespace,
+      stale,
+    });
   }
   /**
    * @deprecated Use `indexOf` instead.
@@ -242,8 +331,15 @@ export class Aggregate<
     namespace: Namespace,
     id?: ID,
     bounds?: Bounds<K, ID>,
+    stale?: boolean,
   ): Promise<number> {
-    return this.indexOf(ctx, key, { id, bounds, order: "desc", namespace });
+    return this.indexOf(ctx, key, {
+      id,
+      bounds,
+      order: "desc",
+      namespace,
+      stale,
+    });
   }
 
   /**
@@ -251,13 +347,17 @@ export class Aggregate<
    */
   async min(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
       bounds: opts[0]?.bounds,
       order: "asc",
       pageSize: 1,
+      stale: opts[0]?.stale,
     });
     return page[0] ?? null;
   }
@@ -266,13 +366,17 @@ export class Aggregate<
    */
   async max(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID> | null> {
     const { page } = await this.paginate(ctx, {
       namespace: namespaceFromOpts(opts),
       bounds: opts[0]?.bounds,
       order: "desc",
       pageSize: 1,
+      stale: opts[0]?.stale,
     });
     return page[0] ?? null;
   }
@@ -281,7 +385,10 @@ export class Aggregate<
    */
   async random(
     ctx: QueryCtx | MutationCtx | ActionCtx,
-    ...opts: NamespacedOpts<{ bounds?: Bounds<K, ID> }, Namespace>
+    ...opts: NamespacedOpts<
+      { bounds?: Bounds<K, ID>; stale?: boolean },
+      Namespace
+    >
   ): Promise<Item<K, ID> | null> {
     const count = await this.count(ctx, ...opts);
     if (count === 0) {
@@ -302,6 +409,7 @@ export class Aggregate<
         cursor?: string;
         order?: "asc" | "desc";
         pageSize?: number;
+        stale?: boolean;
       },
       Namespace
     >
@@ -312,13 +420,18 @@ export class Aggregate<
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginate, {
-      namespace: namespaceFromOpts(opts),
-      ...boundsToPositions(opts[0]?.bounds),
-      cursor: opts[0]?.cursor,
-      order,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginate,
+      {
+        namespace: namespaceFromOpts(opts),
+        ...boundsToPositions(opts[0]?.bounds),
+        cursor: opts[0]?.cursor,
+        order,
+        limit: pageSize,
+      },
+      opts[0]?.stale,
+    );
     return {
       page: page.map(btreeItemToAggregateItem<K, ID>),
       cursor: newCursor,
@@ -336,13 +449,19 @@ export class Aggregate<
   async *iter(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     ...opts: NamespacedOpts<
-      { bounds?: Bounds<K, ID>; order?: "asc" | "desc"; pageSize?: number },
+      {
+        bounds?: Bounds<K, ID>;
+        order?: "asc" | "desc";
+        pageSize?: number;
+        stale?: boolean;
+      },
       Namespace
     >
   ): AsyncGenerator<Item<K, ID>, void, undefined> {
     const order = opts[0]?.order ?? "asc";
     const pageSize = opts[0]?.pageSize ?? 100;
     const bounds = opts[0]?.bounds;
+    const stale = opts[0]?.stale;
     const namespace = namespaceFromOpts(opts);
     let isDone = false;
     let cursor: string | undefined = undefined;
@@ -357,6 +476,7 @@ export class Aggregate<
         cursor,
         order,
         pageSize,
+        stale,
       });
       for (const item of page) {
         yield item;
@@ -506,15 +626,21 @@ export class Aggregate<
     ctx: QueryCtx | MutationCtx | ActionCtx,
     cursor?: string,
     pageSize: number = 100,
+    stale?: boolean,
   ): Promise<{ page: Namespace[]; cursor: string; isDone: boolean }> {
     const {
       page,
       cursor: newCursor,
       isDone,
-    } = await ctx.runQuery(this.component.btree.paginateNamespaces, {
-      cursor,
-      limit: pageSize,
-    });
+    } = await runQuery(
+      ctx,
+      this.component.btree.paginateNamespaces,
+      {
+        cursor,
+        limit: pageSize,
+      },
+      stale,
+    );
     return {
       page: page as Namespace[],
       cursor: newCursor,
@@ -525,6 +651,7 @@ export class Aggregate<
   async *iterNamespaces(
     ctx: QueryCtx | MutationCtx | ActionCtx,
     pageSize: number = 100,
+    stale?: boolean,
   ): AsyncGenerator<Namespace, void, undefined> {
     let isDone = false;
     let cursor: string | undefined = undefined;
@@ -533,7 +660,7 @@ export class Aggregate<
         page,
         cursor: newCursor,
         isDone: newIsDone,
-      } = await this.paginateNamespaces(ctx, cursor, pageSize);
+      } = await this.paginateNamespaces(ctx, cursor, pageSize, stale);
       for (const item of page) {
         yield item ?? (undefined as Namespace);
       }
@@ -854,6 +981,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
       id?: TableAggregateId<T>;
       bounds?: Bounds<T["Key"], TableAggregateId<T>>;
       order?: "asc" | "desc";
+      stale?: boolean;
     },
   ): Promise<number> {
     const key = this.options.sortKey(doc);
