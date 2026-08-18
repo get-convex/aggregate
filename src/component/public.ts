@@ -1,11 +1,14 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { mutation } from "./_generated/server.js";
 import {
   DEFAULT_MAX_NODE_SIZE,
   deleteHandler,
+  deleteIfExistsHandler,
   getOrCreateTree,
   getTree,
   insertHandler,
+  replaceHandler,
+  replaceOrInsertHandler,
 } from "./btree.js";
 import { internal } from "./_generated/api.js";
 
@@ -78,32 +81,12 @@ export const replace = mutation({
     newNamespace: v.optional(v.any()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    await deleteHandler(ctx, {
-      key: args.currentKey,
-      namespace: args.namespace,
-    });
-    await insertHandler(ctx, {
-      key: args.newKey,
-      value: args.value,
-      summand: args.summand,
-      namespace: args.newNamespace,
-    });
-  },
+  handler: replaceHandler,
 });
 
 export const deleteIfExists = mutation({
   args: { key: v.any(), namespace: v.optional(v.any()) },
-  handler: async (ctx, { key, namespace }) => {
-    try {
-      await deleteHandler(ctx, { key, namespace });
-    } catch (e) {
-      if (e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY") {
-        return;
-      }
-      throw e;
-    }
-  },
+  handler: deleteIfExistsHandler,
 });
 
 export const replaceOrInsert = mutation({
@@ -115,26 +98,7 @@ export const replaceOrInsert = mutation({
     namespace: v.optional(v.any()),
     newNamespace: v.optional(v.any()),
   },
-  handler: async (ctx, args) => {
-    try {
-      await deleteHandler(ctx, {
-        key: args.currentKey,
-        namespace: args.namespace,
-      });
-    } catch (e) {
-      if (
-        !(e instanceof ConvexError && e.data?.code === "DELETE_MISSING_KEY")
-      ) {
-        throw e;
-      }
-    }
-    await insertHandler(ctx, {
-      key: args.newKey,
-      value: args.value,
-      summand: args.summand,
-      namespace: args.newNamespace,
-    });
-  },
+  handler: replaceOrInsertHandler,
 });
 
 /**
