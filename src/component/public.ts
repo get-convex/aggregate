@@ -11,7 +11,9 @@ import {
   replaceHandler,
   replaceOrInsertHandler,
 } from "./btree.js";
+import { enqueueOperation } from "./worker.js";
 import { internal } from "./_generated/api.js";
+import { vOperation } from "./schema.js";
 
 export const init = mutation({
   args: {
@@ -114,6 +116,16 @@ export const replaceOrInsert = mutation({
   handler: async (ctx, args) => {
     await assertNoPendingOperations(ctx);
     await replaceOrInsertHandler(ctx, args);
+  },
+});
+
+export const enqueue = mutation({
+  args: {
+    operation: vOperation,
+  },
+  returns: v.null(),
+  handler: async (ctx, { operation }) => {
+    await enqueueOperation(ctx, operation);
   },
 });
 
