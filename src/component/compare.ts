@@ -1,4 +1,4 @@
-import type { Value } from "convex/values";
+import { CommitTsPlaceholder, type Value } from "convex/values";
 
 // Returns -1 if k1 < k2
 // Returns 0 if k1 === k2
@@ -46,6 +46,8 @@ function compareSameTypeValues<T>(v1: T, v2: T): number {
   return 0;
 }
 
+const MAX_INT64 = 9223372036854775807n;
+
 // Returns an array which can be compared to other arrays as if they were tuples.
 // For example, [1, null] < [2, 1n] means null sorts before all bigints
 // And [3, 5] < [3, 6] means floats sort as expected
@@ -59,6 +61,9 @@ function makeComparable(v: Value | undefined): [number, unknown] {
   }
   if (typeof v === "bigint") {
     return [2, v];
+  }
+  if (v instanceof CommitTsPlaceholder) {
+    return [2, MAX_INT64];
   }
   if (typeof v === "number") {
     if (isNaN(v)) {
@@ -83,5 +88,5 @@ function makeComparable(v: Value | undefined): [number, unknown] {
   // Otherwise, it's an POJO.
   const keys = Object.keys(v).sort();
   const pojo: Value[] = keys.map((k) => [k, v[k]!]);
-  return [8, pojo.map(makeComparable)];
+  return [9, pojo.map(makeComparable)];
 }
