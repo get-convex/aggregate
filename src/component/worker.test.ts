@@ -9,7 +9,11 @@ import {
 } from "vitest";
 import type { TestConvex } from "convex-test";
 import type { TransactionMetrics } from "convex/server";
-import { type CommitTsPlaceholder, getConvexSize } from "convex/values";
+import {
+  type CommitTsPlaceholder,
+  getConvexSize,
+  getDocumentSize,
+} from "convex/values";
 import schema, { type Operation } from "./schema.js";
 import { initConvexTest } from "./setup.test.js";
 import {
@@ -21,7 +25,8 @@ import {
 } from "./btree.js";
 import {
   BATCH_MAX_OPERATIONS,
-  enqueueOperation,
+  MAX_BYTES_PER_ENTRY,
+  enqueueOperations,
   hasHeadroomToFinish,
   MAX_OPERATIONS_PER_ENTRY,
   OPS_WORKER_NAME,
@@ -52,7 +57,7 @@ async function enqueue(
 ): Promise<bigint> {
   const commitTs = await t.run(async (ctx) => {
     for (const operation of operations) {
-      await enqueueOperation(ctx, operation);
+      await enqueueOperations(ctx, [operation]);
     }
     // Resolved on the way out, once the transaction has a timestamp.
     return ctx.db.vars.commitTs;
@@ -139,6 +144,18 @@ async function pendingOperationTimestamps(
 }
 
 describe("enqueue", () => {
+  function insertOp(i: number, bytes: number): Operation {
+    return { type: "insert", key: "k".repeat(bytes), value: `v${i}` };
+  }
+
+  const emptyEntryBytes = getDocumentSize({ commitTs: 0n, operations: [] });
+
+  function maxInsertOpsPerEntry(bytes: number): number {
+    return Math.floor(
+      (MAX_BYTES_PER_ENTRY - emptyEntryBytes) / getConvexSize(insertOp(0, bytes)),
+    );
+  }
+
   test("one transaction's operations share a row keyed by its commitTs", async () => {
     const t = initConvexTest();
     // Two operations in one transaction share a row; a later transaction gets
@@ -185,6 +202,117 @@ describe("enqueue", () => {
       ]);
       expect(rows.flatMap((r) => r.operations)).toEqual(inserts(0, queued));
     });
+  });
+
+  test("a batch fills the transaction's newest row before spilling onto another", async () => {
+    const t = initConvexTest();
+    const commitTs = await t.run(async (ctx) => {
+      await enqueueOperations(ctx, inserts(0, 1));
+      await enqueueOperations(ctx, inserts(1, MAX_OPERATIONS_PER_ENTRY + 1));
+      return ctx.db.vars.commitTs;
+    });
+    const queued = MAX_OPERATIONS_PER_ENTRY + 2;
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query("pendingOperations").collect();
+      expect(rows.map((r) => expectBigint(r.commitTs))).toEqual([
+        expectBigint(commitTs),
+        expectBigint(commitTs),
+      ]);
+      expect(rows.map((r) => r.operations.length)).toEqual([
+        MAX_OPERATIONS_PER_ENTRY,
+        2,
+      ]);
+      expect(rows.flatMap((r) => r.operations)).toEqual(inserts(0, queued));
+    });
+  });
+
+  test("a batch larger than two rows spills onto as many rows as it needs", async () => {
+    const t = initConvexTest();
+    const queued = 2 * MAX_OPERATIONS_PER_ENTRY + 1;
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, inserts(0, queued));
+    });
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query("pendingOperations").collect();
+      expect(rows.map((r) => r.operations.length)).toEqual([
+        MAX_OPERATIONS_PER_ENTRY,
+        MAX_OPERATIONS_PER_ENTRY,
+        1,
+      ]);
+      expect(rows.flatMap((r) => r.operations)).toEqual(inserts(0, queued));
+    });
+  });
+
+  test("a batch splits rows that would exceed the document size limit", async () => {
+    const t = initConvexTest();
+    // A quarter of a row each, so bytes run out well before
+    // MAX_OPERATIONS_PER_ENTRY does.
+    const bytes = MAX_BYTES_PER_ENTRY / 4;
+    const fit = maxInsertOpsPerEntry(bytes);
+    expect(fit).toBeGreaterThan(0);
+    expect(fit).toBeLessThan(MAX_OPERATIONS_PER_ENTRY);
+    const operations = Array.from({ length: fit + 1 }, (_, i) =>
+      insertOp(i, bytes),
+    );
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, operations);
+    });
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query("pendingOperations").collect();
+      expect(rows.map((r) => r.operations.length)).toEqual([fit, 1]);
+      expect(rows.flatMap((r) => r.operations)).toEqual(operations);
+      for (const row of rows) {
+        expect(getDocumentSize(row)).toBeLessThanOrEqual(MAX_BYTES_PER_ENTRY);
+      }
+    });
+  });
+
+  test("a batch stops appending to a row that has no room left in bytes", async () => {
+    const t = initConvexTest();
+    const bytes = MAX_BYTES_PER_ENTRY / 4;
+    const fit = maxInsertOpsPerEntry(bytes);
+    // One operation already in the row, then a row's worth behind it: all but
+    // the last fill the row up, and that last one spills onto a new one.
+    const operations = Array.from({ length: fit }, (_, i) =>
+      insertOp(i + 1, bytes),
+    );
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, [insertOp(0, bytes)]);
+      await enqueueOperations(ctx, operations);
+    });
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query("pendingOperations").collect();
+      expect(rows.map((r) => r.operations.length)).toEqual([fit, 1]);
+      expect(rows.flatMap((r) => r.operations)).toEqual([
+        insertOp(0, bytes),
+        ...operations,
+      ]);
+    });
+  });
+
+  test("an operation too large to fit anywhere does not stall the batch", async () => {
+    const t = initConvexTest();
+    const bytes = MAX_BYTES_PER_ENTRY / 4;
+    const operations = [
+      insertOp(0, bytes),
+      insertOp(1, MAX_BYTES_PER_ENTRY + 1),
+      insertOp(2, bytes),
+    ];
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, operations);
+    });
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query("pendingOperations").collect();
+      expect(rows.flatMap((r) => r.operations)).toEqual(operations);
+    });
+  });
+
+  test("an empty batch enqueues nothing", async () => {
+    const t = initConvexTest();
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, []);
+    });
+    expect(await pendingOperationTimestamps(t)).toEqual([]);
   });
 });
 

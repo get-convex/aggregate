@@ -1,6 +1,12 @@
 import { defineBatchWorkerValidators, ping } from "@convex-dev/batch-worker";
-import { ConvexError, getConvexSize, type Infer, v } from "convex/values";
-import type { TransactionMetrics } from "convex/server";
+import {
+  ConvexError,
+  getConvexSize,
+  getDocumentSize,
+  type Infer,
+  v,
+} from "convex/values";
+import type { TransactionMetrics, WithoutSystemFields } from "convex/server";
 import {
   type DatabaseWriter,
   internalMutation,
@@ -16,6 +22,7 @@ import {
   replaceHandler,
   replaceOrInsertHandler,
 } from "./btree.js";
+import type { Doc } from "./_generated/dataModel.js";
 
 export function batchMaxBytes(metrics: TransactionMetrics): number {
   const { used, remaining } = metrics.bytesRead;
@@ -24,24 +31,57 @@ export function batchMaxBytes(metrics: TransactionMetrics): number {
 
 export const BATCH_MAX_OPERATIONS = 1024;
 export const MAX_OPERATIONS_PER_ENTRY = 512;
+export const MAX_BYTES_PER_ENTRY = 100 * 1024;
 
 export const OPS_WORKER_NAME = "ops";
 
-export async function enqueueOperation(ctx: MutationCtx, operation: Operation) {
+export async function enqueueOperations(
+  ctx: MutationCtx,
+  operations: Operation[],
+) {
+  if (operations.length === 0) {
+    return;
+  }
+  const sizes = operations.map((operation) => getConvexSize(operation));
   const newestEntry = await ctx.db
     .query("pendingOperations")
     .withIndex("by_commitTs", (q) => q.eq("commitTs", ctx.db.vars.commitTs))
     .order("desc")
     .first();
-  if (newestEntry && newestEntry.operations.length < MAX_OPERATIONS_PER_ENTRY) {
-    await ctx.db.patch("pendingOperations", newestEntry._id, {
-      operations: [...newestEntry.operations, operation],
-    });
-  } else {
-    await ctx.db.insert("pendingOperations", {
+  let index = 0;
+  if (newestEntry) {
+    const patch = { operations: [...newestEntry.operations] };
+    let bytes = getDocumentSize(newestEntry);
+    while (
+      index < operations.length &&
+      patch.operations.length < MAX_OPERATIONS_PER_ENTRY &&
+      bytes + sizes[index] <= MAX_BYTES_PER_ENTRY
+    ) {
+      bytes += sizes[index];
+      patch.operations.push(operations[index]);
+      index++;
+    }
+    if (patch.operations.length > newestEntry.operations.length) {
+      await ctx.db.patch("pendingOperations", newestEntry._id, patch);
+    }
+  }
+  while (index < operations.length) {
+    const entry: WithoutSystemFields<Doc<"pendingOperations">> = {
       commitTs: ctx.db.vars.commitTs,
-      operations: [operation],
-    });
+      operations: [],
+    };
+    let bytes = getDocumentSize(entry);
+    while (
+      index < operations.length &&
+      entry.operations.length < MAX_OPERATIONS_PER_ENTRY &&
+      (entry.operations.length === 0 ||
+        bytes + sizes[index] <= MAX_BYTES_PER_ENTRY)
+    ) {
+      bytes += sizes[index];
+      entry.operations.push(operations[index]);
+      index++;
+    }
+    await ctx.db.insert("pendingOperations", entry);
   }
   await ping(ctx, components.batchWorker, {
     // TODO: explore separate queues by namespace

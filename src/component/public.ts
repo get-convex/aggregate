@@ -11,7 +11,7 @@ import {
   replaceHandler,
   replaceOrInsertHandler,
 } from "./btree.js";
-import { enqueueOperation } from "./worker.js";
+import { enqueueOperations } from "./worker.js";
 import { internal } from "./_generated/api.js";
 import { vOperation } from "./schema.js";
 
@@ -125,7 +125,17 @@ export const enqueue = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { operation }) => {
-    await enqueueOperation(ctx, operation);
+    await enqueueOperations(ctx, [operation]);
+  },
+});
+
+export const enqueueBatch = mutation({
+  args: {
+    operations: v.array(vOperation),
+  },
+  returns: v.null(),
+  handler: async (ctx, { operations }) => {
+    await enqueueOperations(ctx, operations);
   },
 });
 
