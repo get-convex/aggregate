@@ -12,6 +12,8 @@
     from a stale snapshot without causing OCC conflicts in mutations.
   - Queued and non-queued modes cannot be mixed: a non-stale read or non-async
     write throws when there are queued writes.
+  - Use `enqueueBatch` to enqueue several operations with a single call into the
+    component.
 
 ## 0.2.2
 
