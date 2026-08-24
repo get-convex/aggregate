@@ -725,6 +725,27 @@ await aggregate.insert(ctx, { key, id, sumValue }, { async: true });
 const count = await aggregate.count(ctx, { stale: true });
 ```
 
+To queue several writes with a single call into the component, use
+`enqueueBatch`. The operations are applied in the order they are given, and each
+one takes the same arguments as the corresponding write method.
+
+```ts
+await directAggregate.enqueueBatch(ctx, [
+  { type: "insert", key: 1, id: "a", sumValue: 10 },
+  { type: "delete", key: 2, id: "b" },
+  {
+    type: "replace",
+    currentItem: { key: 3, id: "c" },
+    newItem: { key: 4, sumValue: 40 },
+  },
+]);
+
+await tableAggregate.enqueueBatch(ctx, [
+  { type: "insert", doc },
+  { type: "replace", oldDoc, newDoc },
+]);
+```
+
 In the queued mode, writes stop contending on shared B-tree nodes as a
 [Batch Worker](https://github.com/get-convex/batch-worker) serializes updates to
 the aggregate. This should significantly improve performance for workloads with
