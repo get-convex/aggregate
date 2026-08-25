@@ -1098,9 +1098,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     });
   }
 
-  trigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  trigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc, opts);
@@ -1112,9 +1112,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  idempotentTrigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insertIfDoesNotExist(ctx, change.newDoc, opts);

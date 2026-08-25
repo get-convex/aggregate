@@ -668,7 +668,8 @@ async function deleteFromNode(
         // Rotate right
         const grandchild = leftSibling.subtrees.length
           ? await ctx.db.get(
-              "btreeNode", leftSibling.subtrees[leftSibling.subtrees.length - 1],
+              "btreeNode",
+              leftSibling.subtrees[leftSibling.subtrees.length - 1],
             )
           : null;
         const grandchildCount = grandchild

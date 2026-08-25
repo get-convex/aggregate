@@ -810,7 +810,9 @@ describe("stale / pendingOperations", () => {
         commitTs: 1n,
         operations: [{ type: "delete", key: 1 }],
       });
-      await expect(assertNoPendingOperations(ctx)).rejects.toThrow(/PENDING_OPERATIONS/);
+      await expect(assertNoPendingOperations(ctx)).rejects.toThrow(
+        /PENDING_OPERATIONS/,
+      );
     });
   });
 
