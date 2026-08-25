@@ -2,16 +2,16 @@
 
 ## Unreleased
 
-- Add a new queued mode to the Aggregate component that improves 
-  performance under highly concurrent workloads and provides eventual 
-  consistency instead of full transactionality.
-  - Queued writes: pass `{ async: true }` into aggregate writes to enqueue 
-    the update instead of applying it in the same transaction. This 
-    prevents concurrent writers from contending on shared B-tree nodes.
-  - Stale reads: pass `{ stale: true }` option into aggregate reads, which 
-    reads from a stale snapshot without causing OCC conflicts in mutations.  
-  - Queued and non-queued modes cannot be mixed: a non-stale read or 
-    non-async write throws when there are queued writes. 
+- Add a new queued mode to the Aggregate component that improves performance
+  under highly concurrent workloads and provides eventual consistency instead of
+  full transactionality.
+  - Queued writes: pass `{ async: true }` into aggregate writes to enqueue the
+    update instead of applying it in the same transaction. This prevents
+    concurrent writers from contending on shared B-tree nodes.
+  - Stale reads: pass `{ stale: true }` option into aggregate reads, which reads
+    from a stale snapshot without causing OCC conflicts in mutations.
+  - Queued and non-queued modes cannot be mixed: a non-stale read or non-async
+    write throws when there are queued writes.
 
 ## 0.2.2
 

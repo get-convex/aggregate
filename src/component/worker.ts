@@ -120,7 +120,7 @@ export type BatchLimit = (typeof BATCH_LIMITS)[number];
 // operation.
 export const RESERVE_HEADROOM = 100;
 // Bytes reserved to cover rewriting a pendingOperations row
-export const RESERVE_BYTES = 2 * 1024 * 1024;  // 2 MiB = twice the document size limit
+export const RESERVE_BYTES = 2 * 1024 * 1024; // 2 MiB = twice the document size limit
 
 export const FINISH_RESERVE: Record<BatchLimit, number> = {
   bytesRead: RESERVE_BYTES,
@@ -197,7 +197,10 @@ export const processBatchInner = internalMutation({
 export const processBatch = internalMutation({
   args: vMutationArgs,
   returns: vMutationReturns,
-  handler: async (ctx, { entries }): Promise<{ cursor: bigint } | undefined> => {
+  handler: async (
+    ctx,
+    { entries },
+  ): Promise<{ cursor: bigint } | undefined> => {
     if (entries.length === 0) {
       throw new Error("[aggregate] a cycle got an empty batch");
     }
