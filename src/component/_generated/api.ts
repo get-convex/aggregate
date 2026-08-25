@@ -10,6 +10,7 @@
 
 import type * as btree from "../btree.js";
 import type * as compare from "../compare.js";
+import type * as deadLetter from "../deadLetter.js";
 import type * as inspect from "../inspect.js";
 import type * as public_ from "../public.js";
 import type * as worker from "../worker.js";
@@ -24,6 +25,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 const fullApi: ApiFromModules<{
   btree: typeof btree;
   compare: typeof compare;
+  deadLetter: typeof deadLetter;
   inspect: typeof inspect;
   public: typeof public_;
   worker: typeof worker;
