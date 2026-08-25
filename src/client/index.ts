@@ -64,6 +64,35 @@ export type Item<K extends Key, ID extends string> = {
 export type { Key, Bound, Bounds };
 
 /**
+ * The arguments for inserting an item: its key, its id, and the sumValue to
+ * aggregate.
+ */
+export type InsertItemArgs<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined = undefined,
+> = NamespacedArgs<{ key: K; id: ID; sumValue?: number }, Namespace>;
+
+/**
+ * The arguments identifying an item already in the aggregate, to delete or to
+ * replace.
+ */
+export type ExistingItemArgs<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined = undefined,
+> = NamespacedArgs<{ key: K; id: ID }, Namespace>;
+
+/**
+ * The arguments describing what an item becomes when it is replaced. The id is
+ * carried over from the item being replaced.
+ */
+export type ReplacementItemArgs<
+  K extends Key,
+  Namespace extends ConvexValue | undefined = undefined,
+> = NamespacedArgs<{ key: K; sumValue?: number }, Namespace>;
+
+/**
  * Write data to be aggregated, and read aggregated data.
  *
  * The data structure is effectively a key-value store sorted by key, where the
@@ -804,10 +833,7 @@ export class DirectAggregate<
    */
   async insert(
     ctx: MutationCtx | ActionCtx,
-    args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"]; sumValue?: number },
-      DirectAggregateNamespace<T>
-    >,
+    args: InsertItemArgs<T["Key"], T["Id"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._insert(
@@ -825,10 +851,7 @@ export class DirectAggregate<
    */
   async delete(
     ctx: MutationCtx | ActionCtx,
-    args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
-      DirectAggregateNamespace<T>
-    >,
+    args: ExistingItemArgs<T["Key"], T["Id"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._delete(ctx, namespaceFromArg(args), args.key, args.id, opts);
@@ -840,14 +863,12 @@ export class DirectAggregate<
    */
   async replace(
     ctx: MutationCtx | ActionCtx,
-    currentItem: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
+    currentItem: ExistingItemArgs<
+      T["Key"],
+      T["Id"],
       DirectAggregateNamespace<T>
     >,
-    newItem: NamespacedArgs<
-      { key: T["Key"]; sumValue?: number },
-      DirectAggregateNamespace<T>
-    >,
+    newItem: ReplacementItemArgs<T["Key"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._replace(
@@ -871,10 +892,7 @@ export class DirectAggregate<
    */
   async insertIfDoesNotExist(
     ctx: MutationCtx | ActionCtx,
-    args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"]; sumValue?: number },
-      DirectAggregateNamespace<T>
-    >,
+    args: InsertItemArgs<T["Key"], T["Id"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._insertIfDoesNotExist(
@@ -888,10 +906,7 @@ export class DirectAggregate<
   }
   async deleteIfExists(
     ctx: MutationCtx | ActionCtx,
-    args: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
-      DirectAggregateNamespace<T>
-    >,
+    args: ExistingItemArgs<T["Key"], T["Id"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._deleteIfExists(
@@ -904,14 +919,12 @@ export class DirectAggregate<
   }
   async replaceOrInsert(
     ctx: MutationCtx | ActionCtx,
-    currentItem: NamespacedArgs<
-      { key: T["Key"]; id: T["Id"] },
+    currentItem: ExistingItemArgs<
+      T["Key"],
+      T["Id"],
       DirectAggregateNamespace<T>
     >,
-    newItem: NamespacedArgs<
-      { key: T["Key"]; sumValue?: number },
-      DirectAggregateNamespace<T>
-    >,
+    newItem: ReplacementItemArgs<T["Key"], DirectAggregateNamespace<T>>,
     opts?: { async?: boolean },
   ): Promise<void> {
     await this._replaceOrInsert(
@@ -1098,9 +1111,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     });
   }
 
-  trigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  trigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insert(ctx, change.newDoc, opts);
@@ -1112,9 +1125,9 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     };
   }
 
-  idempotentTrigger<Ctx extends MutationCtx>(
-    opts?: { async?: boolean },
-  ): TableAggregateTrigger<Ctx, T> {
+  idempotentTrigger<Ctx extends MutationCtx>(opts?: {
+    async?: boolean;
+  }): TableAggregateTrigger<Ctx, T> {
     return async (ctx, change) => {
       if (change.operation === "insert") {
         await this.insertIfDoesNotExist(ctx, change.newDoc, opts);
