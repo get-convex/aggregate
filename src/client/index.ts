@@ -10,7 +10,7 @@ import type {
   TableNamesInDataModel,
 } from "convex/server";
 import type { Key } from "../component/btree.js";
-import type { Operation } from "../component/schema.js";
+import type { Operation as QueuedOperation } from "../component/schema.js";
 import {
   type Position,
   positionToKey,
@@ -64,6 +64,35 @@ export type Item<K extends Key, ID extends string> = {
 export type { Key, Bound, Bounds };
 
 /**
+ * A single write in a batch passed to {@link DirectAggregate.enqueueBatch}.
+ */
+export type AggregateOperation<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined = undefined,
+> =
+  | ({ type: "insert" } & NamespacedArgs<
+      { key: K; id: ID; sumValue?: number },
+      Namespace
+    >)
+  | ({ type: "insertIfDoesNotExist" } & NamespacedArgs<
+      { key: K; id: ID; sumValue?: number },
+      Namespace
+    >)
+  | ({ type: "delete" } & NamespacedArgs<{ key: K; id: ID }, Namespace>)
+  | ({ type: "deleteIfExists" } & NamespacedArgs<{ key: K; id: ID }, Namespace>)
+  | {
+      type: "replace";
+      currentItem: NamespacedArgs<{ key: K; id: ID }, Namespace>;
+      newItem: NamespacedArgs<{ key: K; sumValue?: number }, Namespace>;
+    }
+  | {
+      type: "replaceOrInsert";
+      currentItem: NamespacedArgs<{ key: K; id: ID }, Namespace>;
+      newItem: NamespacedArgs<{ key: K; sumValue?: number }, Namespace>;
+    };
+
+/**
  * Write data to be aggregated, and read aggregated data.
  *
  * The data structure is effectively a key-value store sorted by key, where the
@@ -85,9 +114,19 @@ export class Aggregate<
 
   private async _enqueue(
     ctx: MutationCtx | ActionCtx,
-    operation: Operation,
+    operation: QueuedOperation,
   ): Promise<void> {
     await ctx.runMutation(this.component.public.enqueue, { operation });
+  }
+
+  protected async _enqueueBatch(
+    ctx: MutationCtx | ActionCtx,
+    operations: QueuedOperation[],
+  ): Promise<void> {
+    if (operations.length === 0) {
+      return;
+    }
+    await ctx.runMutation(this.component.public.enqueueBatch, { operations });
   }
 
   /// Aggregate queries.
@@ -795,6 +834,28 @@ export class DirectAggregate<
   T extends AnyDirectAggregateType,
 > extends Aggregate<T["Key"], T["Id"], DirectAggregateNamespace<T>> {
   /**
+   * Enqueue a batch of writes, to be applied asynchronously by the batch
+   * worker.
+   *
+   * Equivalent to calling the individual write methods with `{ async: true }`,
+   * except that the whole batch is sent to the component in a single call.
+   * The operations are applied in the order they are given.
+   */
+  async enqueueBatch(
+    ctx: MutationCtx | ActionCtx,
+    operations: AggregateOperation<
+      T["Key"],
+      T["Id"],
+      DirectAggregateNamespace<T>
+    >[],
+  ): Promise<void> {
+    await this._enqueueBatch(
+      ctx,
+      operations.map(aggregateOperationToQueuedOperation),
+    );
+  }
+
+  /**
    * Insert a new key into the data structure.
    * The id should be unique.
    * If not provided, the sumValue is assumed to be zero.
@@ -960,6 +1021,25 @@ type TableAggregateTrigger<Ctx, T extends AnyTableAggregateType> = Trigger<
   T["TableName"]
 >;
 
+/**
+ * A single write in a batch passed to {@link TableAggregate.enqueueBatch}.
+ */
+export type TableAggregateOperation<T extends AnyTableAggregateType> =
+  | { type: "insert"; doc: TableAggregateDocument<T> }
+  | { type: "insertIfDoesNotExist"; doc: TableAggregateDocument<T> }
+  | { type: "delete"; doc: TableAggregateDocument<T> }
+  | { type: "deleteIfExists"; doc: TableAggregateDocument<T> }
+  | {
+      type: "replace";
+      oldDoc: TableAggregateDocument<T>;
+      newDoc: TableAggregateDocument<T>;
+    }
+  | {
+      type: "replaceOrInsert";
+      oldDoc: TableAggregateDocument<T>;
+      newDoc: TableAggregateDocument<T>;
+    };
+
 export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
   T["Key"],
   GenericId<T["TableName"]>,
@@ -983,6 +1063,72 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
         }),
   ) {
     super(component);
+  }
+
+  /**
+   * Enqueue a batch of writes, to be applied asynchronously by the batch
+   * worker.
+   *
+   * Equivalent to calling the individual write methods with `{ async: true }`,
+   * except that the whole batch is sent to the component in a single call.
+   * The operations are applied in the order they are given.
+   */
+  async enqueueBatch(
+    ctx: MutationCtx | ActionCtx,
+    operations: TableAggregateOperation<T>[],
+  ): Promise<void> {
+    await this._enqueueBatch(
+      ctx,
+      operations.map((operation) => this.toQueuedOperation(operation)),
+    );
+  }
+
+  private toQueuedOperation(
+    operation: TableAggregateOperation<T>,
+  ): QueuedOperation {
+    switch (operation.type) {
+      case "insert":
+      case "insertIfDoesNotExist":
+      case "delete":
+      case "deleteIfExists": {
+        const { doc } = operation;
+        return aggregateOperationToQueuedOperation({
+          type: operation.type,
+          key: this.options.sortKey(doc),
+          id: doc._id as TableAggregateId<T>,
+          sumValue: this.options.sumValue?.(doc),
+          namespace: this.options.namespace?.(
+            doc,
+          ) as TableAggregateNamespace<T>,
+        });
+      }
+      case "replace":
+      case "replaceOrInsert": {
+        const { oldDoc, newDoc } = operation;
+        return aggregateOperationToQueuedOperation({
+          type: operation.type,
+          currentItem: {
+            key: this.options.sortKey(oldDoc),
+            id: newDoc._id as TableAggregateId<T>,
+            namespace: this.options.namespace?.(
+              oldDoc,
+            ) as TableAggregateNamespace<T>,
+          },
+          newItem: {
+            key: this.options.sortKey(newDoc),
+            sumValue: this.options.sumValue?.(newDoc),
+            namespace: this.options.namespace?.(
+              newDoc,
+            ) as TableAggregateNamespace<T>,
+          },
+        });
+      }
+      default:
+        operation satisfies never;
+        throw new Error(
+          `Unknown operation type: ${(operation as { type: string }).type}`,
+        );
+    }
   }
 
   async insert(
@@ -1182,6 +1328,68 @@ export type NamespacedOpts<Opts, Namespace> =
 export type NamespacedOptsBatch<Opts, Namespace> = Array<
   undefined extends Namespace ? Opts : { namespace: Namespace } & Opts
 >;
+
+function aggregateOperationToQueuedOperation<
+  K extends Key,
+  ID extends string,
+  Namespace extends ConvexValue | undefined,
+>(operation: AggregateOperation<K, ID, Namespace>): QueuedOperation {
+  switch (operation.type) {
+    case "insert":
+      return {
+        type: "insert",
+        key: keyToPosition(operation.key, operation.id),
+        value: operation.id,
+        summand: operation.sumValue,
+        namespace: namespaceFromArg<Namespace>(operation),
+      };
+    case "delete":
+      return {
+        type: "delete",
+        key: keyToPosition(operation.key, operation.id),
+        namespace: namespaceFromArg<Namespace>(operation),
+      };
+    case "deleteIfExists":
+      return {
+        type: "deleteIfExists",
+        key: keyToPosition(operation.key, operation.id),
+        namespace: namespaceFromArg<Namespace>(operation),
+      };
+    case "insertIfDoesNotExist": {
+      const position = keyToPosition(operation.key, operation.id);
+      const namespace = namespaceFromArg<Namespace>(operation);
+      // insertIfDoesNotExist is implemented as a replaceOrInsert operation with
+      // the current item and the new item set to the same thing.
+      return {
+        type: "replaceOrInsert",
+        currentKey: position,
+        newKey: position,
+        value: operation.id,
+        summand: operation.sumValue,
+        namespace,
+        newNamespace: namespace,
+      };
+    }
+    case "replace":
+    case "replaceOrInsert": {
+      const { currentItem, newItem } = operation;
+      return {
+        type: operation.type,
+        currentKey: keyToPosition(currentItem.key, currentItem.id),
+        newKey: keyToPosition(newItem.key, currentItem.id),
+        value: currentItem.id,
+        summand: newItem.sumValue,
+        namespace: namespaceFromArg<Namespace>(currentItem),
+        newNamespace: namespaceFromArg<Namespace>(newItem),
+      };
+    }
+    default:
+      operation satisfies never;
+      throw new Error(
+        `Unknown operation type: ${(operation as { type: string }).type}`,
+      );
+  }
+}
 
 function namespaceFromArg<Namespace>(
   args: { namespace: Namespace } | object,
