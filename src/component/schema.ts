@@ -89,5 +89,5 @@ export default defineSchema({
     commitTs: v.int64(),
     operation: vOperation,
     error: v.string(),
-  }),
+  }).index("by_commitTs", ["commitTs"]),
 });

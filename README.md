@@ -736,6 +736,32 @@ processes the queued writes.
 Note that you cannot mix the queued mode with the non-queued mode. If there are
 any writes queued, a non-stale read or non-async write will throw an error.
 
+#### Dead-lettered writes
+
+If a queued write can't be applied (for example, a `delete` for a key that isn't
+in the aggregate), the Batch Worker places it in a dead letter queue.
+
+You can query the dead letter queue to recover failed operations. After handling
+a failed operation, you can delete it from the queue.
+
+```ts
+// List entries in the dead letter queue
+const { page, continueCursor, isDone } = await ctx.runQuery(
+  components.aggregate.deadLetter.list,
+  { paginationOpts: { numItems: 100, cursor: null } },
+);
+
+// Fetch a specific entry by id. A missing entry comes back as `null`.
+const entry = await ctx.runQuery(components.aggregate.deadLetter.get, { id });
+
+// Delete an entry from the dead letter queue.
+await ctx.runMutation(components.aggregate.deadLetter.delete_, { id });
+```
+
+You can also quickly view the dead letter queue by checking the
+`deadLetterOperations` table under your aggregate component in the Convex
+dashboard.
+
 Found a bug? Feature request?
 [File it here](https://github.com/get-convex/aggregate/issues).
 

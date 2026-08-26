@@ -137,6 +137,111 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Name
       >;
     };
+    deadLetter: {
+      delete_: FunctionReference<
+        "mutation",
+        "internal",
+        { id: string },
+        boolean,
+        Name
+      >;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { id: string },
+        {
+          _creationTime: number;
+          _id: string;
+          commitTs: bigint;
+          error: string;
+          operation:
+            | {
+                key: any;
+                namespace?: any;
+                summand?: number;
+                type: "insert";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "delete" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replace";
+                value: any;
+              }
+            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | {
+                currentKey: any;
+                namespace?: any;
+                newKey: any;
+                newNamespace?: any;
+                summand?: number;
+                type: "replaceOrInsert";
+                value: any;
+              };
+        } | null,
+        Name
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        {
+          order?: "asc" | "desc";
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+        },
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            _creationTime: number;
+            _id: string;
+            commitTs: bigint;
+            error: string;
+            operation:
+              | {
+                  key: any;
+                  namespace?: any;
+                  summand?: number;
+                  type: "insert";
+                  value: any;
+                }
+              | { key: any; namespace?: any; type: "delete" }
+              | {
+                  currentKey: any;
+                  namespace?: any;
+                  newKey: any;
+                  newNamespace?: any;
+                  summand?: number;
+                  type: "replace";
+                  value: any;
+                }
+              | { key: any; namespace?: any; type: "deleteIfExists" }
+              | {
+                  currentKey: any;
+                  namespace?: any;
+                  newKey: any;
+                  newNamespace?: any;
+                  summand?: number;
+                  type: "replaceOrInsert";
+                  value: any;
+                };
+          }>;
+          pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+          splitCursor?: string | null;
+        },
+        Name
+      >;
+    };
     inspect: {
       display: FunctionReference<
         "query",
