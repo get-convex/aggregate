@@ -66,4 +66,5 @@ export declare const components: {
   stats: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"stats">;
   btreeAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"btreeAggregate">;
   migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
+  staticHosting: import("@convex-dev/static-hosting/_generated/component.js").ComponentApi<"staticHosting">;
 };
