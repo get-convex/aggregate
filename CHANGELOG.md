@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0-alpha.1
+## 0.3.0
 
 - Add a new queued mode to the Aggregate component that improves performance
   under highly concurrent workloads and provides eventual consistency instead of
