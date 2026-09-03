@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Bump `@convex-dev/batch-worker` to 0.3.3, which includes fixes to reduce
+  internal Batch Worker OCC errors.
+
 ## 0.3.0
 
 - Add a new queued mode to the Aggregate component that improves performance
