@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import schema from "./schema";
 import { register } from "@convex-dev/aggregate/test";
+import batchWorker from "@convex-dev/batch-worker/test";
 import migrations from "@convex-dev/migrations/test";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -289,5 +290,77 @@ describe("stats", () => {
       expect(stats.p75).toEqual(30);
       expect(stats.p95).toEqual(35);
     }
+  });
+});
+
+describe("queued mode", () => {
+  async function setupTest() {
+    const t = convexTest(schema, modules);
+    // The toggle applies to every aggregate in the app, and turning it off
+    // checks all of them for outstanding writes, so register them all.
+    for (const name of [
+      "aggregateByScore",
+      "aggregateScoreByUser",
+      "music",
+      "photos",
+      "stats",
+      "btreeAggregate",
+    ]) {
+      register(t, name);
+      // Each aggregate mounts a batch worker, which applies its queued writes.
+      batchWorker.register(t, `${name}/batchWorker`);
+    }
+    migrations.register(t);
+    return t;
+  }
+
+  let t: Awaited<ReturnType<typeof setupTest>>;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    t = await setupTest();
+  });
+
+  afterEach(async () => {
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+  });
+
+  test("writes are applied asynchronously and reads are stale", async () => {
+    await t.mutation(api.settings.setQueuedMode, { queued: true });
+    expect(await t.query(api.settings.getQueuedMode)).toStrictEqual({
+      queued: true,
+      draining: false,
+    });
+
+    await t.mutation(api.leaderboard.addScore, { name: "Sujay", score: 10 });
+    // The write is queued, so a stale read doesn't see it yet.
+    expect(await t.query(api.leaderboard.countScores)).toStrictEqual(0);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.query(api.leaderboard.countScores)).toStrictEqual(1);
+    expect(await t.query(api.leaderboard.sumNumbers)).toStrictEqual(10);
+  });
+
+  test("turning it off waits for the queued writes to drain", async () => {
+    await t.mutation(api.settings.setQueuedMode, { queued: true });
+    await t.mutation(api.leaderboard.addScore, { name: "Sujay", score: 10 });
+
+    // Still queued mode, because there's an unapplied write outstanding.
+    await t.mutation(api.settings.setQueuedMode, { queued: false });
+    expect(await t.query(api.settings.getQueuedMode)).toStrictEqual({
+      queued: true,
+      draining: true,
+    });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.query(api.settings.getQueuedMode)).toStrictEqual({
+      queued: false,
+      draining: false,
+    });
+
+    // Back to synchronous: the write lands in the same transaction.
+    await t.mutation(api.leaderboard.addScore, { name: "Lee", score: 20 });
+    expect(await t.query(api.leaderboard.countScores)).toStrictEqual(2);
   });
 });
