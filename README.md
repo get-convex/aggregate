@@ -757,6 +757,30 @@ processes the queued writes.
 Note that you cannot mix the queued mode with the non-queued mode. If there are
 any writes queued, a non-stale read or non-async write will throw an error.
 
+The `example/` app has a **Benchmark** page that allows you to compare the
+performance of the queued mode with non-queued mode. See
+[`example/convex/bench.ts`](./example/convex/bench.ts).
+
+#### Inspecting the queue
+
+You can check how much work is still queued, and whether the Batch Worker is
+running.
+
+```ts
+const stats = await ctx.runQuery(components.aggregate.inspect.queueStats, {
+  limit: 128,
+  includeWorker: true,
+});
+```
+
+It returns the number of queued `rows` and the `operations` and `bytes` they
+hold, the oldest and newest commit timestamps it saw, and the Batch Worker's
+state (`"idle"`, `"running"`, `"stopped"`, or `null` if it has never been
+pinged). The scan is bounded: it reads up to `limit` rows (default 128,
+max 1024) and sets `truncated` when there are more, so the counts are lower
+bounds on a deep queue. Pass `includeWorker: false` to skip the worker's state
+and save a nested query.
+
 #### Dead-lettered writes
 
 If a queued write can't be applied (for example, a `delete` for a key that isn't
