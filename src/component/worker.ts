@@ -91,6 +91,14 @@ export async function enqueueOperations(
     }
     await ctx.db.insert("pendingOperations", entry);
   }
+  if (env.WORKER_SCHEDULE_PING === "true") {
+    await ctx.scheduler.runAfter(0, internal.worker.pingWorker, {});
+    return;
+  }
+  await pingBatchWorker(ctx);
+}
+
+async function pingBatchWorker(ctx: MutationCtx) {
   await ping(ctx, components.batchWorker, {
     // TODO: explore separate queues by namespace
     name: OPS_WORKER_NAME,
@@ -98,6 +106,14 @@ export async function enqueueOperations(
     workerMutation: internal.worker.processBatch,
   });
 }
+
+export const pingWorker = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    await pingBatchWorker(ctx);
+  },
+});
 
 const vBatchEntry = v.object({
   id: v.id("pendingOperations"),

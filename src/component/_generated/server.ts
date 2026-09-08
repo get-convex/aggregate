@@ -36,6 +36,7 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly WORKER_IDLE_COOLDOWN_MS: string | undefined;
   readonly WORKER_POLL_INTERVAL_MS: string | undefined;
+  readonly WORKER_SCHEDULE_PING: "true" | "false" | undefined;
 };
 
 /**

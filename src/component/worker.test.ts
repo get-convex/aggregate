@@ -982,3 +982,87 @@ describe("staying awake between bursts", () => {
     });
   });
 });
+
+describe("scheduling the ping", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // Pending only: convex-test keeps completed runs in the table too.
+  async function pendingPings(t: TestConvex<typeof schema>) {
+    return await t.run(async (ctx) => {
+      const scheduled = await ctx.db.system
+        .query("_scheduled_functions")
+        .collect();
+      return scheduled.filter(
+        (f) => f.name.includes("pingWorker") && f.state.kind === "pending",
+      );
+    });
+  }
+
+  test("the ping is inline unless asked for", async () => {
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    expect(await pendingPings(t)).toHaveLength(0);
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+  });
+
+  test("a parked worker is woken from its own transaction", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    // The enqueue left the worker alone; the scheduled ping registers it.
+    expect(await workerStatus(t)).toBeNull();
+    expect(await pendingPings(t)).toHaveLength(1);
+
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 1 })).toEqual({
+        k: 1,
+        v: "a",
+        s: 0,
+      });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+
+  test("every enqueue schedules one, and it no-ops on a running worker", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(await pendingPings(t)).toHaveLength(1);
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+    });
+  });
+
+  test("work enqueued after the worker parks still drains", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await drainViaWorker(t);
+    expect(await workerStatus(t)).toEqual({ kind: "idle" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(await pendingPings(t)).toHaveLength(1);
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+});
