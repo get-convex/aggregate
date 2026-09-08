@@ -25,6 +25,7 @@ import {
 } from "./btree.js";
 import {
   BATCH_MAX_OPERATIONS,
+  parseDuration,
   MAX_BYTES_PER_ENTRY,
   enqueueOperations,
   hasHeadroomToFinish,
@@ -95,6 +96,13 @@ function inserts(from: number, count: number): Operation[] {
 // Run the worker loop to completion
 async function drainViaWorker(t: TestConvex<typeof schema>): Promise<void> {
   await t.finishAllScheduledFunctions(vi.runAllTimers);
+}
+
+// The batch worker's run state for our queue, or null before it is registered.
+async function workerStatus(t: TestConvex<typeof schema>) {
+  return await t.run(async (ctx) =>
+    ctx.runQuery(components.batchWorker.lib.status, { name: OPS_WORKER_NAME }),
+  );
 }
 
 // The cursor the batch worker has committed for our queue, or null before it
@@ -891,5 +899,86 @@ describe("guards", () => {
     await expect(
       t.mutation(internal.worker.processBatchInner, { entries: [] }),
     ).rejects.toThrow(/no progress/);
+  });
+});
+
+describe("staying awake between bursts", () => {
+  // Like `drainViaWorker`, but without running the clock past the worker's
+  // next poll, so its run state stays observable mid-gap.
+  async function advance(t: TestConvex<typeof schema>, ms: number) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 200) {
+      vi.advanceTimersByTime(200);
+      await t.finishInProgressScheduledFunctions();
+    }
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const COOLDOWN_MS = 60_000;
+
+  function configureWorker() {
+    vi.stubEnv("WORKER_IDLE_COOLDOWN_MS", String(COOLDOWN_MS));
+    vi.stubEnv("WORKER_POLL_INTERVAL_MS", "1000");
+  }
+
+  test("an unusable env var is left unset", () => {
+    expect(parseDuration("5000")).toBe(5_000);
+    expect(parseDuration(undefined)).toBeUndefined();
+    expect(parseDuration("")).toBeUndefined();
+    expect(parseDuration("soon")).toBeUndefined();
+    expect(parseDuration("0")).toBeUndefined();
+    expect(parseDuration("-1000")).toBeUndefined();
+  });
+
+  test("an empty queue defers to the batch worker unless configured", async () => {
+    const t = initConvexTest();
+    expect(
+      await t.query(internal.worker.getBatch, { name: OPS_WORKER_NAME }),
+    ).toEqual({ kind: "idle" });
+
+    configureWorker();
+    expect(
+      await t.query(internal.worker.getBatch, { name: OPS_WORKER_NAME }),
+    ).toEqual({ kind: "idle", cooldownMs: COOLDOWN_MS, pollIntervalMs: 1_000 });
+  });
+
+  test("the worker stays running across a gap shorter than the cooldown", async () => {
+    configureWorker();
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await advance(t, COOLDOWN_MS / 2);
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    await advance(t, 2_000);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+    });
+  });
+
+  test("it still parks once the queue has been empty for the cooldown", async () => {
+    configureWorker();
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await advance(t, COOLDOWN_MS + 2_000);
+    expect(await workerStatus(t)).toEqual({ kind: "idle" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
   });
 });
