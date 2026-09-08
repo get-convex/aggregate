@@ -6,6 +6,9 @@
 
     "target": "ESNext",
     "lib": ["ES2021", "dom", "DOM.Iterable"],
+    // The component declares env vars, so its generated `server.ts` reads
+    // `process.env`.
+    "types": ["node"],
     "jsx": "react-jsx",
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,

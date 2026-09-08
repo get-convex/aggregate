@@ -9,6 +9,7 @@ import {
 import type { TransactionMetrics, WithoutSystemFields } from "convex/server";
 import {
   type DatabaseWriter,
+  env,
   internalMutation,
   internalQuery,
   type MutationCtx,
@@ -34,6 +35,13 @@ export const MAX_OPERATIONS_PER_ENTRY = 512;
 export const MAX_BYTES_PER_ENTRY = 100 * 1024;
 
 export const OPS_WORKER_NAME = "ops";
+
+export function parseDuration(value: string | undefined): number | undefined {
+  const parsed = Number(value);
+  return value !== undefined && Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : undefined;
+}
 
 export async function enqueueOperations(
   ctx: MutationCtx,
@@ -140,7 +148,11 @@ export const getBatch = internalQuery({
       operations += row.operations.length;
     }
     if (entries.length === 0) {
-      return { kind: "idle" as const };
+      return {
+        kind: "idle" as const,
+        cooldownMs: parseDuration(env.WORKER_IDLE_COOLDOWN_MS),
+        pollIntervalMs: parseDuration(env.WORKER_POLL_INTERVAL_MS),
+      };
     }
     return { kind: "work" as const, batch: { entries } };
   },

@@ -757,6 +757,39 @@ processes the queued writes.
 Note that you cannot mix the queued mode with the non-queued mode. If there are
 any writes queued, a non-stale read or non-async write will throw an error.
 
+#### Tuning the Batch Worker
+
+Every queued write checks that the worker is running, which reads one shared
+record. Nothing writes that record while the worker keeps running, but parking
+it once the queue drains and waking it back up both do, and those writes make
+the queued writes in flight retry.
+
+By default the worker parks a couple of seconds after the queue drains, so a
+workload that writes in bursts pays for a park and a wake on every burst. If
+those retries show up under contention, have the worker poll for longer instead,
+so that it rides out the gaps between bursts:
+
+```ts
+app.use(aggregate, {
+  name: "photos",
+  env: {
+    // Poll an empty queue for this long before parking. Bursts closer together
+    // than this never park the worker, and so never contend.
+    WORKER_IDLE_COOLDOWN_MS: "60000",
+    // How often to poll while doing so.
+    WORKER_POLL_INTERVAL_MS: "1000",
+  },
+});
+```
+
+Set the cooldown longer than the gaps between your bursts. There is no point
+setting it beyond that: an aggregate written to less often than the cooldown
+parks anyway, and only pays for the extra polling. The poll interval trades
+those polls against how long the first write after a quiet stretch waits to be
+applied; it does not affect writes that arrive while the worker already has
+work. Leave either unset to use the
+[Batch Worker's](https://github.com/get-convex/batch-worker) own default.
+
 #### Dead-lettered writes
 
 If a queued write can't be applied (for example, a `delete` for a key that isn't
