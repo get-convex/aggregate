@@ -83,6 +83,12 @@ export async function enqueueOperations(
     }
     await ctx.db.insert("pendingOperations", entry);
   }
+  // Rows written by this transaction still carry an unresolved commitTs, so
+  // one turning up in the lookup above means an earlier `enqueueOperations`
+  // already pinged for it.
+  if (newestEntry) {
+    return;
+  }
   await ping(ctx, components.batchWorker, {
     // TODO: explore separate queues by namespace
     name: OPS_WORKER_NAME,

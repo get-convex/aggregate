@@ -893,3 +893,32 @@ describe("guards", () => {
     ).rejects.toThrow(/no progress/);
   });
 });
+
+describe("pinging the worker", () => {
+  // Only the first enqueue in a transaction pings, so the ping still has to
+  // land when a transaction enqueues more than once.
+  test("a transaction that enqueues repeatedly still wakes the worker", async () => {
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(
+      await t.run(async (ctx) =>
+        ctx.runQuery(components.batchWorker.lib.status, {
+          name: OPS_WORKER_NAME,
+        }),
+      ),
+    ).toEqual({ kind: "idle" });
+
+    await enqueue(
+      t,
+      { type: "insert", key: 2, value: "b" },
+      { type: "insert", key: 3, value: "c" },
+    );
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({ k: 2, v: "b", s: 0 });
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+});
