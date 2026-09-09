@@ -1026,7 +1026,7 @@ describe("scheduling the ping", () => {
     });
   });
 
-  test("every enqueue schedules one, and it no-ops on a running worker", async () => {
+  test("each transaction schedules one, and it no-ops on a running worker", async () => {
     vi.stubEnv("WORKER_SCHEDULE_PING", "true");
     const t = initConvexTest();
     await enqueue(t, { type: "insert", key: 1, value: "a" });
@@ -1046,6 +1046,24 @@ describe("scheduling the ping", () => {
     });
   });
 
+  test("a transaction that enqueues repeatedly schedules one ping", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(
+      t,
+      { type: "insert", key: 1, value: "a" },
+      { type: "insert", key: 2, value: "b" },
+      { type: "insert", key: 3, value: "c" },
+    );
+    expect(await pendingPings(t)).toHaveLength(1);
+
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+
   test("work enqueued after the worker parks still drains", async () => {
     vi.stubEnv("WORKER_SCHEDULE_PING", "true");
     const t = initConvexTest();
@@ -1062,6 +1080,29 @@ describe("scheduling the ping", () => {
         v: "b",
         s: 0,
       });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+});
+
+describe("pinging the worker", () => {
+  // Only the first enqueue in a transaction pings, so the ping still has to
+  // land when a transaction enqueues more than once.
+  test("a transaction that enqueues repeatedly still wakes the worker", async () => {
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await drainViaWorker(t);
+    expect(await workerStatus(t)).toEqual({ kind: "idle" });
+
+    await enqueue(
+      t,
+      { type: "insert", key: 2, value: "b" },
+      { type: "insert", key: 3, value: "c" },
+    );
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({ k: 2, v: "b", s: 0 });
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
       expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
     });
   });

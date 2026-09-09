@@ -91,6 +91,12 @@ export async function enqueueOperations(
     }
     await ctx.db.insert("pendingOperations", entry);
   }
+  // Rows written by this transaction still carry an unresolved commitTs, so
+  // one turning up in the lookup above means an earlier `enqueueOperations`
+  // already pinged for it.
+  if (newestEntry) {
+    return;
+  }
   if (env.WORKER_SCHEDULE_PING === "true") {
     await ctx.scheduler.runAfter(0, internal.worker.pingWorker, {});
     return;
