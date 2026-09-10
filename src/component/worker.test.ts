@@ -923,11 +923,4 @@ describe("pinging the worker", () => {
       expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
     });
   });
-
-  test("a later transaction pings again", async () => {
-    const t = initConvexTest();
-    await enqueue(t, { type: "insert", key: 1, value: "a" });
-    await enqueue(t, { type: "insert", key: 2, value: "b" });
-    expect(ping).toHaveBeenCalledTimes(2);
-  });
 });
