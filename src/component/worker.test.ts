@@ -15,8 +15,14 @@ import {
   getDocumentSize,
 } from "convex/values";
 import schema, { type Operation } from "./schema.js";
-import type { MutationCtx } from "./_generated/server.js";
+import { ping } from "@convex-dev/batch-worker";
 import { initConvexTest } from "./setup.test.js";
+
+vi.mock("@convex-dev/batch-worker", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@convex-dev/batch-worker")>();
+  return { ...actual, ping: vi.fn(actual.ping) };
+});
 import {
   aggregateBetweenHandler,
   getHandler,
@@ -1087,36 +1093,18 @@ describe("scheduling the ping", () => {
 });
 
 describe("pinging the worker", () => {
-  // `ping` is the only thing `enqueueOperations` calls into the component for,
-  // so counting those counts pings.
-  function countingPings(ctx: MutationCtx) {
-    const calls = { count: 0 };
-    const spy = new Proxy(ctx, {
-      get(target, prop) {
-        if (prop === "runMutation") {
-          return (...args: unknown[]) => {
-            calls.count++;
-            return (target.runMutation as (...a: unknown[]) => unknown)(
-              ...args,
-            );
-          };
-        }
-        const value = Reflect.get(target, prop);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    });
-    return { spy, calls };
-  }
+  beforeEach(() => {
+    vi.mocked(ping).mockClear();
+  });
 
   test("only the first enqueue in a transaction pings", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      const { spy, calls } = countingPings(ctx);
-      await enqueueOperations(spy, [{ type: "insert", key: 1, value: "a" }]);
-      expect(calls.count).toBe(1);
-      await enqueueOperations(spy, [{ type: "insert", key: 2, value: "b" }]);
-      await enqueueOperations(spy, [{ type: "insert", key: 3, value: "c" }]);
-      expect(calls.count).toBe(1);
+      await enqueueOperations(ctx, [{ type: "insert", key: 1, value: "a" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
+      await enqueueOperations(ctx, [{ type: "insert", key: 2, value: "b" }]);
+      await enqueueOperations(ctx, [{ type: "insert", key: 3, value: "c" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
     });
 
     // The one ping still gets everything the transaction enqueued drained.
@@ -1130,10 +1118,7 @@ describe("pinging the worker", () => {
   test("a later transaction pings again", async () => {
     const t = initConvexTest();
     await enqueue(t, { type: "insert", key: 1, value: "a" });
-    await t.run(async (ctx) => {
-      const { spy, calls } = countingPings(ctx);
-      await enqueueOperations(spy, [{ type: "insert", key: 2, value: "b" }]);
-      expect(calls.count).toBe(1);
-    });
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(ping).toHaveBeenCalledTimes(2);
   });
 });
