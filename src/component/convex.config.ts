@@ -6,6 +6,9 @@ const component = defineComponent("aggregate", {
   env: {
     WORKER_IDLE_COOLDOWN_MS: v.optional(v.string()),
     WORKER_POLL_INTERVAL_MS: v.optional(v.string()),
+    WORKER_SCHEDULE_PING: v.optional(
+      v.union(v.literal("true"), v.literal("false")),
+    ),
   },
 });
 component.use(batchWorker);

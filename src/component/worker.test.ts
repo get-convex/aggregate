@@ -15,7 +15,14 @@ import {
   getDocumentSize,
 } from "convex/values";
 import schema, { type Operation } from "./schema.js";
+import { ping } from "@convex-dev/batch-worker";
 import { initConvexTest } from "./setup.test.js";
+
+vi.mock("@convex-dev/batch-worker", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@convex-dev/batch-worker")>();
+  return { ...actual, ping: vi.fn(actual.ping) };
+});
 import {
   aggregateBetweenHandler,
   getHandler,
@@ -978,6 +985,132 @@ describe("staying awake between bursts", () => {
         v: "b",
         s: 0,
       });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+});
+
+describe("scheduling the ping", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // Pending only: convex-test keeps completed runs in the table too.
+  async function pendingPings(t: TestConvex<typeof schema>) {
+    return await t.run(async (ctx) => {
+      const scheduled = await ctx.db.system
+        .query("_scheduled_functions")
+        .collect();
+      return scheduled.filter(
+        (f) => f.name.includes("pingWorker") && f.state.kind === "pending",
+      );
+    });
+  }
+
+  test("the ping is inline unless asked for", async () => {
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    expect(await pendingPings(t)).toHaveLength(0);
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+  });
+
+  test("a parked worker is woken from its own transaction", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    // The enqueue left the worker alone; the scheduled ping registers it.
+    expect(await workerStatus(t)).toBeNull();
+    expect(await pendingPings(t)).toHaveLength(1);
+
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 1 })).toEqual({
+        k: 1,
+        v: "a",
+        s: 0,
+      });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+
+  test("each transaction schedules one, and it no-ops on a running worker", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await workerStatus(t)).toEqual({ kind: "running" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(await pendingPings(t)).toHaveLength(1);
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+    });
+  });
+
+  test("a transaction that enqueues repeatedly schedules one ping", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(
+      t,
+      { type: "insert", key: 1, value: "a" },
+      { type: "insert", key: 2, value: "b" },
+      { type: "insert", key: 3, value: "c" },
+    );
+    expect(await pendingPings(t)).toHaveLength(1);
+
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+
+  test("work enqueued after the worker parks still drains", async () => {
+    vi.stubEnv("WORKER_SCHEDULE_PING", "true");
+    const t = initConvexTest();
+    await enqueue(t, { type: "insert", key: 1, value: "a" });
+    await drainViaWorker(t);
+    expect(await workerStatus(t)).toEqual({ kind: "idle" });
+
+    await enqueue(t, { type: "insert", key: 2, value: "b" });
+    expect(await pendingPings(t)).toHaveLength(1);
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 2 })).toEqual({
+        k: 2,
+        v: "b",
+        s: 0,
+      });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
+  });
+});
+
+describe("pinging the worker", () => {
+  beforeEach(() => {
+    vi.mocked(ping).mockClear();
+  });
+
+  test("only the first enqueue in a transaction pings", async () => {
+    const t = initConvexTest();
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, [{ type: "insert", key: 1, value: "a" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
+      await enqueueOperations(ctx, [{ type: "insert", key: 2, value: "b" }]);
+      await enqueueOperations(ctx, [{ type: "insert", key: 3, value: "c" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
+    });
+
+    // The one ping still gets everything the transaction enqueued drained.
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
       expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
     });
   });

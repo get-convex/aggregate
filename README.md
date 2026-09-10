@@ -790,6 +790,27 @@ applied; it does not affect writes that arrive while the worker already has
 work. Leave either unset to use the
 [Batch Worker's](https://github.com/get-convex/batch-worker) own default.
 
+Waking a parked worker is written from inside the mutation that queued the
+write, so a burst arriving at a parked worker has every mutation in it writing
+that one record, and all but one retrying. If your writes arrive in bursts too
+far apart for a cooldown to cover, the ping can be moved out of the queuing
+mutation instead:
+
+```ts
+app.use(aggregate, {
+  name: "photos",
+  env: {
+    WORKER_SCHEDULE_PING: "true",
+  },
+});
+```
+
+Queuing a write then touches the worker component not at all — no read to
+conflict on and nothing written — and the ping runs in its own transaction
+afterwards. The cost is one scheduled function per queued write, whether or not
+the worker needed waking, so this trades contention for scheduler load. Prefer a
+longer cooldown where that will do, and reach for this when it won't.
+
 #### Dead-lettered writes
 
 If a queued write can't be applied (for example, a `delete` for a key that isn't
