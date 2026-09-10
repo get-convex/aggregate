@@ -83,6 +83,10 @@ export async function enqueueOperations(
     }
     await ctx.db.insert("pendingOperations", entry);
   }
+  // Only ping when `enqueueOperations` is called for the first time
+  if (newestEntry) {
+    return;
+  }
   await ping(ctx, components.batchWorker, {
     // TODO: explore separate queues by namespace
     name: OPS_WORKER_NAME,

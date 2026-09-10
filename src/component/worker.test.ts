@@ -15,7 +15,14 @@ import {
   getDocumentSize,
 } from "convex/values";
 import schema, { type Operation } from "./schema.js";
+import { ping } from "@convex-dev/batch-worker";
 import { initConvexTest } from "./setup.test.js";
+
+vi.mock("@convex-dev/batch-worker", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@convex-dev/batch-worker")>();
+  return { ...actual, ping: vi.fn(actual.ping) };
+});
 import {
   aggregateBetweenHandler,
   getHandler,
@@ -891,5 +898,29 @@ describe("guards", () => {
     await expect(
       t.mutation(internal.worker.processBatchInner, { entries: [] }),
     ).rejects.toThrow(/no progress/);
+  });
+});
+
+describe("pinging the worker", () => {
+  beforeEach(() => {
+    vi.mocked(ping).mockClear();
+  });
+
+  test("only the first enqueue in a transaction pings", async () => {
+    const t = initConvexTest();
+    await t.run(async (ctx) => {
+      await enqueueOperations(ctx, [{ type: "insert", key: 1, value: "a" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
+      await enqueueOperations(ctx, [{ type: "insert", key: 2, value: "b" }]);
+      await enqueueOperations(ctx, [{ type: "insert", key: 3, value: "c" }]);
+      expect(ping).toHaveBeenCalledTimes(1);
+    });
+
+    // The one ping still gets everything the transaction enqueued drained.
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await getHandler(ctx, { key: 3 })).toEqual({ k: 3, v: "c", s: 0 });
+      expect(await ctx.db.query("pendingOperations").collect()).toEqual([]);
+    });
   });
 });
