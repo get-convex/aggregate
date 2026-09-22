@@ -65,7 +65,7 @@
     "convex-helpers": "0.1.122"
   },
   "devDependencies": {
-    "@convex-dev/eslint-plugin": "4.0.0",
+    "@convex-dev/eslint-plugin": "5.0.0",
     "@convex-dev/migrations": "0.3.6",
     "@edge-runtime/vm": "5.0.0",
     "@emotion/react": "11.14.0",
