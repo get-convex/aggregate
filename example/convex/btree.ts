@@ -4,10 +4,10 @@
  */
 
 import { DirectAggregate } from "@convex-dev/aggregate";
-import { mutation, query, internalMutation } from "./_generated/server";
 import { api, components } from "./_generated/api";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
+import { internalMutation, mutation, query } from "./utils/queued.js";
 import { FunctionReturnType } from "convex/server";
 
 const btreeAggregate = new DirectAggregate<{
@@ -23,11 +23,11 @@ export const addScore = mutation({
   returns: v.string(),
   handler: async (ctx, args) => {
     const id = `${args.name}-${Date.now()}`;
-    await btreeAggregate.insert(ctx, {
-      key: args.score,
-      id: id,
-      sumValue: args.score,
-    });
+    await btreeAggregate.insert(
+      ctx,
+      { key: args.score, id: id, sumValue: args.score },
+      ctx.aggregateOpts,
+    );
 
     return id;
   },
@@ -39,10 +39,11 @@ export const deleteItem = mutation({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    await btreeAggregate.delete(ctx, {
-      key: args.score,
-      id: args.id,
-    });
+    await btreeAggregate.delete(
+      ctx,
+      { key: args.score, id: args.id },
+      ctx.aggregateOpts,
+    );
   },
 });
 
@@ -72,15 +73,19 @@ export type BTreeNodeDoc = FunctionReturnType<
 export const getStats = query({
   args: {},
   handler: async (ctx) => {
-    const count = await btreeAggregate.count(ctx);
+    const opts = { ...ctx.aggregateOpts };
+    const count = await btreeAggregate.count(ctx, opts);
     if (count === 0) return null;
 
-    const mean = (await btreeAggregate.sum(ctx)) / count;
-    const median = (await btreeAggregate.at(ctx, Math.floor(count / 2))).key;
-    const p75 = (await btreeAggregate.at(ctx, Math.floor(count * 0.75))).key;
-    const p95 = (await btreeAggregate.at(ctx, Math.floor(count * 0.95))).key;
-    const min = (await btreeAggregate.min(ctx))!.key;
-    const max = (await btreeAggregate.max(ctx))!.key;
+    const mean = (await btreeAggregate.sum(ctx, opts)) / count;
+    const median = (await btreeAggregate.at(ctx, Math.floor(count / 2), opts))
+      .key;
+    const p75 = (await btreeAggregate.at(ctx, Math.floor(count * 0.75), opts))
+      .key;
+    const p95 = (await btreeAggregate.at(ctx, Math.floor(count * 0.95), opts))
+      .key;
+    const min = (await btreeAggregate.min(ctx, opts))!.key;
+    const max = (await btreeAggregate.max(ctx, opts))!.key;
 
     return {
       count,
@@ -137,11 +142,11 @@ export const addSampleData = internalMutation({
 
     for (const { name, score } of sampleData) {
       const id = `${name}-${Date.now()}-${Math.random()}`;
-      await btreeAggregate.insert(ctx, {
-        key: score,
-        id: id,
-        sumValue: score,
-      });
+      await btreeAggregate.insert(
+        ctx,
+        { key: score, id: id, sumValue: score },
+        ctx.aggregateOpts,
+      );
     }
 
     console.log(`Added ${sampleData.length} sample entries to btree`);

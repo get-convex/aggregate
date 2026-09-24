@@ -1,5 +1,6 @@
 import { Text, Group, Button, Image } from "@mantine/core";
 import { IconBrandGithub, IconExternalLink } from "@tabler/icons-react";
+import { QueuedModeToggle } from "./QueuedModeToggle";
 
 export function AppShellHeader() {
   return (
@@ -10,16 +11,19 @@ export function AppShellHeader() {
           Convex Aggregate Demo
         </Text>
       </Group>
-      <Button
-        component="a"
-        href="https://github.com/get-convex/aggregate"
-        target="_blank"
-        color="cyan"
-        leftSection={<IconBrandGithub size={18} />}
-        rightSection={<IconExternalLink size={18} />}
-      >
-        View Source
-      </Button>
+      <Group gap="lg" align="center" wrap="nowrap">
+        <QueuedModeToggle />
+        <Button
+          component="a"
+          href="https://github.com/get-convex/aggregate"
+          target="_blank"
+          color="cyan"
+          leftSection={<IconBrandGithub size={18} />}
+          rightSection={<IconExternalLink size={18} />}
+        >
+          View Source
+        </Button>
+      </Group>
     </Group>
   );
 }

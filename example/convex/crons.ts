@@ -1,11 +1,20 @@
 import { cronJobs } from "convex/server";
 import { api, internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+import { aggregatesAreDrained } from "./settings";
 
 export const resetAndSeed = internalMutation({
   args: {},
   handler: async (ctx) => {
     console.log("Starting daily data reset...");
+
+    // Resetting clears the aggregates, which can't be done while queued writes
+    // are outstanding, so wait for the batch worker to catch up first.
+    if (!(await aggregatesAreDrained(ctx))) {
+      console.log("Waiting for queued aggregate writes to drain...");
+      await ctx.scheduler.runAfter(1000, internal.crons.resetAndSeed, {});
+      return null;
+    }
 
     // Reset each module sequentially; bail early and reschedule if any aren't done yet
     if (
@@ -32,8 +41,6 @@ export const resetAndSeed = internalMutation({
       await ctx.scheduler.runAfter(0, internal.crons.resetAndSeed, {});
       return null;
     }
-
-    await ctx.runMutation(api.leaderboard.addMockScores, { count: 500 });
 
     // Add some initial photos
     await ctx.runMutation(internal.photos.addPhotos, {
@@ -122,7 +129,7 @@ export const resetAndSeed = internalMutation({
       ],
     });
 
-    await ctx.runMutation(api.stats.addLatencies, {
+    await ctx.runMutation(internal.stats.addLatencies, {
       latencies: (() => {
         const latencies = new Set<number>();
         while (latencies.size < 55) {
@@ -134,6 +141,12 @@ export const resetAndSeed = internalMutation({
 
     // Add sample data to btree
     await ctx.runMutation(internal.btree.addSampleData);
+
+    // Seeded last: unlike the internal seeding mutations above, this one follows
+    // the app-wide queued-mode toggle, so it may enqueue its aggregate writes
+    // instead of applying them synchronously. Nothing synchronous can run after
+    // it until the batch worker catches up.
+    await ctx.runMutation(api.leaderboard.addMockScores, { count: 500 });
 
     console.log("Daily data reset completed successfully!");
     return null;
