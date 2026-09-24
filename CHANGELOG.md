@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.2-alpha.0
+
+- Add component env vars for tuning how the Batch Worker idles, for queued
+  workloads that still see OCC errors from writes contending on the worker's run
+  state. Left unset, the Batch Worker's own defaults apply and behavior is
+  unchanged.
+  - `WORKER_IDLE_COOLDOWN_MS` and `WORKER_POLL_INTERVAL_MS` set how long the
+    worker polls an empty queue before parking, and how often. Polling through
+    the gaps between bursts keeps the worker from parking and being woken, which
+    is what makes queued writes contend.
+  - `WORKER_SCHEDULE_PING` schedules the ping rather than sending it from the
+    queuing mutation, so queuing a write doesn't touch the worker component at
+    all. Costs one scheduled function per queued write, so prefer a longer
+    cooldown where that will do.
+
 ## 0.3.1
 
 - Bump `@convex-dev/batch-worker` to 0.3.3, which includes fixes to reduce
