@@ -9,6 +9,10 @@ app.use(aggregate, { name: "music" });
 app.use(aggregate, { name: "photos" });
 app.use(aggregate, { name: "stats" });
 app.use(aggregate, { name: "btreeAggregate" });
+// Dedicated instance for the benchmark. It must not be shared: while a queued
+// (async) run is draining, `assertNoPendingOperations` makes every eager write,
+// every non-stale read, and even `clear` throw on that instance.
+app.use(aggregate, { name: "benchAggregate" });
 
 app.use(migrations);
 

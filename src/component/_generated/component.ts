@@ -290,6 +290,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
+      queueStats: FunctionReference<
+        "query",
+        "internal",
+        { includeWorker?: boolean; limit?: number },
+        {
+          bytes: number;
+          newestObservedCommitTs: bigint | null;
+          oldestCommitTs: bigint | null;
+          operations: number;
+          rows: number;
+          truncated: boolean;
+          worker: "idle" | "running" | "stopped" | null;
+        },
+        Name
+      >;
     };
     public: {
       clear: FunctionReference<

@@ -1,8 +1,10 @@
-import { v } from "convex/values";
+import { getConvexSize, v } from "convex/values";
+import { components } from "./_generated/api.js";
 import type { Id } from "./_generated/dataModel.js";
 import { type DatabaseReader, query } from "./_generated/server.js";
 import { getTree, type Namespace, p } from "./btree.js";
 import schema from "./schema.js";
+import { OPS_WORKER_NAME } from "./worker.js";
 
 export const display = query({
   args: { namespace: v.optional(v.any()) },
@@ -132,5 +134,109 @@ export const listTreeNodes = query({
   handler: async (ctx, args) => {
     const values = await ctx.db.query("btreeNode").take(args.take ?? 100);
     return values;
+  },
+});
+
+// How many queued rows `queueStats` looks at by default, and the most it will
+// ever look at. Counting the whole queue is unbounded O(n) document reads, and
+// `enqueueOperations` packs rows up to MAX_BYTES_PER_ENTRY (100 KiB), so an
+// unbounded count would blow the 16 MiB read limit exactly when the queue is
+// deepest — which is when you most want the number. Callers get a bounded count
+// plus `truncated`.
+const DEFAULT_STATS_LIMIT = 128;
+const MAX_STATS_LIMIT = 1024;
+// Stop early if the rows read get large, for the same reason getBatch budgets
+// its reads — and with the same 4 MiB budget getBatch gives itself.
+const STATS_READ_BUDGET_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Inspect the async-write queue: how many enqueued operations are still waiting
+ * to be applied, and whether the background worker is running.
+ *
+ * Bounded — it looks at up to `limit` queued rows (default 128, max 1024) and
+ * sets `truncated` when there are more, so it stays cheap on a deep queue. One
+ * transaction can hold several rows, so `limit` bounds rows, not transactions.
+ * When `truncated` is true, `rows`/`operations`/`bytes` are lower bounds and
+ * `newestObservedCommitTs` is the last row looked at rather than the newest
+ * queued one, so `newestObservedCommitTs - oldestCommitTs` understates lag.
+ *
+ * Deliberately says nothing about how far the worker has drained: the cursor
+ * lives in the batch worker's high-churn state document, so reading it would
+ * invalidate this query — and anything subscribed to it — every cycle.
+ * `operations` already says what's left to do.
+ *
+ * Never asserts the queue is empty, unlike the read and write paths that throw
+ * `PENDING_OPERATIONS`: reading a non-empty queue is the entire point.
+ */
+export const queueStats = query({
+  args: {
+    limit: v.optional(v.number()),
+    // Set false to skip the nested batch-worker status query: one fewer nested
+    // query, and the result stops invalidating when the worker transitions
+    // between idle and running.
+    includeWorker: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    rows: v.number(),
+    operations: v.number(),
+    bytes: v.number(),
+    truncated: v.boolean(),
+    oldestCommitTs: v.union(v.int64(), v.null()),
+    newestObservedCommitTs: v.union(v.int64(), v.null()),
+    worker: v.union(
+      v.literal("idle"),
+      v.literal("running"),
+      v.literal("stopped"),
+      v.null(),
+    ),
+  }),
+  handler: async (ctx, { limit, includeWorker }) => {
+    // `v.number()` admits NaN and Infinity, and a NaN cap would make the row
+    // check below never fire, so anything non-finite falls back to the default.
+    const requested =
+      limit === undefined || !Number.isFinite(limit)
+        ? DEFAULT_STATS_LIMIT
+        : Math.floor(limit);
+    const cap = Math.min(Math.max(requested, 1), MAX_STATS_LIMIT);
+    let rows = 0;
+    let operations = 0;
+    let bytes = 0;
+    let truncated = false;
+    let oldestCommitTs: bigint | null = null;
+    let newestObservedCommitTs: bigint | null = null;
+    for await (const row of ctx.db
+      .query("pendingOperations")
+      .withIndex("by_commitTs")) {
+      if (rows >= cap || bytes >= STATS_READ_BUDGET_BYTES) {
+        truncated = true;
+        break;
+      }
+      rows++;
+      operations += row.operations.length;
+      bytes += getConvexSize(row);
+      // A row's commitTs is late-bound: inside its own enqueuing transaction it
+      // reads back as a placeholder rather than a bigint. A committed row always
+      // has a real one, but guard anyway (as getBatch does).
+      const ts = row.commitTs;
+      if (typeof ts === "bigint") {
+        if (oldestCommitTs === null) oldestCommitTs = ts;
+        newestObservedCommitTs = ts;
+      }
+    }
+    const worker =
+      includeWorker === false
+        ? null
+        : await ctx.runQuery(components.batchWorker.lib.status, {
+            name: OPS_WORKER_NAME,
+          });
+    return {
+      rows,
+      operations,
+      bytes,
+      truncated,
+      oldestCommitTs,
+      newestObservedCommitTs,
+      worker: worker?.kind ?? null,
+    };
   },
 });
