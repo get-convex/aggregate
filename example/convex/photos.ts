@@ -8,19 +8,16 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import {
-  internalMutation as rawInternalMutation,
-  mutation as rawMutation,
-  query,
-} from "./_generated/server.js";
 import { components } from "./_generated/api.js";
 import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus.js";
 import {
-  customCtx,
-  customMutation,
-} from "convex-helpers/server/customFunctions";
+  internalMutationWithTriggers,
+  mutationWithTriggers,
+  query,
+  type MutationCtx,
+} from "./utils/queued.js";
 import { Triggers } from "convex-helpers/server/triggers";
 
 export const photos = new TableAggregate<{
@@ -33,16 +30,16 @@ export const photos = new TableAggregate<{
   sortKey: (doc) => doc._creationTime,
 });
 
-const triggers = new Triggers<DataModel>();
+// `ctx.aggregateOpts` carries the app-wide queued-mode toggle; see utils/queued.ts.
+const triggers = new Triggers<DataModel, MutationCtx>();
 
-triggers.register("photos", photos.trigger());
-
-const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
-
-const internalMutation = customMutation(
-  rawInternalMutation,
-  customCtx(triggers.wrapDB),
+triggers.register("photos", (ctx, change) =>
+  photos.trigger({ async: ctx.aggregateOpts.async })(ctx, change),
 );
+
+const mutation = mutationWithTriggers(triggers);
+
+const internalMutation = internalMutationWithTriggers(triggers);
 
 export const addPhoto = mutation({
   args: {
@@ -62,7 +59,7 @@ export const photoCount = query({
   args: { album: v.string() },
   returns: v.number(),
   handler: async (ctx, { album }) => {
-    return await photos.count(ctx, { namespace: album });
+    return await photos.count(ctx, { namespace: album, ...ctx.aggregateOpts });
   },
 });
 
@@ -92,6 +89,7 @@ export const pageOfPhotos = query({
     // This is the magic! photos.at() gives us O(log(n)) lookup to any position
     const { key: firstPhotoCreationTime } = await photos.at(ctx, offset, {
       namespace: album,
+      ...ctx.aggregateOpts,
     });
 
     const photoDocs = await ctx.db
@@ -120,7 +118,10 @@ export const availableAlbums = query({
     const albumsWithCounts = await Promise.all(
       albumNames.map(async (album) => ({
         name: album,
-        count: await photos.count(ctx, { namespace: album }),
+        count: await photos.count(ctx, {
+          namespace: album,
+          ...ctx.aggregateOpts,
+        }),
       })),
     );
 

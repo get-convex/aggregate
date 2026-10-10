@@ -2,9 +2,9 @@
  * Example of collecting statistics on data not tied to a Convex table.
  */
 
-import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus";
+import { internalMutation, mutation, query } from "./utils/queued.js";
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 
@@ -19,26 +19,27 @@ export const reportLatency = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { latency }) => {
-    await stats.insert(ctx, {
-      key: latency,
-      id: new Date().toISOString(),
-      sumValue: latency,
-    });
+    await stats.insert(
+      ctx,
+      { key: latency, id: new Date().toISOString(), sumValue: latency },
+      ctx.aggregateOpts,
+    );
   },
 });
 
 export const getStats = query({
   args: {},
   handler: async (ctx) => {
-    const count = await stats.count(ctx);
+    const opts = { ...ctx.aggregateOpts };
+    const count = await stats.count(ctx, opts);
     if (count === 0) return null;
 
-    const mean = (await stats.sum(ctx)) / count;
-    const median = (await stats.at(ctx, Math.floor(count / 2))).key;
-    const p75 = (await stats.at(ctx, Math.floor(count * 0.75))).key;
-    const p95 = (await stats.at(ctx, Math.floor(count * 0.95))).key;
-    const min = (await stats.min(ctx))!.key;
-    const max = (await stats.max(ctx))!.key;
+    const mean = (await stats.sum(ctx, opts)) / count;
+    const median = (await stats.at(ctx, Math.floor(count / 2), opts)).key;
+    const p75 = (await stats.at(ctx, Math.floor(count * 0.75), opts)).key;
+    const p95 = (await stats.at(ctx, Math.floor(count * 0.95), opts)).key;
+    const min = (await stats.min(ctx, opts))!.key;
+    const max = (await stats.max(ctx, opts))!.key;
     return {
       count,
       mean,
@@ -64,7 +65,7 @@ export const resetAll = internalMutation({
   },
 });
 
-export const addLatencies = mutation({
+export const addLatencies = internalMutation({
   args: {
     latencies: v.array(v.number()),
   },
@@ -72,11 +73,11 @@ export const addLatencies = mutation({
   handler: async (ctx, { latencies }) => {
     await Promise.all(
       latencies.map((latency) =>
-        stats.insert(ctx, {
-          key: latency,
-          id: new Date().toISOString(),
-          sumValue: latency,
-        }),
+        stats.insert(
+          ctx,
+          { key: latency, id: new Date().toISOString(), sumValue: latency },
+          ctx.aggregateOpts,
+        ),
       ),
     );
   },
