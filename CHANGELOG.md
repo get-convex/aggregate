@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2
+
+- Updates the /test entrypoint for compatibility with convex-test's new
+  `defineTestApp` capability.
+- Optimization: only pings the batch worker on the first enqueue in a
+  transaction
+
 ## 0.3.1
 
 - Bump `@convex-dev/batch-worker` to 0.3.3, which includes fixes to reduce
