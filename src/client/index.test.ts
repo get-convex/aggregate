@@ -365,6 +365,57 @@ describe("TableAggregate", () => {
       expect(countAfterSecondClear).toBe(0);
     });
   });
+
+  describe("deleteNamespace", () => {
+    let t: ConvexTest;
+    let aggregate: ReturnType<typeof createAggregates>["aggregate"];
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      t = setupTest();
+      ({ aggregate } = createAggregates());
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test("should return false when there is nothing to delete", async () => {
+      const deleted = await t.run(async (ctx) => {
+        return await aggregate.deleteNamespace(ctx);
+      });
+      expect(deleted).toBe(false);
+    });
+
+    test("should delete the default namespace", async () => {
+      await t.run(async (ctx) => {
+        await aggregate.insert(
+          ctx,
+          await testItem(ctx, { name: "a", value: 1 }),
+        );
+        await aggregate.insert(
+          ctx,
+          await testItem(ctx, { name: "b", value: 2 }),
+        );
+      });
+
+      const deleted = await t.run(async (ctx) => {
+        return await aggregate.deleteNamespace(ctx);
+      });
+      expect(deleted).toBe(true);
+      // Wait for the scheduled node cleanup to complete
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const namespaces = await t.run(async (ctx) => {
+        return (await aggregate.paginateNamespaces(ctx)).page;
+      });
+      expect(namespaces).toEqual([]);
+      const count = await t.run(async (ctx) => {
+        return await aggregate.count(ctx);
+      });
+      expect(count).toBe(0);
+    });
+  });
 });
 
 describe("TableAggregate with namespace", () => {
@@ -652,6 +703,60 @@ describe("TableAggregate with namespace", () => {
       });
       // Should be 1 - only the vacation photo, not affected by family photo
       expect(vacationCount).toBe(1);
+    });
+  });
+
+  describe("deleteNamespace", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test("should delete one namespace and leave the others", async () => {
+      await t.run(async (ctx) => {
+        for (const photo of [
+          { album: "vacation", url: "vacation1.jpg", score: 10 },
+          { album: "vacation", url: "vacation2.jpg", score: 20 },
+          { album: "family", url: "family1.jpg", score: 30 },
+        ]) {
+          const id = await ctx.db.insert("photos", photo);
+          await aggregateWithNamespace.insert(
+            ctx,
+            (await ctx.db.get("photos", id))!,
+          );
+        }
+      });
+
+      const deleted = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.deleteNamespace(ctx, {
+          namespace: "vacation",
+        });
+      });
+      expect(deleted).toBe(true);
+      // Wait for the scheduled node cleanup to complete
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const namespaces = await t.run(async (ctx) => {
+        return (await aggregateWithNamespace.paginateNamespaces(ctx)).page;
+      });
+      expect(namespaces).toEqual(["family"]);
+      const counts = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.countBatch(ctx, [
+          { namespace: "vacation" },
+          { namespace: "family" },
+        ]);
+      });
+      expect(counts).toEqual([0, 1]);
+
+      const deletedAgain = await t.run(async (ctx) => {
+        return await aggregateWithNamespace.deleteNamespace(ctx, {
+          namespace: "vacation",
+        });
+      });
+      expect(deletedAgain).toBe(false);
     });
   });
 

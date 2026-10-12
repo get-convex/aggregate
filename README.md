@@ -146,6 +146,16 @@ const footballHighScore = await leaderboardByGame.max(ctx, {
 See an example of a namespaced aggregate in
 [example/convex/photos.ts](./example/convex/photos.ts).
 
+When a partition goes away, for example when a game is deleted, you can delete
+its namespace. Unlike `clear`, this doesn't leave an empty data structure
+behind. Any later write to the namespace recreates it, including
+`deleteIfExists` of an item that isn't there, so delete the namespace after its
+last write.
+
+```ts
+await leaderboardByGame.deleteNamespace(ctx, { namespace: gameId });
+```
+
 ### More examples
 
 The Aggregate component can efficiently calculate all of these:

@@ -313,6 +313,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         any,
         Name
       >;
+      deleteNamespace: FunctionReference<
+        "mutation",
+        "internal",
+        { namespace?: any },
+        boolean,
+        Name
+      >;
       enqueue: FunctionReference<
         "mutation",
         "internal",
