@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "@convex-dev/batch-worker": "0.3.3",
-    "convex-helpers": "0.1.122"
+    "convex-helpers": "0.1.128"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "5.0.0",
@@ -87,7 +87,7 @@
     "@vitest/coverage-v8": "4.1.10",
     "@xyflow/react": "12.11.2",
     "chokidar-cli": "3.0.0",
-    "convex": "1.43.0",
+    "convex": "1.46.0",
     "convex-test": "0.0.55",
     "eslint": "9.39.5",
     "eslint-plugin-react-hooks": "7.1.1",
