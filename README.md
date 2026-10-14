@@ -206,6 +206,26 @@ app.use(aggregate, { name: "aggregateByGame" });
 You then use the named aggregate when initializing the `TableAggregate` as we'll
 see below, using `components.aggregateScores` instead of `components.aggregate`.
 
+Alternatively, several aggregates can share one component instance by giving
+each a `name` when constructing it. Aggregates with different names are fully
+independent, including their namespaces, `clearAll`, and `iterNamespaces`.
+
+```ts
+const aggregateScores = new TableAggregate<...>(components.aggregate, {
+  name: "scores",
+  sortKey: (doc) => doc.score,
+});
+const aggregateByGame = new TableAggregate<...>(components.aggregate, {
+  name: "byGame",
+  sortKey: (doc) => doc.gameId,
+});
+const direct = new DirectAggregate<...>(components.aggregate, { name: "direct" });
+```
+
+Aggregates sharing a component also share its [queued writes](#queued-writes):
+while writes are queued for any of them, non-stale reads of all of them will
+throw.
+
 ## Usage
 
 ### Write to the aggregate data structure

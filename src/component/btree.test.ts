@@ -19,6 +19,7 @@ import {
   paginateHandler,
   aggregateBetweenBatchHandler,
   atOffsetBatchHandler,
+  paginateNamespacesHandler,
 } from "./btree.js";
 import { api } from "./_generated/api.js";
 import { compareValues } from "./compare.js";
@@ -29,7 +30,7 @@ describe("btree", () => {
   test("insert", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       // Insert lots of keys. At each stage, the tree is valid.
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
@@ -59,7 +60,7 @@ describe("btree", () => {
   test("delete", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx, {});
@@ -104,7 +105,7 @@ describe("btree", () => {
   test("atOffset and offsetOf", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx, {});
@@ -146,7 +147,7 @@ describe("btree", () => {
   test("countBetween", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       async function insert(key: number, value: string) {
         await insertHandler(ctx, { key, value });
         await validateTree(ctx, {});
@@ -183,7 +184,7 @@ describe("btree", () => {
   test("sums", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       async function insert(key: number, value: string, summand: number) {
         const { sum: sumBefore } = await aggregateBetweenHandler(ctx, {});
         await insertHandler(ctx, { key, value, summand });
@@ -240,7 +241,7 @@ describe("btree", () => {
       };
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await getOrCreateTree(ctx.db, undefined, 4, false);
+        await getOrCreateTree(ctx.db, {}, 4, false);
         const simple = new SimpleBTree();
 
         for (const write of writes) {
@@ -357,8 +358,8 @@ describe("namespaced btree", () => {
   test("counts", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, "a", 4, false);
-      await getOrCreateTree(ctx.db, "b", 4, false);
+      await getOrCreateTree(ctx.db, { namespace: "a" }, 4, false);
+      await getOrCreateTree(ctx.db, { namespace: "b" }, 4, false);
       async function insert(namespace: string, key: number, value: string) {
         await insertHandler(ctx, { key, value, namespace });
         await validateTree(ctx, { namespace });
@@ -381,6 +382,110 @@ describe("namespaced btree", () => {
       await insert("b", 0, "e");
       await count("a", 5);
       await count("b", 4);
+    });
+  });
+});
+
+describe("named btrees", () => {
+  test("trees with the same namespace but different names are independent", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await insertHandler(ctx, { key: 1, value: "a", summand: 1 });
+      await insertHandler(ctx, {
+        key: 1,
+        value: "a",
+        summand: 10,
+        aggregateName: "x",
+      });
+      await insertHandler(ctx, {
+        key: 2,
+        value: "b",
+        summand: 20,
+        aggregateName: "x",
+      });
+      await insertHandler(ctx, {
+        key: 1,
+        value: "a",
+        summand: 100,
+        namespace: "ns",
+        aggregateName: "x",
+      });
+      expect(await aggregateBetweenHandler(ctx, {})).toEqual({
+        count: 1,
+        sum: 1,
+      });
+      expect(
+        await aggregateBetweenHandler(ctx, { aggregateName: "x" }),
+      ).toEqual({ count: 2, sum: 30 });
+      expect(
+        await aggregateBetweenHandler(ctx, {
+          aggregateName: "x",
+          namespace: "ns",
+        }),
+      ).toEqual({ count: 1, sum: 100 });
+      expect(
+        await aggregateBetweenHandler(ctx, { aggregateName: "y" }),
+      ).toEqual({ count: 0, sum: 0 });
+      await deleteHandler(ctx, { key: 1, aggregateName: "x" });
+      expect(await aggregateBetweenHandler(ctx, {})).toEqual({
+        count: 1,
+        sum: 1,
+      });
+      expect(
+        await aggregateBetweenHandler(ctx, { aggregateName: "x" }),
+      ).toEqual({ count: 1, sum: 20 });
+    });
+  });
+
+  test("new trees inherit settings from their own aggregate's default tree", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, {}, 4, false);
+      await getOrCreateTree(ctx.db, { aggregateName: "x" }, 8, true);
+      const tree = await getOrCreateTree(ctx.db, {
+        aggregateName: "x",
+        namespace: "ns",
+      });
+      expect(tree.maxNodeSize).toBe(8);
+      expect(tree.aggregateName).toBe("x");
+      const root = await ctx.db.get("btreeNode", tree.root);
+      expect(root!.aggregate).toBeUndefined();
+    });
+  });
+
+  test("paginateNamespaces only returns namespaces for the given name", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const namespaces = [undefined, null, 1, "a", "b", ["c", 2]];
+      for (const namespace of namespaces) {
+        await getOrCreateTree(ctx.db, { namespace, aggregateName: "x" }, 4);
+      }
+      await getOrCreateTree(ctx.db, { namespace: "other" }, 4);
+      await getOrCreateTree(
+        ctx.db,
+        { namespace: "other", aggregateName: "y" },
+        4,
+      );
+
+      async function all(aggregateName?: string) {
+        const result = [];
+        let cursor: string | undefined = undefined;
+        while (true) {
+          const page: Awaited<ReturnType<typeof paginateNamespacesHandler>> =
+            await paginateNamespacesHandler(ctx, {
+              limit: 2,
+              cursor,
+              aggregateName,
+            });
+          result.push(...page.page);
+          if (page.isDone) return result;
+          cursor = page.cursor;
+        }
+      }
+      expect(await all("x")).toEqual([null, null, 1, "a", "b", ["c", 2]]);
+      expect(await all()).toEqual(["other"]);
+      expect(await all("y")).toEqual(["other"]);
+      expect(await all("z")).toEqual([]);
     });
   });
 });
@@ -588,7 +693,7 @@ describe("btree matches simpler impl", () => {
     };
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, minNodeSize * 2, rootLazy);
+      await getOrCreateTree(ctx.db, {}, minNodeSize * 2, rootLazy);
       const simple = new SimpleBTree();
       // Do a bunch of writes.
       // If there are conflicts on insert and delete, assert they happen on
@@ -819,7 +924,7 @@ describe("stale / pendingOperations", () => {
   test("read query guards on pendingOperations unless stale", async () => {
     const t = setupTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       await insertHandler(ctx, { key: 1, value: "a" });
       await insertHandler(ctx, { key: 2, value: "b" });
       await ctx.db.insert("pendingOperations", {

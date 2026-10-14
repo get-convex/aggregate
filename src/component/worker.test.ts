@@ -433,10 +433,49 @@ describe("getBatch", () => {
 });
 
 describe("draining", () => {
+  test("queued operations apply to the tree for their aggregate name", async () => {
+    const t = initConvexTest();
+    await t.run(async (ctx) => {
+      await getOrCreateTree(ctx.db, {}, 4, false);
+    });
+    await enqueue(
+      t,
+      { type: "insert", key: 1, value: "a", summand: 1 },
+      { type: "insert", key: 1, value: "a", summand: 2, aggregateName: "x" },
+      { type: "insert", key: 2, value: "b", summand: 3, aggregateName: "x" },
+      {
+        type: "replace",
+        currentKey: 2,
+        newKey: 3,
+        value: "b",
+        summand: 4,
+        newNamespace: "ns",
+        aggregateName: "x",
+      },
+      { type: "deleteIfExists", key: 1, aggregateName: "y" },
+    );
+    await drainViaWorker(t);
+    await t.run(async (ctx) => {
+      expect(await aggregateBetweenHandler(ctx, {})).toEqual({
+        count: 1,
+        sum: 1,
+      });
+      expect(
+        await aggregateBetweenHandler(ctx, { aggregateName: "x" }),
+      ).toEqual({ count: 1, sum: 2 });
+      expect(
+        await aggregateBetweenHandler(ctx, {
+          aggregateName: "x",
+          namespace: "ns",
+        }),
+      ).toEqual({ count: 1, sum: 4 });
+    });
+  });
+
   test("an operation enqueued through the public mutation is applied, summand and all", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     await t.mutation(api.public.enqueue, {
       operation: { type: "insert", key: 1, value: "a", summand: 5 },
@@ -455,7 +494,7 @@ describe("draining", () => {
   test("an entry's operations apply in enqueue order, leaving the cursor on its commitTs", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     // Array order is enqueue order, so the delete of key 1 lands after its
     // insert.
@@ -478,7 +517,7 @@ describe("draining", () => {
   test("several entries drain in one cycle, leaving the cursor on the last of them", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     await enqueue(t, { type: "insert", key: 1, value: "a" });
     const last = await enqueue(
@@ -501,7 +540,7 @@ describe("draining", () => {
     // rather than skipped, and the entries behind it are left where they are.
     const t = initConvexTest({ transactionLimits: { documentsWritten: 50 } });
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     const partial = await enqueueRows(t, inserts(0, 30));
     const later = await enqueueRows(t, inserts(100, 2));
@@ -534,7 +573,7 @@ describe("draining", () => {
   test("an enqueue after the loop has gone idle restarts it", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     await enqueue(t, { type: "insert", key: 1, value: "a" });
     await drainViaWorker(t);
@@ -553,7 +592,7 @@ describe("operation types", () => {
   test("deleteIfExists no-ops on missing keys", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       await insertHandler(ctx, { key: 1, value: "a" });
     });
     await enqueue(
@@ -575,7 +614,7 @@ describe("operation types", () => {
   test("replaceOrInsert inserts a key that does not exist", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       await insertHandler(ctx, { key: 1, value: "a" });
     });
     await enqueue(
@@ -605,7 +644,7 @@ describe("failures and dead letters", () => {
   test("a dead letter records the failing operation with its commitTs and error", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     const commitTs = await enqueue(t, { type: "delete", key: 99 });
     await drainViaWorker(t);
@@ -622,7 +661,7 @@ describe("failures and dead letters", () => {
   test("only the failing operation is dropped; its neighbours in the entry still apply", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     // One transaction: a delete of a key that was never there, sandwiched
     // between good inserts. Only the bad operation is skipped — its neighbours
@@ -655,7 +694,7 @@ describe("failures and dead letters", () => {
   test("the failing cycle commits only the dead letter and reports no cursor", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     const first = await enqueue(t, { type: "insert", key: 1, value: "a" });
     const bad = await enqueue(t, { type: "delete", key: 99 });
@@ -699,7 +738,7 @@ describe("failures and dead letters", () => {
   test("a replace whose insert fails leaves neither half of it applied", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
       await insertHandler(ctx, { key: 1, value: "a" });
       await insertHandler(ctx, { key: 2, value: "b" });
     });
@@ -730,7 +769,7 @@ describe("failures and dead letters", () => {
   test("each cycle cuts one failure out of the row and requeues the rest in order", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     // Two failures in the same entry, with good operations before, between,
     // and after them: each cycle drops one failure out of the middle of the
@@ -770,7 +809,7 @@ describe("failures and dead letters", () => {
     // dead-letter it a second time.
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     const bad = await enqueue(t, { type: "delete", key: 99 });
     const good = await enqueue(t, { type: "insert", key: 1, value: "a" });
@@ -806,7 +845,7 @@ describe("transaction limits", () => {
     // cycle, be retried forever, and wedge the queue.
     const t = initConvexTest({ transactionLimits: { documentsWritten: 150 } });
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 16, false);
+      await getOrCreateTree(ctx.db, {}, 16, false);
     });
     for (let txn = 0; txn < 100; txn++) {
       await enqueue(t, { type: "insert", key: txn, value: `v${txn}` });
@@ -885,7 +924,7 @@ describe("guards", () => {
   test("a cycle that commits nothing throws rather than spin", async () => {
     const t = initConvexTest();
     await t.run(async (ctx) => {
-      await getOrCreateTree(ctx.db, undefined, 4, false);
+      await getOrCreateTree(ctx.db, {}, 4, false);
     });
     // There's no batch a cycle can make no progress on — it applies something,
     // retires something, dead-letters something, or throws on its way out — so

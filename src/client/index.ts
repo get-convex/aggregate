@@ -110,13 +110,29 @@ export class Aggregate<
   ID extends string,
   Namespace extends ConvexValue | undefined = undefined,
 > {
-  constructor(protected component: ComponentApi) {}
+  protected readonly aggregateName?: string;
+
+  /**
+   * @param component The aggregate component, e.g. `components.aggregate`.
+   * @param options.name Distinguishes this aggregate from other aggregates
+   *   stored in the same component. Aggregates with different names are fully
+   *   independent, including their namespaces. Omit it to use the default
+   *   (unnamed) aggregate.
+   */
+  constructor(
+    protected component: ComponentApi,
+    options?: { name?: string },
+  ) {
+    this.aggregateName = options?.name;
+  }
 
   private async _enqueue(
     ctx: MutationCtx | ActionCtx,
     operation: QueuedOperation,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.enqueue, { operation });
+    await ctx.runMutation(this.component.public.enqueue, {
+      operation: { ...operation, aggregateName: this.aggregateName },
+    });
   }
 
   protected async _enqueueBatch(
@@ -126,7 +142,12 @@ export class Aggregate<
     if (operations.length === 0) {
       return;
     }
-    await ctx.runMutation(this.component.public.enqueueBatch, { operations });
+    await ctx.runMutation(this.component.public.enqueueBatch, {
+      operations: operations.map((operation) => ({
+        ...operation,
+        aggregateName: this.aggregateName,
+      })),
+    });
   }
 
   /// Aggregate queries.
@@ -147,6 +168,7 @@ export class Aggregate<
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
+        aggregateName: this.aggregateName,
         stale: opts[0]?.stale,
       },
       opts[0]?.stale,
@@ -168,7 +190,7 @@ export class Aggregate<
       }
       const namespace = namespaceFromArg(query);
       const { k1, k2 } = boundsToPositions(query.bounds);
-      return { k1, k2, namespace };
+      return { k1, k2, namespace, aggregateName: this.aggregateName };
     });
     const results = await runQuery(
       ctx,
@@ -198,6 +220,7 @@ export class Aggregate<
       {
         ...boundsToPositions(opts[0]?.bounds),
         namespace: namespaceFromOpts(opts),
+        aggregateName: this.aggregateName,
         stale: opts[0]?.stale,
       },
       opts[0]?.stale,
@@ -219,7 +242,7 @@ export class Aggregate<
       }
       const namespace = namespaceFromArg(query);
       const { k1, k2 } = boundsToPositions(query.bounds);
-      return { k1, k2, namespace };
+      return { k1, k2, namespace, aggregateName: this.aggregateName };
     });
     const results = await runQuery(
       ctx,
@@ -256,6 +279,7 @@ export class Aggregate<
         {
           offset: -offset - 1,
           namespace: namespaceFromOpts(opts),
+          aggregateName: this.aggregateName,
           ...boundsToPositions(opts[0]?.bounds),
           stale: opts[0]?.stale,
         },
@@ -269,6 +293,7 @@ export class Aggregate<
       {
         offset,
         namespace: namespaceFromOpts(opts),
+        aggregateName: this.aggregateName,
         ...boundsToPositions(opts[0]?.bounds),
         stale: opts[0]?.stale,
       },
@@ -291,6 +316,7 @@ export class Aggregate<
       offset: q.offset,
       ...boundsToPositions(q.bounds),
       namespace: namespaceFromArg(q),
+      aggregateName: this.aggregateName,
     }));
 
     const results = await runQuery(
@@ -338,6 +364,7 @@ export class Aggregate<
           }),
           k2,
           namespace: namespaceFromOpts(opts),
+          aggregateName: this.aggregateName,
           stale: opts[0]?.stale,
         },
         opts[0]?.stale,
@@ -354,6 +381,7 @@ export class Aggregate<
         }),
         k1,
         namespace: namespaceFromOpts(opts),
+        aggregateName: this.aggregateName,
         stale: opts[0]?.stale,
       },
       opts[0]?.stale,
@@ -481,6 +509,7 @@ export class Aggregate<
       this.component.btree.paginate,
       {
         namespace: namespaceFromOpts(opts),
+        aggregateName: this.aggregateName,
         ...boundsToPositions(opts[0]?.bounds),
         cursor: opts[0]?.cursor,
         order,
@@ -568,6 +597,7 @@ export class Aggregate<
       summand,
       value: id,
       namespace,
+      aggregateName: this.aggregateName,
     });
   }
   async _delete(
@@ -585,6 +615,7 @@ export class Aggregate<
     await ctx.runMutation(this.component.public.delete_, {
       key: position,
       namespace,
+      aggregateName: this.aggregateName,
     });
   }
   async _replace(
@@ -618,6 +649,7 @@ export class Aggregate<
       value: id,
       namespace: currentNamespace,
       newNamespace,
+      aggregateName: this.aggregateName,
     });
   }
   async _insertIfDoesNotExist(
@@ -658,6 +690,7 @@ export class Aggregate<
     await ctx.runMutation(this.component.public.deleteIfExists, {
       key: position,
       namespace,
+      aggregateName: this.aggregateName,
     });
   }
   async _replaceOrInsert(
@@ -691,6 +724,7 @@ export class Aggregate<
       value: id,
       namespace: currentNamespace,
       newNamespace,
+      aggregateName: this.aggregateName,
     });
   }
 
@@ -719,6 +753,7 @@ export class Aggregate<
       maxNodeSize: opts[0]?.maxNodeSize,
       rootLazy: opts[0]?.rootLazy,
       namespace: namespaceFromOpts(opts),
+      aggregateName: this.aggregateName,
     });
   }
   /**
@@ -736,7 +771,10 @@ export class Aggregate<
     ctx: MutationCtx | ActionCtx,
     namespace: Namespace,
   ): Promise<void> {
-    await ctx.runMutation(this.component.public.makeRootLazy, { namespace });
+    await ctx.runMutation(this.component.public.makeRootLazy, {
+      namespace,
+      aggregateName: this.aggregateName,
+    });
   }
 
   async paginateNamespaces(
@@ -755,6 +793,7 @@ export class Aggregate<
       {
         cursor,
         limit: pageSize,
+        aggregateName: this.aggregateName,
         stale,
       },
       stale,
@@ -1050,6 +1089,11 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
     private options: {
       sortKey: (d: TableAggregateDocument<T>) => T["Key"];
       sumValue?: (d: TableAggregateDocument<T>) => number;
+      /**
+       * Distinguishes this aggregate from other aggregates stored in the same
+       * component. See {@link Aggregate}'s constructor.
+       */
+      name?: string;
     } & (undefined extends TableAggregateNamespace<T>
       ? {
           namespace?: (
@@ -1062,7 +1106,7 @@ export class TableAggregate<T extends AnyTableAggregateType> extends Aggregate<
           ) => TableAggregateNamespace<T>;
         }),
   ) {
-    super(component);
+    super(component, { name: options.name });
   }
 
   /**

@@ -27,7 +27,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       aggregateBetween: FunctionReference<
         "query",
         "internal",
-        { k1?: any; k2?: any; namespace?: any; stale?: boolean },
+        { aggregateName?: string; k1?: any; k2?: any; namespace?: any; stale?: boolean },
         { count: number; sum: number },
         Name
       >;
@@ -35,7 +35,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "query",
         "internal",
         {
-          queries: Array<{ k1?: any; k2?: any; namespace?: any }>;
+          queries: Array<{ aggregateName?: string; k1?: any; k2?: any; namespace?: any }>;
           stale?: boolean;
         },
         Array<{ count: number; sum: number }>,
@@ -47,6 +47,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           k1?: any;
           k2?: any;
+          aggregateName?: string;
           namespace?: any;
           offset: number;
           stale?: boolean;
@@ -60,6 +61,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           k1?: any;
           k2?: any;
+          aggregateName?: string;
           namespace?: any;
           offset: number;
           stale?: boolean;
@@ -74,6 +76,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           queries: Array<{
             k1?: any;
             k2?: any;
+            aggregateName?: string;
             namespace?: any;
             offset: number;
           }>;
@@ -85,21 +88,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       get: FunctionReference<
         "query",
         "internal",
-        { key: any; namespace?: any; stale?: boolean },
+        { aggregateName?: string; key: any; namespace?: any; stale?: boolean },
         null | { k: any; s: number; v: any },
         Name
       >;
       offset: FunctionReference<
         "query",
         "internal",
-        { k1?: any; key: any; namespace?: any; stale?: boolean },
+        { aggregateName?: string; k1?: any; key: any; namespace?: any; stale?: boolean },
         number,
         Name
       >;
       offsetUntil: FunctionReference<
         "query",
         "internal",
-        { k2?: any; key: any; namespace?: any; stale?: boolean },
+        { aggregateName?: string; k2?: any; key: any; namespace?: any; stale?: boolean },
         number,
         Name
       >;
@@ -111,6 +114,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           k1?: any;
           k2?: any;
           limit: number;
+          aggregateName?: string;
           namespace?: any;
           order: "asc" | "desc";
           stale?: boolean;
@@ -125,14 +129,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       paginateNamespaces: FunctionReference<
         "query",
         "internal",
-        { cursor?: string; limit: number; stale?: boolean },
+        {
+          aggregateName?: string;
+          cursor?: string;
+          limit: number;
+          stale?: boolean;
+        },
         { cursor: string; isDone: boolean; page: Array<any> },
         Name
       >;
       validate: FunctionReference<
         "query",
         "internal",
-        { namespace?: any; stale?: boolean },
+        { aggregateName?: string; namespace?: any; stale?: boolean },
         any,
         Name
       >;
@@ -157,14 +166,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           operation:
             | {
                 key: any;
+                aggregateName?: string;
                 namespace?: any;
                 summand?: number;
                 type: "insert";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "delete" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "delete" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -172,9 +183,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 type: "replace";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "deleteIfExists" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -210,14 +222,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             operation:
               | {
                   key: any;
+                  aggregateName?: string;
                   namespace?: any;
                   summand?: number;
                   type: "insert";
                   value: any;
                 }
-              | { key: any; namespace?: any; type: "delete" }
+              | { aggregateName?: string; key: any; namespace?: any; type: "delete" }
               | {
                   currentKey: any;
+                  aggregateName?: string;
                   namespace?: any;
                   newKey: any;
                   newNamespace?: any;
@@ -225,9 +239,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   type: "replace";
                   value: any;
                 }
-              | { key: any; namespace?: any; type: "deleteIfExists" }
+              | { aggregateName?: string; key: any; namespace?: any; type: "deleteIfExists" }
               | {
                   currentKey: any;
+                  aggregateName?: string;
                   namespace?: any;
                   newKey: any;
                   newNamespace?: any;
@@ -246,21 +261,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       display: FunctionReference<
         "query",
         "internal",
-        { namespace?: any },
+        { aggregateName?: string; namespace?: any },
         any,
         Name
       >;
       dump: FunctionReference<
         "query",
         "internal",
-        { namespace?: any },
+        { aggregateName?: string; namespace?: any },
         string,
         Name
       >;
       inspectNode: FunctionReference<
         "query",
         "internal",
-        { namespace?: any; node?: string },
+        { aggregateName?: string; namespace?: any; node?: string },
         null,
         Name
       >;
@@ -285,6 +300,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           maxNodeSize: number;
+          aggregateName?: string;
           namespace?: any;
           root: string;
         }>,
@@ -295,21 +311,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       clear: FunctionReference<
         "mutation",
         "internal",
-        { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
+        { aggregateName?: string; maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null,
         Name
       >;
       delete_: FunctionReference<
         "mutation",
         "internal",
-        { key: any; namespace?: any },
+        { aggregateName?: string; key: any; namespace?: any },
         null,
         Name
       >;
       deleteIfExists: FunctionReference<
         "mutation",
         "internal",
-        { key: any; namespace?: any },
+        { aggregateName?: string; key: any; namespace?: any },
         any,
         Name
       >;
@@ -320,14 +336,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           operation:
             | {
                 key: any;
+                aggregateName?: string;
                 namespace?: any;
                 summand?: number;
                 type: "insert";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "delete" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "delete" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -335,9 +353,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 type: "replace";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "deleteIfExists" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -356,14 +375,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           operations: Array<
             | {
                 key: any;
+                aggregateName?: string;
                 namespace?: any;
                 summand?: number;
                 type: "insert";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "delete" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "delete" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -371,9 +392,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 type: "replace";
                 value: any;
               }
-            | { key: any; namespace?: any; type: "deleteIfExists" }
+            | { aggregateName?: string; key: any; namespace?: any; type: "deleteIfExists" }
             | {
                 currentKey: any;
+                aggregateName?: string;
                 namespace?: any;
                 newKey: any;
                 newNamespace?: any;
@@ -389,21 +411,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       init: FunctionReference<
         "mutation",
         "internal",
-        { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
+        { aggregateName?: string; maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null,
         Name
       >;
       insert: FunctionReference<
         "mutation",
         "internal",
-        { key: any; namespace?: any; summand?: number; value: any },
+        { aggregateName?: string; key: any; namespace?: any; summand?: number; value: any },
         null,
         Name
       >;
       makeRootLazy: FunctionReference<
         "mutation",
         "internal",
-        { namespace?: any },
+        { aggregateName?: string; namespace?: any },
         null,
         Name
       >;
@@ -412,6 +434,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           currentKey: any;
+          aggregateName?: string;
           namespace?: any;
           newKey: any;
           newNamespace?: any;
@@ -426,6 +449,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           currentKey: any;
+          aggregateName?: string;
           namespace?: any;
           newKey: any;
           newNamespace?: any;
