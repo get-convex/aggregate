@@ -722,6 +722,27 @@ export class Aggregate<
     });
   }
   /**
+   * Delete the data structure for a namespace, removing all of its items.
+   *
+   * Unlike `clear`, this doesn't leave an empty data structure behind, so the
+   * namespace no longer appears in `paginateNamespaces` or `iterNamespaces`.
+   * Its internal nodes are deleted asynchronously, in scheduled mutations.
+   *
+   * Any later write to the namespace recreates it, including `deleteIfExists`
+   * of an item that isn't there, so call this after the namespace's last
+   * write.
+   *
+   * Returns true if the namespace existed, false otherwise.
+   */
+  async deleteNamespace(
+    ctx: MutationCtx | ActionCtx,
+    ...opts: NamespacedOpts<object, Namespace>
+  ): Promise<boolean> {
+    return await ctx.runMutation(this.component.public.deleteNamespace, {
+      namespace: namespaceFromOpts(opts),
+    });
+  }
+  /**
    * If rootLazy is false (the default is true but it can be set to false by
    * `clear`), the aggregates data structure writes to a single root node on
    * every insert/delete/replace, which can cause contention.

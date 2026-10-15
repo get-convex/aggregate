@@ -174,3 +174,27 @@ export const clear = mutation({
     );
   },
 });
+
+/**
+ * Delete the aggregate data structure for a namespace, leaving nothing behind.
+ * Unlike `clear`, this does not create a new empty tree in its place.
+ * The tree is deleted in this transaction and its nodes are deleted in
+ * scheduled mutations, the same way `clear` deletes them.
+ * Returns true if the namespace had a tree, false otherwise.
+ */
+export const deleteNamespace = mutation({
+  args: { namespace: v.optional(v.any()) },
+  returns: v.boolean(),
+  handler: async (ctx, { namespace }) => {
+    await assertNoPendingOperations(ctx);
+    const tree = await getTree(ctx.db, namespace);
+    if (!tree) {
+      return false;
+    }
+    await ctx.db.delete("btree", tree._id);
+    await ctx.scheduler.runAfter(0, internal.btree.deleteTreeNodes, {
+      node: tree.root,
+    });
+    return true;
+  },
+});
