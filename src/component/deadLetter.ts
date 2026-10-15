@@ -3,7 +3,6 @@ import {
   paginationResultValidator,
 } from "convex/server";
 import { v } from "convex/values";
-import { paginator } from "convex-helpers/server/pagination";
 import { mutation, query } from "./_generated/server.js";
 import schema from "./schema.js";
 
@@ -26,7 +25,7 @@ export const list = query({
   },
   returns: paginationResultValidator(vDeadLetterEntry),
   handler: async (ctx, { paginationOpts, order }) => {
-    return await paginator(ctx.db, schema)
+    return await ctx.db
       .query("deadLetterOperations")
       .withIndex("by_commitTs")
       .order(order ?? "asc")
