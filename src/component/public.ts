@@ -20,16 +20,17 @@ export const init = mutation({
     maxNodeSize: v.optional(v.number()),
     rootLazy: v.optional(v.boolean()),
     namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { maxNodeSize, rootLazy, namespace }) => {
-    const existing = await getTree(ctx.db, namespace);
+  handler: async (ctx, { maxNodeSize, rootLazy, ...treeKey }) => {
+    const existing = await getTree(ctx.db, treeKey);
     if (existing) {
       throw new Error("tree already initialized");
     }
     await getOrCreateTree(
       ctx.db,
-      namespace,
+      treeKey,
       maxNodeSize ?? DEFAULT_MAX_NODE_SIZE,
       rootLazy ?? true,
     );
@@ -43,12 +44,15 @@ export const init = mutation({
  * Lazy roots are the default; use `clear` to revert to eager roots.
  */
 export const makeRootLazy = mutation({
-  args: { namespace: v.optional(v.any()) },
+  args: {
+    namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const tree = await getOrCreateTree(
       ctx.db,
-      args.namespace,
+      args,
       DEFAULT_MAX_NODE_SIZE,
       true,
     );
@@ -62,6 +66,7 @@ export const insert = mutation({
     value: v.any(),
     summand: v.optional(v.number()),
     namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -72,7 +77,11 @@ export const insert = mutation({
 
 // delete is a keyword, hence the underscore.
 export const delete_ = mutation({
-  args: { key: v.any(), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     await assertNoPendingOperations(ctx);
@@ -87,6 +96,7 @@ export const replace = mutation({
     value: v.any(),
     summand: v.optional(v.number()),
     namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
     newNamespace: v.optional(v.any()),
   },
   returns: v.null(),
@@ -97,7 +107,11 @@ export const replace = mutation({
 });
 
 export const deleteIfExists = mutation({
-  args: { key: v.any(), namespace: v.optional(v.any()) },
+  args: {
+    key: v.any(),
+    namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     await assertNoPendingOperations(ctx);
     await deleteIfExistsHandler(ctx, args);
@@ -111,6 +125,7 @@ export const replaceOrInsert = mutation({
     value: v.any(),
     summand: v.optional(v.number()),
     namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
     newNamespace: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
@@ -148,13 +163,14 @@ export const enqueueBatch = mutation({
 export const clear = mutation({
   args: {
     namespace: v.optional(v.any()),
+    aggregateName: v.optional(v.string()),
     maxNodeSize: v.optional(v.number()),
     rootLazy: v.optional(v.boolean()),
   },
   returns: v.null(),
-  handler: async (ctx, { maxNodeSize, rootLazy, namespace }) => {
+  handler: async (ctx, { maxNodeSize, rootLazy, ...treeKey }) => {
     await assertNoPendingOperations(ctx);
-    const tree = await getTree(ctx.db, namespace);
+    const tree = await getTree(ctx.db, treeKey);
     let existingRootLazy = true;
     let existingMaxNodeSize = DEFAULT_MAX_NODE_SIZE;
     if (tree) {
@@ -168,7 +184,7 @@ export const clear = mutation({
     }
     await getOrCreateTree(
       ctx.db,
-      namespace,
+      treeKey,
       maxNodeSize ?? existingMaxNodeSize,
       rootLazy ?? existingRootLazy,
     );

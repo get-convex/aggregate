@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { TableAggregate } from "./index.js";
+import { DirectAggregate, TableAggregate } from "./index.js";
 import {
   components,
   componentSchema,
@@ -1234,5 +1234,142 @@ describe("stale reads", () => {
       return await aggregate.count(ctx);
     });
     expect(count).toBe(1);
+  });
+});
+
+describe("named aggregates", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function createNamedAggregates() {
+    const byValue = new TableAggregate<{
+      Key: number;
+      DataModel: DataModel;
+      TableName: "testItems";
+    }>(components.aggregate, {
+      name: "byValue",
+      sortKey: (doc) => doc.value,
+      sumValue: (doc) => doc.value,
+    });
+    const byName = new TableAggregate<{
+      Key: string;
+      DataModel: DataModel;
+      TableName: "testItems";
+    }>(components.aggregate, {
+      name: "byName",
+      sortKey: (doc) => doc.name,
+    });
+    const byAlbum = new TableAggregate<{
+      Namespace: string;
+      Key: number;
+      DataModel: DataModel;
+      TableName: "photos";
+    }>(components.aggregate, {
+      name: "byAlbum",
+      namespace: (doc) => doc.album,
+      sortKey: (doc) => doc.score,
+    });
+    const unnamed = createAggregates().aggregate;
+    return { byValue, byName, byAlbum, unnamed };
+  }
+
+  test("aggregates with different names in one component are independent", async () => {
+    const t = setupTest();
+    const { byValue, byName, unnamed } = createNamedAggregates();
+    await t.run(async (ctx) => {
+      for (const [name, value] of [
+        ["c", 1],
+        ["a", 2],
+        ["b", 3],
+      ] as const) {
+        const doc = await testItem(ctx, { name, value });
+        await byValue.insert(ctx, doc);
+        await byName.insert(ctx, doc);
+      }
+      await unnamed.insert(ctx, await testItem(ctx, { name: "z", value: 50 }));
+
+      expect(await byValue.count(ctx)).toBe(3);
+      expect(await byValue.sum(ctx)).toBe(6);
+      expect(await byName.count(ctx)).toBe(3);
+      expect(await byName.sum(ctx)).toBe(0);
+      expect(await unnamed.count(ctx)).toBe(1);
+      expect(await unnamed.sum(ctx)).toBe(50);
+
+      expect((await byValue.at(ctx, 0)).key).toBe(1);
+      expect((await byName.at(ctx, 0)).key).toBe("a");
+      expect((await byName.max(ctx))!.key).toBe("c");
+      expect(await byName.indexOf(ctx, "b")).toBe(1);
+      expect(
+        await byValue.countBatch(ctx, [
+          { bounds: { lower: { key: 2, inclusive: true } } },
+          {},
+        ]),
+      ).toEqual([2, 3]);
+      expect(
+        (await byName.atBatch(ctx, [{ offset: 0 }, { offset: -1 }])).map(
+          (item) => item.key,
+        ),
+      ).toEqual(["a", "c"]);
+      expect(
+        (await byName.paginate(ctx, { pageSize: 10 })).page.map((i) => i.key),
+      ).toEqual(["a", "b", "c"]);
+    });
+  });
+
+  test("namespaces and clearAll are scoped to the aggregate's name", async () => {
+    const t = setupTest();
+    const { byValue, byAlbum, unnamed } = createNamedAggregates();
+    await t.run(async (ctx) => {
+      for (const album of ["x", "y"]) {
+        const id = await ctx.db.insert("photos", { album, url: "", score: 1 });
+        await byAlbum.insert(ctx, (await ctx.db.get("photos", id))!);
+      }
+      await byValue.insert(ctx, await testItem(ctx, { name: "a", value: 1 }));
+      await unnamed.insert(ctx, await testItem(ctx, { name: "b", value: 2 }));
+
+      const namespaces = [];
+      for await (const namespace of byAlbum.iterNamespaces(ctx)) {
+        namespaces.push(namespace);
+      }
+      expect(namespaces).toEqual(["x", "y"]);
+
+      await byAlbum.clearAll(ctx);
+      expect(await byAlbum.count(ctx, { namespace: "x" })).toBe(0);
+      expect(await byAlbum.count(ctx, { namespace: "y" })).toBe(0);
+      expect(await byValue.count(ctx)).toBe(1);
+      expect(await unnamed.count(ctx)).toBe(1);
+
+      await unnamed.clearAll(ctx);
+      expect(await unnamed.count(ctx)).toBe(0);
+      expect(await byValue.count(ctx)).toBe(1);
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+  });
+
+  test("DirectAggregate supports a name", async () => {
+    const t = setupTest();
+    const first = new DirectAggregate<{ Key: number; Id: string }>(
+      components.aggregate,
+      { name: "first" },
+    );
+    const second = new DirectAggregate<{ Key: number; Id: string }>(
+      components.aggregate,
+      { name: "second" },
+    );
+    await t.run(async (ctx) => {
+      await first.insert(ctx, { key: 1, id: "a", sumValue: 5 });
+      await second.insert(ctx, { key: 1, id: "a", sumValue: 7 });
+      await second.replace(ctx, { key: 1, id: "a" }, { key: 2, sumValue: 9 });
+      expect(await first.sum(ctx)).toBe(5);
+      expect(await second.sum(ctx)).toBe(9);
+      await first.delete(ctx, { key: 1, id: "a" });
+      expect(await first.count(ctx)).toBe(0);
+      expect(await second.count(ctx)).toBe(1);
+    });
   });
 });
