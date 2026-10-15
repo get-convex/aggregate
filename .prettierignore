@@ -3,3 +3,4 @@ node_modules
 **/_generated
 package-lock.json
 .claude
+.convex
