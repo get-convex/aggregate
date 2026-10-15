@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- Bump `convex-helpers` to 0.1.128, which isn’t affected by
+  [GHSA-g5c8-w9fp-h5vm](https://github.com/get-convex/convex-helpers/security/advisories/GHSA-g5c8-w9fp-h5vm).
+  This only keeps security scanners from flagging a vulnerable dependency;
+  `@convex-dev/aggregate` itself is _not_ affected.
+
 ## 0.3.2
 
 - Updates the /test entrypoint for compatibility with convex-test's new
