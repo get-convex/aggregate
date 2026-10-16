@@ -476,7 +476,7 @@ async function insertScore(ctx, gameId, username, score) {
 ```
 
 3. Register a
-   [`Trigger`](https://github.com/get-convex/convex-helpers/blob/main/packages/convex-helpers/README.md#triggers),
+   [`Trigger`](https://github.com/convex/convex-helpers/blob/main/packages/convex-helpers/README.md#triggers),
    which automatically runs code when a mutation changes the data in a table.
 
 ```ts
@@ -747,9 +747,9 @@ await tableAggregate.enqueueBatch(ctx, [
 ```
 
 In the queued mode, writes stop contending on shared B-tree nodes as a
-[Batch Worker](https://github.com/get-convex/batch-worker) serializes updates to
-the aggregate. This should significantly improve performance for workloads with
-many concurrent writers. The trade-off is that you will not be able to read your
+[Batch Worker](https://github.com/convex/batch-worker) serializes updates to the
+aggregate. This should significantly improve performance for workloads with many
+concurrent writers. The trade-off is that you will not be able to read your
 queued writes to the aggregate in the same transaction. Queries that use stale
 reads are still reactive to changes to the aggregate as the Batch Worker
 processes the queued writes.
@@ -784,6 +784,6 @@ You can also quickly view the dead letter queue by checking the
 dashboard.
 
 Found a bug? Feature request?
-[File it here](https://github.com/get-convex/aggregate/issues).
+[File it here](https://github.com/convex/aggregate/issues).
 
 <!-- END: Include on https://convex.dev/components -->

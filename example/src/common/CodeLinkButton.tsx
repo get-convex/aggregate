@@ -12,7 +12,7 @@ export function CodeLinkButton({
   filename,
   tooltip = "View source code",
 }: CodeLinkButtonProps) {
-  const href = `https://github.com/get-convex/aggregate/blob/main/example/convex/${filename}`;
+  const href = `https://github.com/convex/aggregate/blob/main/example/convex/${filename}`;
 
   return (
     <Tooltip label={tooltip} position="left">

@@ -9,9 +9,9 @@
     "count",
     "sum"
   ],
-  "homepage": "https://github.com/get-convex/aggregate",
-  "repository": "github:get-convex/aggregate",
-  "bugs": "https://github.com/get-convex/aggregate/issues",
+  "homepage": "https://github.com/convex/aggregate",
+  "repository": "github:convex/aggregate",
+  "bugs": "https://github.com/convex/aggregate/issues",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
