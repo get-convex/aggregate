@@ -3,22 +3,18 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import {
-  mutation,
-  query,
-  internalMutation,
-  type MutationCtx,
-} from "./_generated/server";
 import { components, internal } from "./_generated/api.js";
 import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus.js";
+import {
+  internalMutation,
+  mutationWithTriggers,
+  query,
+  type MutationCtx,
+} from "./utils/queued.js";
 import { Migrations } from "@convex-dev/migrations";
 import { Triggers } from "convex-helpers/server/triggers";
-import {
-  customCtx,
-  customMutation,
-} from "convex-helpers/server/customFunctions";
 
 const aggregateByScore = new TableAggregate<{
   Key: number;
@@ -42,18 +38,20 @@ const aggregateScoreByUser = new TableAggregate<{
   sumValue: (leaderboardTableDoc) => leaderboardTableDoc.score,
 });
 
-// Using triggers to keep the aggregates up to date automatically for us in our mutations
-const triggers = new Triggers<DataModel>();
-triggers.register("leaderboard", aggregateByScore.trigger());
-triggers.register("leaderboard", aggregateScoreByUser.trigger());
-
-// Custom function used instead of our regular mutation function, to wrap the db with our triggers
-const mutationWithTriggers = customMutation(
-  mutation,
-  customCtx(triggers.wrapDB),
+// Using triggers to keep the aggregates up to date automatically for us in our mutations.
+// `ctx.aggregateOpts` carries the app-wide queued-mode toggle; see utils/queued.ts.
+const triggers = new Triggers<DataModel, MutationCtx>();
+triggers.register("leaderboard", (ctx, change) =>
+  aggregateByScore.trigger({ async: ctx.aggregateOpts.async })(ctx, change),
+);
+triggers.register("leaderboard", (ctx, change) =>
+  aggregateScoreByUser.trigger({ async: ctx.aggregateOpts.async })(ctx, change),
 );
 
-export const addScore = mutationWithTriggers({
+// Custom function used instead of our regular mutation function, to wrap the db with our triggers
+const mutation = mutationWithTriggers(triggers);
+
+export const addScore = mutation({
   args: {
     name: v.string(),
     score: v.number(),
@@ -68,7 +66,7 @@ export const addScore = mutationWithTriggers({
   },
 });
 
-export const removeScore = mutationWithTriggers({
+export const removeScore = mutation({
   args: {
     id: v.id("leaderboard"),
   },
@@ -77,7 +75,7 @@ export const removeScore = mutationWithTriggers({
   },
 });
 
-export const updateScore = mutationWithTriggers({
+export const updateScore = mutation({
   args: {
     id: v.id("leaderboard"),
     name: v.string(),
@@ -94,7 +92,7 @@ export const updateScore = mutationWithTriggers({
 export const countScores = query({
   args: {},
   handler: async (ctx) => {
-    return await aggregateByScore.count(ctx);
+    return await aggregateByScore.count(ctx, { ...ctx.aggregateOpts });
   },
 });
 
@@ -103,7 +101,9 @@ export const scoreAtRank = query({
     rank: v.number(),
   },
   handler: async (ctx, { rank }) => {
-    const score = await aggregateByScore.at(ctx, rank);
+    const score = await aggregateByScore.at(ctx, rank, {
+      ...ctx.aggregateOpts,
+    });
     return await ctx.db.get("leaderboard", score.id);
   },
 });
@@ -114,7 +114,14 @@ export const pageOfScores = query({
     numItems: v.number(),
   },
   handler: async (ctx, { offset, numItems }) => {
-    const firstInPage = await aggregateByScore.at(ctx, offset);
+    // `at` throws if the aggregate is empty, which it is before the first score
+    // is added -- and, in queued mode, until the batch worker applies it.
+    const count = await aggregateByScore.count(ctx, { ...ctx.aggregateOpts });
+    if (offset >= count) return [];
+
+    const firstInPage = await aggregateByScore.at(ctx, offset, {
+      ...ctx.aggregateOpts,
+    });
 
     const page = await aggregateByScore.paginate(ctx, {
       bounds: {
@@ -125,6 +132,7 @@ export const pageOfScores = query({
         },
       },
       pageSize: numItems,
+      ...ctx.aggregateOpts,
     });
 
     const scores = await Promise.all(
@@ -143,7 +151,9 @@ export const rankOfScore = query({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    return await aggregateByScore.indexOf(ctx, -args.score);
+    return await aggregateByScore.indexOf(ctx, -args.score, {
+      ...ctx.aggregateOpts,
+    });
   },
 });
 
@@ -154,10 +164,12 @@ export const userAverageScore = query({
   handler: async (ctx, args) => {
     const count = await aggregateScoreByUser.count(ctx, {
       bounds: { prefix: [args.name] },
+      ...ctx.aggregateOpts,
     });
     if (!count) return null;
     const sum = await aggregateScoreByUser.sum(ctx, {
       bounds: { prefix: [args.name] },
+      ...ctx.aggregateOpts,
     });
     return sum / count;
   },
@@ -170,6 +182,7 @@ export const userHighScore = query({
   handler: async (ctx, args) => {
     const item = await aggregateScoreByUser.max(ctx, {
       bounds: { prefix: [args.name] },
+      ...ctx.aggregateOpts,
     });
     if (!item) return null;
     return item.sumValue;
@@ -179,11 +192,11 @@ export const userHighScore = query({
 export const sumNumbers = query({
   args: {},
   handler: async (ctx) => {
-    return await aggregateScoreByUser.sum(ctx);
+    return await aggregateScoreByUser.sum(ctx, { ...ctx.aggregateOpts });
   },
 });
 
-export const addMockScores = mutationWithTriggers({
+export const addMockScores = mutation({
   args: {
     count: v.number(),
   },
@@ -269,7 +282,10 @@ const _clearAggregates = async (ctx: MutationCtx) => {
   await aggregateScoreByUser.clear(ctx);
 };
 
-export const clearAggregates = internalMutation(_clearAggregates);
+export const clearAggregates = internalMutation({
+  args: {},
+  handler: _clearAggregates,
+});
 
 export const resetAll = internalMutation({
   args: {},

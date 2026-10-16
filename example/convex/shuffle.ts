@@ -4,16 +4,16 @@
  */
 
 import { TableAggregate } from "@convex-dev/aggregate";
-import {
-  mutation,
-  query,
-  internalMutation,
-  type MutationCtx,
-} from "./_generated/server.js";
 import { components } from "./_generated/api.js";
 import type { DataModel } from "./_generated/dataModel.js";
 import { v } from "convex/values";
 import { resetStatusValidator } from "./utils/resetStatus.js";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./utils/queued.js";
 import Rand from "rand-seed";
 
 const randomize = new TableAggregate<{
@@ -33,7 +33,7 @@ async function addMusicHandler(ctx: MutationCtx, { title }: { title: string }) {
   const id = await ctx.db.insert("music", { title });
   const doc = await ctx.db.get("music", id);
   if (!doc) throw new Error("Failed to insert music");
-  await randomize.insert(ctx, doc);
+  await randomize.insert(ctx, doc, ctx.aggregateOpts);
   return id;
 }
 
@@ -45,7 +45,7 @@ export const removeMusic = mutation({
     const doc = await ctx.db.get("music", id);
     if (!doc) return;
     await ctx.db.delete("music", id);
-    await randomize.delete(ctx, doc);
+    await randomize.delete(ctx, doc, ctx.aggregateOpts);
   },
 });
 
@@ -54,7 +54,7 @@ export const getRandomMusicTitle = query({
     cacheBuster: v.optional(v.number()),
   },
   handler: async (ctx) => {
-    const randomMusic = await randomize.random(ctx);
+    const randomMusic = await randomize.random(ctx, { ...ctx.aggregateOpts });
     if (!randomMusic) return null;
     const doc = await ctx.db.get("music", randomMusic.id);
     if (!doc) return null;
@@ -69,7 +69,7 @@ export const getTotalMusicCount = query({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
-    return await randomize.count(ctx);
+    return await randomize.count(ctx, { ...ctx.aggregateOpts });
   },
 });
 
@@ -100,7 +100,7 @@ export const shufflePaginated = query({
     hasPrevPage: v.boolean(),
   }),
   handler: async (ctx, { offset, numItems, seed }) => {
-    const count = await randomize.count(ctx);
+    const count = await randomize.count(ctx, { ...ctx.aggregateOpts });
     // `rand` is a seeded pseudo-random number generator.
     // Therefore it will return the same sequence of numbers for the same seed,
     // including if the seed is an empty string.
@@ -122,7 +122,7 @@ export const shufflePaginated = query({
     const indexes = allIndexes.slice(offset, offset + numItems);
 
     const atIndexes = await Promise.all(
-      indexes.map((i) => randomize.at(ctx, i)),
+      indexes.map((i) => randomize.at(ctx, i, { ...ctx.aggregateOpts })),
     );
 
     const items = await Promise.all(

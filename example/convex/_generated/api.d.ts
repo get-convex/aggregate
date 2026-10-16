@@ -12,8 +12,10 @@ import type * as btree from "../btree.js";
 import type * as crons from "../crons.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as photos from "../photos.js";
+import type * as settings from "../settings.js";
 import type * as shuffle from "../shuffle.js";
 import type * as stats from "../stats.js";
+import type * as utils_queued from "../utils/queued.js";
 import type * as utils_resetStatus from "../utils/resetStatus.js";
 
 import type {
@@ -27,8 +29,10 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   leaderboard: typeof leaderboard;
   photos: typeof photos;
+  settings: typeof settings;
   shuffle: typeof shuffle;
   stats: typeof stats;
+  "utils/queued": typeof utils_queued;
   "utils/resetStatus": typeof utils_resetStatus;
 }>;
 
