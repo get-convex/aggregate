@@ -12,7 +12,7 @@ export function AppShellHeader() {
       </Group>
       <Button
         component="a"
-        href="https://github.com/get-convex/aggregate"
+        href="https://github.com/convex/aggregate"
         target="_blank"
         color="cyan"
         leftSection={<IconBrandGithub size={18} />}
